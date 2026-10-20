@@ -3,6 +3,12 @@
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/exhaustive-deps": "warn",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "no-debugger": "error",
+    "no-unused-vars": "error",
+    "curly": ["error", "multi-line"],
+    "id-length": ["error", { "min": 2, "max": 30, "exceptions": ["_", "i", "j", "x", "y", "e"] }]
   }
 }
