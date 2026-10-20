@@ -10,9 +10,12 @@
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "format": "oxfmt",
-    "format:check": "oxfmt --check"
+    "format:check": "oxfmt --check",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "oxfmt": "^0.74.0"
   }
 }
