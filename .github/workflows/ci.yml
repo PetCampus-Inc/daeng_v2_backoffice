@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        command: ['build', 'lint', 'format:check']
+        command: ['build', 'lint', 'test', 'format:check']
 
     steps:
       - name: Checkout
