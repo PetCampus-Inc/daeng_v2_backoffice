@@ -33,7 +33,7 @@
         "paths": [
           {
             "name": "cn",
-            "message": "cn은 '@/lib/utils'에서 가져오세요. 프로젝트 토큰(text-kd-*)을 아는 설정된 cn입니다."
+            "message": "cn은 '@/util/cn'에서 가져오세요. 프로젝트 토큰(text-kd-*)을 아는 설정된 cn입니다."
           }
         ]
       }
@@ -41,13 +41,13 @@
   },
   "overrides": [
     {
-      "files": ["src/components/ui/**"],
+      "files": ["src/ui/atoms/**"],
       "rules": {
         "react/only-export-components": "off"
       }
     },
     {
-      "files": ["src/lib/utils.ts"],
+      "files": ["src/util/cn.ts"],
       "rules": {
         "no-restricted-imports": "off"
       }
