@@ -2,6 +2,7 @@ import { http, type AnyHandler } from 'msw';
 
 import type { MyAccount, UpdateMyAccountInput } from '@/type/account';
 import { errorResponse, mockUrl, okResponse } from '@/api/mocks/util/response';
+import { IDEA_HANDLERS } from './ideas';
 import { INQUIRY_HANDLERS } from './inquiries';
 import { TEAM_MEMBER_HANDLERS, getMockTeamMembers, syncMockMemberProfile } from './team-members';
 
@@ -114,4 +115,9 @@ const ACCOUNT_HANDLERS: AnyHandler[] = [
 ];
 
 /** 가짜 API 주소별 응답 모음. */
-export const handlers: AnyHandler[] = [...ACCOUNT_HANDLERS, ...TEAM_MEMBER_HANDLERS, ...INQUIRY_HANDLERS];
+export const handlers: AnyHandler[] = [
+  ...ACCOUNT_HANDLERS,
+  ...TEAM_MEMBER_HANDLERS,
+  ...INQUIRY_HANDLERS,
+  ...IDEA_HANDLERS,
+];
