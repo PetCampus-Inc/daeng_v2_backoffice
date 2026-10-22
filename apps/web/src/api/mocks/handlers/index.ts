@@ -3,6 +3,7 @@ import { http, type AnyHandler } from 'msw';
 import type { MyAccount, UpdateMyAccountInput } from '@/type/account';
 import { errorResponse, mockUrl, okResponse } from '@/api/mocks/util/response';
 import { IDEA_HANDLERS } from './ideas';
+import { KINDERGARTEN_HANDLERS } from './kindergartens';
 import { INQUIRY_HANDLERS } from './inquiries';
 import { NOTICE_HANDLERS } from './notices';
 import { TEAM_MEMBER_HANDLERS, getMockTeamMembers, syncMockMemberProfile } from './team-members';
@@ -122,4 +123,5 @@ export const handlers: AnyHandler[] = [
   ...INQUIRY_HANDLERS,
   ...IDEA_HANDLERS,
   ...NOTICE_HANDLERS,
+  ...KINDERGARTEN_HANDLERS,
 ];
