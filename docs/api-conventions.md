@@ -21,7 +21,6 @@ OpenAPI 명세를 쓰기 전에 프론트와 서버가 합의하는 공통 규�
 | 에러      | `{ status, code, message, errorMessage }`              | `{ code, message, details? }`              |
 | 페이지    | `page` 0부터, `totalElements`, `hasNext`               | `page` 1부터, `totalItems`, `hasNext` 없음 |
 | 시각      | 오프셋 미확정(가짜 API에 `Z`와 `+09:00`이 섞여 있음)   | ISO 8601 UTC                               |
-| ID        | 숫자                                                   | 미정                                       |
 
 영향받는 파일은 `src/type/api.ts`, `src/api/mocks/util/response.ts`, 가짜 API 핸들러, `.data.data`로 응답을 읽는 요청
 함수와 라우트 파일(약 16개)이다. 아직 구현되지 않은 화면에는 영향이 없다.
@@ -70,6 +69,9 @@ HTTP 상태 코드로 실패를 알리고, 본문은 아래 형식으로 통일�
 ```json
 { "items": [], "page": 2, "size": 20, "totalItems": 153, "totalPages": 8 }
 ```
+
+정렬과 검색 조건은 현재 웹이 쓰는 파라미터를 따른다(`keyword`, `status`, `userType`, `sort=latest|oldest` 등). 새 화면도
+같은 방식으로 맞춘다.
 
 근거: [ADR 0005](adr/0005-pagination.md)
 
@@ -125,6 +127,8 @@ PATCH /users/1
 - 프론트는 orval로 요청 함수, 타입, TanStack Query 훅, mock을 생성할 수 있다.
 - 명세 변경은 명세 PR을 먼저 머지한 뒤 각자 구현한다.
 - API 요청·응답 타입의 원천은 명세다. 같은 타입을 `packages/shared`에 따로 정의하지 않는다.
+- 상태를 바꾸는 동작은 현재 웹이 쓰는 방식을 따라 하위 리소스로 호출한다(예: 맡기 `POST /inquiries/:id/assignee`, 담당
+  해제 `DELETE /inquiries/:id/assignee`). 새 화면도 같은 방식으로 맞춘다.
 - 프론트는 BO 서버만 호출한다. 기존 Java 기능은 BO 서버가 호출해 이 규약의 형식으로 변환한다.
 
 근거: [ADR 0003](adr/0003-api-spec-first.md), [ADR 0009](adr/0009-bff-keep-java-features.md)
@@ -133,11 +137,6 @@ PATCH /users/1
 
 해당 시점에 정해서 이 문서에 반영한다.
 
-| 항목                                                 | 정할 시점              |
-| ---------------------------------------------------- | ---------------------- |
-| enum 값 표기(`ACTIVE` 또는 `active`)                 | 첫 명세 작성 전        |
-| 정렬·필터 쿼리 파라미터 규칙                         | 첫 목록 명세 작성 전   |
-| 상태 전환 API의 모양(맡기, 게시 등)                  | 해당 기능 명세 작성 전 |
-| ID 타입(숫자 또는 문자열)                            | 첫 명세 작성 전        |
-| 명세 파일의 위치와 분리 방식                         | 첫 명세 작성 전        |
-| 기존 Java 화면의 처리 방식과 신규 BO API의 주소 구분 | 5.10 화면 연동 전      |
+| 항목                                 | 정할 시점       |
+| ------------------------------------ | --------------- |
+| enum 값 표기(`ACTIVE` 또는 `active`) | 첫 명세 작성 전 |
