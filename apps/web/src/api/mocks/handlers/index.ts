@@ -6,6 +6,7 @@ import { IDEA_HANDLERS } from './ideas';
 import { KINDERGARTEN_HANDLERS } from './kindergartens';
 import { INQUIRY_HANDLERS } from './inquiries';
 import { NOTICE_HANDLERS } from './notices';
+import { OVERVIEW_HANDLERS } from './overview';
 import { TEAM_MEMBER_HANDLERS, getMockTeamMembers, syncMockMemberProfile } from './team-members';
 
 const DISPLAY_NAME_DUPLICATE_CODE = 'PROFILE_DISPLAY_NAME_DUPLICATE';
@@ -124,4 +125,5 @@ export const handlers: AnyHandler[] = [
   ...IDEA_HANDLERS,
   ...NOTICE_HANDLERS,
   ...KINDERGARTEN_HANDLERS,
+  ...OVERVIEW_HANDLERS,
 ];

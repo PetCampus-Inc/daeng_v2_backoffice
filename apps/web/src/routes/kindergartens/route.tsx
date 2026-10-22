@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
-import { Badge } from '@/ui/atoms/badge';
 import { Button } from '@/ui/atoms/button';
 import { Card } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
@@ -15,6 +14,7 @@ import {
 } from '@/ui/atoms/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/atoms/table';
 import { ListState } from '@/ui/molecules/list-state';
+import { ReadOnlyDbBadge } from '@/ui/molecules/read-only-db-badge';
 import { cn } from '@/util/cn';
 import { formatDocumentTitle } from '@/util/page-config';
 import { kindergartensQueryOptions } from './api/kindergartens/index';
@@ -74,7 +74,7 @@ export default function KindergartensRoute() {
           <h1 className='text-kd-title-1'>유치원 관리</h1>
           <p className='mt-1 text-kd-sub text-kd-foreground-muted'>등록된 유치원과 운영 상태를 관리합니다.</p>
         </div>
-        <Badge variant='success'>운영 DB · 읽기 전용</Badge>
+        <ReadOnlyDbBadge />
       </div>
       <Card className='mt-6 gap-0 overflow-hidden' aria-busy={kindergartensQuery.isFetching}>
         <div role='group' aria-label='운영 상태 필터' className='flex border-b border-kd-border px-4'>
