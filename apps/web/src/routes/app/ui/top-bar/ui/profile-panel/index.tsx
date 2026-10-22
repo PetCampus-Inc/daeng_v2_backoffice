@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { myAccountQueryOptions, useUpdateMyAccount } from '@/api/account';
+import { useLogout } from '@/api/auth';
 import { useAuthStore, type CompletedSessionUser } from '@/store/auth';
 import { useLeaveGuard, useLeaveGuardStore } from '@/store/leave-guard';
 import type { ApiError } from '@/type/api';
@@ -27,7 +28,7 @@ import { DISPLAY_NAME_ERROR, profileFormSchema, type ProfileFormInput, type Prof
 
 /** 상단바의 프로필 버튼과 내 계정 패널. 저장하지 않은 변경은 닫기·이동 전에 확인한다. */
 export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
-  const logout = useAuthStore((state) => state.logout);
+  const logoutMutation = useLogout();
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const accountQuery = useQuery(myAccountQueryOptions(user.email));
   const updateAccountMutation = useUpdateMyAccount(user.email);
@@ -88,6 +89,17 @@ export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
     }
   });
 
+  /**
+   * 서버 세션을 지우고 로그인 화면으로 간다. 세션이 이미 끝났으면(401) 인터셉터가 로그인 화면으로 보내므로 따로 알리지 않는다.
+   */
+  const logout = () =>
+    logoutMutation.mutate(undefined, {
+      onError: (error) => {
+        if (axios.isAxiosError(error) && error.response?.status === 401) return;
+        showErrorToast('일시적 오류로 요청을 완료하지 못했습니다.');
+      },
+    });
+
   /** 로그아웃도 작성 중인 입력(이 패널·열려 있는 화면)을 버릴지 앱 이탈 확인창에서 확인한 뒤 실행한다. */
   const handleClickLogout = () => requestLeave(logout);
 
@@ -122,7 +134,13 @@ export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
               </p>
             </div>
             <div className='flex items-center justify-between border-t border-kd-border px-6 py-4'>
-              <Button type='button' variant='destructive-ghost' size='sm' onClick={handleClickLogout}>
+              <Button
+                type='button'
+                variant='destructive-ghost'
+                size='sm'
+                disabled={logoutMutation.isPending}
+                onClick={handleClickLogout}
+              >
                 로그아웃
               </Button>
               <Button type='submit' size='sm' disabled={updateAccountMutation.isPending}>

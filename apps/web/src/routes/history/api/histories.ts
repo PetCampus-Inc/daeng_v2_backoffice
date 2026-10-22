@@ -1,6 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
 import axios from 'axios';
-import { getDevAccountHeaders } from '@/api/account';
 import { apiClient } from '@/api/client';
 import type { ApiResponse, PageResponse } from '@/type/api';
 import type { HistoryActor, HistoryListParams, HistoryRecord } from '../type/history';
@@ -17,9 +16,8 @@ const toListQuery = (params: HistoryListParams) => ({
 });
 
 /** 변경 이력 한 페이지를 최신순으로 조회한다. page는 0부터. */
-const getHistories = async (email: string, params: HistoryListParams, page: number) => {
+const getHistories = async (params: HistoryListParams, page: number) => {
   const response = await apiClient.get<ApiResponse<PageResponse<HistoryRecord>>>('/change-histories', {
-    headers: getDevAccountHeaders(email),
     params: { ...toListQuery(params), page, size: HISTORY_PAGE_SIZE },
   });
   return response.data.data;
@@ -35,16 +33,14 @@ const retryUnlessForbidden = (failureCount: number, error: unknown) => !isForbid
 export const historiesQueryOptions = (email: string, params: HistoryListParams, page: number) =>
   queryOptions({
     queryKey: ['change-histories', email, 'list', params, page],
-    queryFn: () => getHistories(email, params, page),
+    queryFn: () => getHistories(params, page),
     retry: retryUnlessForbidden,
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[1] === email ? previousData : undefined),
   });
 
 /** 행위자 필터 선택지를 조회한다. */
-const getHistoryActors = async (email: string) => {
-  const response = await apiClient.get<ApiResponse<HistoryActor[]>>('/change-histories/actors', {
-    headers: getDevAccountHeaders(email),
-  });
+const getHistoryActors = async () => {
+  const response = await apiClient.get<ApiResponse<HistoryActor[]>>('/change-histories/actors', {});
   return response.data.data;
 };
 
@@ -52,6 +48,6 @@ const getHistoryActors = async (email: string) => {
 export const historyActorsQueryOptions = (email: string) =>
   queryOptions({
     queryKey: ['change-histories', email, 'actors'],
-    queryFn: () => getHistoryActors(email),
+    queryFn: () => getHistoryActors(),
     retry: retryUnlessForbidden,
   });

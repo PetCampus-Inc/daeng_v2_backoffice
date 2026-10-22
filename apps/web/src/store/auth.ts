@@ -1,6 +1,5 @@
 import type { JobRole } from '@daeng/shared';
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { MyAccount } from '@/type/account';
 import type { Role } from '@/type/role';
@@ -26,85 +25,55 @@ export type CompletedSessionUser = SessionUserBase & {
 };
 
 export type SessionUser = PendingSessionUser | CompletedSessionUser;
-type DevProfile = Omit<PendingSessionUser, 'role'> | Omit<CompletedSessionUser, 'role'>;
 
 /**
- * 개발용 가짜 팀원. TC fixtures.md의 `최고관리자`·`운영자`·`조회자` 계정과 같다.
- * 실제 로그인·세션 API를 붙이면 이 목록은 없앤다.
+ * 세션 상태.
+ * - unknown: 아직 서버에 묻지 않음(앱을 막 열었을 때)
+ * - guest: 앱을 열 때부터 세션이 없음. 로그인하면 원래 가려던 주소로 돌아간다
+ * - signedIn: 로그인함
+ * - signedOut: 이 탭에서 로그아웃·세션 만료·계정 비활성으로 세션이 끝남. 다시 로그인하면 홈으로 간다
  */
-const DEFAULT_DEV_PROFILES: Record<Role, DevProfile> = {
-  superAdmin: {
-    email: 'admin@knockdog.test',
-    googleName: '김관리',
-    displayName: '김관리',
-    jobRole: 'PM',
-    profileCompleted: true,
-  },
-  operator: {
-    email: 'ops@knockdog.test',
-    googleName: '김운영',
-    displayName: '김운영',
-    jobRole: 'PM',
-    profileCompleted: true,
-  },
-  viewer: {
-    email: 'viewer@knockdog.test',
-    googleName: '박조회',
-    displayName: '박조회',
-    jobRole: 'UX/UI',
-    profileCompleted: true,
-  },
-};
+export type SessionStatus = 'unknown' | 'guest' | 'signedIn' | 'signedOut';
+
+/** 로그인 화면 안내 박스. expired는 파란 박스(만료), denied는 빨간 박스(접근 권한 없음)다(PRD 7.1). */
+export type LoginNotice = 'expired' | 'denied';
 
 type AuthState = {
+  status: SessionStatus;
   user: SessionUser | null;
-  devProfiles: typeof DEFAULT_DEV_PROFILES;
-  /** 개발용 로그인. 고른 역할의 가짜 팀원으로 들어가며, 로그인한 채로 부르면 역할만 바뀐다. */
-  devLogin: (role: Role) => void;
-  /** 내 계정 저장 성공 뒤 세션 표시와 다음 개발 로그인을 함께 갱신한다. */
+  loginNotice: LoginNotice | null;
+  /** 로그인 성공·세션 확인 결과로 로그인 상태를 채운다. 로그인 화면 안내는 지운다. */
+  signIn: (account: MyAccount) => void;
+  /** 내 계정 저장 성공 뒤 세션 표시를 갱신한다. */
   updateProfile: (account: MyAccount) => void;
-  logout: () => void;
+  /** 앱을 열 때 세션이 없었음을 기록한다. */
+  markGuest: () => void;
+  /** 로그아웃·세션 만료·계정 비활성으로 세션을 끝낸다. notice가 있으면 로그인 화면에 안내 박스를 띄운다. */
+  endSession: (notice: LoginNotice | null) => void;
+  /** 로그인 실패 등으로 로그인 화면에 안내 박스를 띄운다. */
+  showLoginNotice: (notice: LoginNotice) => void;
 };
 
+/** 서버의 내 계정 정보를 화면이 쓰는 세션 팀원 모양으로 바꾼다. */
+function toSessionUser(account: MyAccount): SessionUser {
+  const base = { role: account.role, email: account.email, googleName: account.googleName };
+  if (account.profileCompleted && account.displayName && account.jobRole) {
+    return { ...base, profileCompleted: true, displayName: account.displayName, jobRole: account.jobRole };
+  }
+  return { ...base, profileCompleted: false, displayName: null, jobRole: null };
+}
+
 /**
- * 로그인 상태. 지금은 구글 로그인 대신 쓰는 개발용 가짜 로그인이다.
- * 새로고침해도 유지되도록 localStorage에 둔다. 서버 세션을 붙이면 이 store를 바꾼다.
+ * 로그인 상태. 로그인 유지는 서버 세션 쿠키가 맡고(OQ-D4), 이 store는 이번 탭에서 확인한 결과만 둔다.
+ * 새로고침하면 `unknown`으로 돌아가 서버(`GET /me`)에 다시 묻는다.
  */
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      devProfiles: DEFAULT_DEV_PROFILES,
-      devLogin: (role) => set((state) => ({ user: { role, ...state.devProfiles[role] } as SessionUser })),
-      updateProfile: (account) =>
-        set((state) => {
-          const profile = {
-            email: account.email,
-            googleName: account.googleName,
-            displayName: account.displayName,
-            jobRole: account.jobRole,
-            profileCompleted: account.profileCompleted,
-          } as DevProfile;
-          return {
-            user: { role: account.role, ...profile } as SessionUser,
-            devProfiles: { ...state.devProfiles, [account.role]: profile },
-          };
-        }),
-      logout: () => set({ user: null }),
-    }),
-    {
-      name: 'daeng-bo-dev-auth',
-      storage: createJSONStorage(() => localStorage),
-      version: 3,
-      // 이전 버전은 개발 계정(이메일·표시명)이 fixtures와 달라 개발용 기본 계정으로 한 번 옮긴다.
-      migrate: (persistedState) => {
-        const previous = persistedState as Partial<AuthState>;
-        const role = previous.user?.role;
-        return {
-          user: role ? ({ role, ...DEFAULT_DEV_PROFILES[role] } as SessionUser) : null,
-          devProfiles: DEFAULT_DEV_PROFILES,
-        };
-      },
-    }
-  )
-);
+export const useAuthStore = create<AuthState>()((set) => ({
+  status: 'unknown',
+  user: null,
+  loginNotice: null,
+  signIn: (account) => set({ status: 'signedIn', user: toSessionUser(account), loginNotice: null }),
+  updateProfile: (account) => set({ user: toSessionUser(account) }),
+  markGuest: () => set({ status: 'guest', user: null }),
+  endSession: (notice) => set({ status: 'signedOut', user: null, loginNotice: notice }),
+  showLoginNotice: (notice) => set({ loginNotice: notice }),
+}));

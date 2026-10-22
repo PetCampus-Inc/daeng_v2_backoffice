@@ -16,7 +16,7 @@ before(async () => {
   });
 });
 after(async () => browser?.close());
-async function scenario(id, run, { role = '최고 관리자', width = 1440, initialDelay = 0 } = {}) {
+async function scenario(id, run, { role = '최고관리자', width = 1440, initialDelay = 0 } = {}) {
   const context = await browser.newContext({ viewport: { width, height: 1000 } });
   await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
@@ -26,7 +26,7 @@ async function scenario(id, run, { role = '최고 관리자', width = 1440, init
   try {
     await page.clock.setFixedTime(new Date('2026-10-07T10:00:00+09:00'));
     await page.goto(`${BASE}/terms`);
-    await page.getByRole('button', { name: '로그인', exact: true }).waitFor();
+    await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).waitFor();
     await page.evaluate(async (delay) => {
       const { network } = await import('/@id/__x00__virtual:msw');
       const { http } = await import('/node_modules/.vite/deps/msw.js');
@@ -56,7 +56,7 @@ async function scenario(id, run, { role = '최고 관리자', width = 1440, init
       );
     }, initialDelay);
     await page.getByRole('radio', { name: role, exact: true }).click();
-    await page.getByRole('button', { name: '로그인', exact: true }).click();
+    await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
     if (!initialDelay) await page.getByRole('button', { name: '#4', exact: true }).waitFor();
     await run(page);
@@ -87,17 +87,17 @@ async function confirm(page, label) {
 async function text(page, value) {
   await page.getByText(value, { exact: true }).first().waitFor();
 }
-async function api(page, method, url, body, email = 'admin@knockdog.test') {
+async function api(page, method, url, body) {
   return page.evaluate(
-    async ({ method, url, body, email }) => {
+    async ({ method, url, body }) => {
       const response = await fetch(`/api/v0/platform-admin${url}`, {
         method,
-        headers: { 'Content-Type': 'application/json', 'X-Dev-Email': email },
+        headers: { 'Content-Type': 'application/json' },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
       return { status: response.status, body: await response.json() };
     },
-    { method, url, body, email }
+    { method, url, body }
   );
 }
 
@@ -342,13 +342,12 @@ for (const role of ['운영자', '조회자']) {
         await page.getByRole('button', { name: '#4', exact: true }).click();
         await page.getByRole('heading', { name: '서비스 이용약관 버전 #4', exact: true }).waitFor();
         assert.equal(await page.getByRole('button', { name: '초안 삭제', exact: true }).count(), 0);
-        const email = role === '운영자' ? 'ops@knockdog.test' : 'viewer@knockdog.test';
         for (const [method, url, body] of [
           ['POST', '/terms/service', { action: 'save', body: 'a', effectiveDate: '' }],
           ['PATCH', '/terms/service/4', { action: 'publish', revision: 1, body: 'a', effectiveDate: '2026-11-10' }],
           ['DELETE', '/terms/service/4', { revision: 1 }],
         ]) {
-          assert.equal((await api(page, method, url, body, email)).status, 403);
+          assert.equal((await api(page, method, url, body)).status, 403);
         }
         for (const url of ['/terms/service/new', '/terms/service/4/edit']) {
           await page.goto(BASE + url);
@@ -397,6 +396,13 @@ test('KST 경계 현행 판정·철회 경합·404', async () =>
     await page.getByRole('button', { name: '#3', exact: true }).click();
     await page.getByRole('button', { name: '공개 철회', exact: true }).click();
     await page.clock.setFixedTime(new Date('2026-10-20T00:00:00+09:00'));
+    // 날짜 경합만 검사한다. 장기 무활동 만료는 session-integration.mjs에서 별도로 검증한다.
+    await page.evaluate(() => {
+      const key = 'daeng-bo-mock-session';
+      const session = JSON.parse(localStorage.getItem(key));
+      session.lastRequestAt = Date.now();
+      localStorage.setItem(key, JSON.stringify(session));
+    });
     await confirm(page, '공개 철회');
     await text(page, '약관 상태가 변경되어 요청을 완료하지 못했습니다. 최신 상태를 확인해 주세요.');
     await text(page, '현행');
@@ -533,5 +539,5 @@ test('화면 밖 이동·알림·메뉴·프로필·로그아웃 이탈 확인',
     }
     await page.getByRole('button', { name: '로그아웃', exact: true }).click();
     await confirm(page, '나가기');
-    await page.getByRole('button', { name: '로그인', exact: true }).waitFor();
+    await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).waitFor();
   }));

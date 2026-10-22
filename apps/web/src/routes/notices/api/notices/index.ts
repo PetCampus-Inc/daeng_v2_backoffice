@@ -1,5 +1,4 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDevAccountHeaders } from '@/api/account';
 import { apiClient } from '@/api/client';
 import type { ApiResponse, PageResponse } from '@/type/api';
 import type { Notice, NoticeAction, NoticeInput, NoticeListParams } from '../../type/notice';
@@ -11,7 +10,6 @@ export const noticesQueryOptions = (email: string, params: NoticeListParams, pag
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[1] === email ? previousData : undefined),
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<PageResponse<Notice>>>('/notices', {
-        headers: getDevAccountHeaders(email),
         params: {
           keyword: params.keyword || undefined,
           status: params.status === 'all' ? undefined : params.status,
@@ -27,9 +25,7 @@ export const noticeQueryOptions = (email: string, id: number) =>
   queryOptions({
     queryKey: ['notices', email, 'detail', id],
     queryFn: async () => {
-      const response = await apiClient.get<ApiResponse<Notice>>(`/notices/${id}`, {
-        headers: getDevAccountHeaders(email),
-      });
+      const response = await apiClient.get<ApiResponse<Notice>>(`/notices/${id}`);
       return response.data.data;
     },
     retry: false,
@@ -42,43 +38,31 @@ type NoticeMutationInput = {
   input?: NoticeInput;
 };
 
-async function postNotice(email: string, { action, input }: NoticeMutationInput) {
-  const response = await apiClient.post<ApiResponse<Notice>>(
-    '/notices',
-    { ...input, action },
-    {
-      headers: getDevAccountHeaders(email),
-    }
-  );
+async function postNotice({ action, input }: NoticeMutationInput) {
+  const response = await apiClient.post<ApiResponse<Notice>>('/notices', { ...input, action });
   return response.data.data;
 }
 
-async function patchNotice(email: string, { id, revision, action, input }: NoticeMutationInput) {
-  const response = await apiClient.patch<ApiResponse<Notice>>(
-    `/notices/${id}`,
-    { ...input, revision, action },
-    {
-      headers: getDevAccountHeaders(email),
-    }
-  );
+async function patchNotice({ id, revision, action, input }: NoticeMutationInput) {
+  const response = await apiClient.patch<ApiResponse<Notice>>(`/notices/${id}`, { ...input, revision, action });
   return response.data.data;
 }
 
-async function deleteNotice(email: string, { id, revision }: NoticeMutationInput) {
-  await apiClient.delete(`/notices/${id}`, { headers: getDevAccountHeaders(email), data: { revision } });
+async function deleteNotice({ id, revision }: NoticeMutationInput) {
+  await apiClient.delete(`/notices/${id}`, { data: { revision } });
   return null;
 }
 
-function changeNotice(email: string, input: NoticeMutationInput) {
-  if (input.action === 'delete') return deleteNotice(email, input);
-  return input.id === undefined ? postNotice(email, input) : patchNotice(email, input);
+function changeNotice(input: NoticeMutationInput) {
+  if (input.action === 'delete') return deleteNotice(input);
+  return input.id === undefined ? postNotice(input) : patchNotice(input);
 }
 
 export function useChangeNotice(email: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationKey: ['notices', email, 'change'],
-    mutationFn: (input: NoticeMutationInput) => changeNotice(email, input),
+    mutationFn: (input: NoticeMutationInput) => changeNotice(input),
     onSuccess: (notice, variables) => {
       if (notice) queryClient.setQueryData(noticeQueryOptions(email, notice.id).queryKey, notice);
       else queryClient.removeQueries({ queryKey: noticeQueryOptions(email, variables.id!).queryKey });

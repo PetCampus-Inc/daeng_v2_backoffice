@@ -1,5 +1,4 @@
 import { queryOptions } from '@tanstack/react-query';
-import { getDevAccountHeaders } from '@/api/account';
 import { apiClient } from '@/api/client';
 import type { ApiResponse, PageResponse } from '@/type/api';
 import type { Idea, IdeaListParams } from '../../type/idea';
@@ -11,7 +10,6 @@ export const ideasQueryOptions = (email: string, params: IdeaListParams, page: n
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[1] === email ? previousData : undefined),
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<PageResponse<Idea>>>('/ideas', {
-        headers: getDevAccountHeaders(email),
         params: {
           keyword: params.keyword || undefined,
           userType: params.userType === 'all' ? undefined : params.userType,
@@ -28,9 +26,7 @@ export const ideaQueryOptions = (email: string, id: number) =>
   queryOptions({
     queryKey: ['ideas', email, 'detail', id],
     queryFn: async () => {
-      const response = await apiClient.get<ApiResponse<Idea>>(`/ideas/${id}`, {
-        headers: getDevAccountHeaders(email),
-      });
+      const response = await apiClient.get<ApiResponse<Idea>>(`/ideas/${id}`);
       return response.data.data;
     },
     retry: false,

@@ -45,7 +45,7 @@ async function scenario(id, run, { fixtures, width = 1440, initialDelay = 0, rol
   try {
     await page.clock.setFixedTime(new Date('2026-10-07T10:00:00+09:00'));
     await page.goto(`${BASE_URL}/members`);
-    await page.getByRole('button', { name: '로그인', exact: true }).waitFor();
+    await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).waitFor();
     if (fixtures) {
       await page.evaluate((items) => localStorage.setItem('daeng-bo-mock-members', JSON.stringify(items)), fixtures);
     }
@@ -75,8 +75,8 @@ async function scenario(id, run, { fixtures, width = 1440, initialDelay = 0, rol
         })
       );
     }, initialDelay);
-    await page.getByRole('radio', { name: role === '최고관리자' ? '최고 관리자' : role, exact: true }).click();
-    await page.getByRole('button', { name: '로그인', exact: true }).click();
+    await page.getByRole('radio', { name: role, exact: true }).click();
+    await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
     await page.getByRole('heading', { name: '회원 관리', exact: true }).waitFor();
     if (!initialDelay) await total(page, fixtures?.length ?? 6);
     await run(page);
@@ -180,8 +180,7 @@ test('S001/002/009/010 회원 칸·개인정보 가림·조회 전용', async ()
     assert.equal(await page.title(), '회원 관리 · 똑독 BO');
     // 가림은 DOM 치환이 아니라 응답 계약에서 수행되어야 한다.
     const payload = await page.evaluate(async () => {
-      const state = JSON.parse(localStorage.getItem('daeng-bo-dev-auth')).state;
-      const response = await fetch('/api/v0/platform-admin/members', { headers: { 'X-Dev-Email': state.user.email } });
+      const response = await fetch('/api/v0/platform-admin/members');
       if (!response.ok) throw new Error(`회원 조회 ${response.status}`);
       return response.json();
     });

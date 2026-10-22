@@ -5,7 +5,6 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 
 import './index.css';
-import { router } from './router.tsx';
 
 const queryClient = new QueryClient();
 
@@ -25,6 +24,8 @@ async function enableMocking() {
 
 // 가짜 API가 준비된 뒤에 그려야 첫 요청부터 가짜 응답을 받는다.
 await enableMocking();
+// 라우터는 만들자마자 첫 loader(세션 확인 `GET /me`)를 부르므로 가짜 API를 켠 뒤에 불러온다.
+const { router } = await import('./router.tsx');
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

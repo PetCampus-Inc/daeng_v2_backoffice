@@ -2,7 +2,7 @@ import { http } from 'msw';
 import type { Notice, NoticeAction, NoticeInput } from '@/routes/notices/type/notice';
 import { compareNotices, createNoticeBody, validateNotice } from '@/routes/notices/util/notice-policy';
 import { errorResponse, mockUrl, okResponse, pageResponse } from '../util/response';
-import { getMockTeamMembers } from './team-members';
+import { authenticateMockRequest } from '../util/session';
 
 const STORAGE_KEY = 'daeng-bo-mock-notices';
 const DEFAULT_NOTICES: Notice[] = [
@@ -76,10 +76,11 @@ function deny(status: number, code: string, message: string) {
   return errorResponse(status, { code, message, errorMessage: message });
 }
 
-function authorize(request: Request, write = false) {
-  const member = getMockTeamMembers().find((item) => item.email === request.headers.get('X-Dev-Email'));
-  if (!member || member.status !== 'active') return deny(401, 'UNAUTHORIZED', '로그인이 필요합니다.');
-  if (write && member.role === 'viewer') return deny(403, 'FORBIDDEN', '접근 권한이 없습니다.');
+/** 세션(만료·비활성 포함)을 검사하고, 쓰기 요청이면 조회자를 거부한다. */
+function authorize(write = false) {
+  const auth = authenticateMockRequest();
+  if (auth.denied) return auth.denied;
+  if (write && auth.member.role === 'viewer') return deny(403, 'FORBIDDEN', '접근 권한이 없습니다.');
   return null;
 }
 
@@ -102,7 +103,7 @@ function isNoticeInput(value: unknown): value is NoticeInput {
 /** 화면 검증용 API. 실제 관리자 공지 API·서식 블록 계약은 서버 확정 후 교체한다. */
 export const NOTICE_HANDLERS = [
   http.get(mockUrl('/notices'), ({ request }) => {
-    const denied = authorize(request);
+    const denied = authorize();
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
     const keyword = (params.get('keyword') ?? '').toLowerCase();
@@ -114,14 +115,14 @@ export const NOTICE_HANDLERS = [
     const page = Number.isSafeInteger(rawPage) && rawPage >= 0 ? rawPage : 0;
     return pageResponse(items, page, 20);
   }),
-  http.get(mockUrl('/notices/:id'), ({ request, params }) => {
-    const denied = authorize(request);
+  http.get(mockUrl('/notices/:id'), ({ params }) => {
+    const denied = authorize();
     if (denied) return denied;
     const item = getMockNotices().find((notice) => notice.id === Number(params.id));
     return item ? okResponse(item) : deny(404, 'NOTICE_NOT_FOUND', '페이지를 찾을 수 없습니다.');
   }),
   http.post(mockUrl('/notices'), async ({ request }) => {
-    const denied = authorize(request, true);
+    const denied = authorize(true);
     if (denied) return denied;
     const input = (await request.json()) as NoticeInput & { action: NoticeAction };
     if (
@@ -151,7 +152,7 @@ export const NOTICE_HANDLERS = [
     return okResponse(item, 201);
   }),
   http.patch(mockUrl('/notices/:id'), async ({ request, params }) => {
-    const denied = authorize(request, true);
+    const denied = authorize(true);
     if (denied) return denied;
     const input = (await request.json()) as Partial<NoticeInput> & { action: NoticeAction; revision: number };
     const items = getMockNotices();
@@ -197,7 +198,7 @@ export const NOTICE_HANDLERS = [
     return okResponse(updated);
   }),
   http.delete(mockUrl('/notices/:id'), async ({ request, params }) => {
-    const denied = authorize(request, true);
+    const denied = authorize(true);
     if (denied) return denied;
     const input = (await request.json()) as { revision: number };
     const items = getMockNotices();

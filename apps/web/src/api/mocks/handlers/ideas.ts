@@ -1,7 +1,7 @@
 import { http } from 'msw';
 import type { Idea } from '@/routes/ideas/type/idea';
 import { errorResponse, mockUrl, okResponse, pageResponse } from '../util/response';
-import { getMockTeamMembers } from './team-members';
+import { authenticateMockRequest } from '../util/session';
 
 const HONG: Idea['user'] = { type: 'guardian', name: '홍길동', email: 'hong@example.com' };
 const LEE: Idea['user'] = { type: 'director', name: '이원장', email: 'Director.Lee@example.com' };
@@ -34,21 +34,12 @@ const getMockIdeas = (): Idea[] => {
   return DEFAULT_IDEAS;
 };
 
-/** 조회자는 제안을 읽을 수 있다. 비활성 계정은 요청을 거부한다. */
-const authorize = (request: Request) => {
-  const member = getMockTeamMembers().find((item) => item.email === request.headers.get('X-Dev-Email'));
-  return !member || member.status !== 'active'
-    ? errorResponse(401, {
-        code: 'UNAUTHORIZED',
-        message: '로그인이 필요합니다.',
-        errorMessage: '로그인이 필요합니다.',
-      })
-    : null;
-};
+/** 조회자는 제안을 읽을 수 있다. 세션이 없거나 만료·비활성이면 요청을 거부한다. */
+const authorize = () => authenticateMockRequest().denied ?? null;
 
 export const IDEA_HANDLERS = [
   http.get(mockUrl('/ideas'), ({ request }) => {
-    const denied = authorize(request);
+    const denied = authorize();
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
     const keyword = (params.get('keyword') ?? '').toLowerCase();
@@ -69,8 +60,8 @@ export const IDEA_HANDLERS = [
     const size = Number.isSafeInteger(rawSize) && rawSize > 0 && rawSize <= 100 ? rawSize : 20;
     return pageResponse(items, page, size);
   }),
-  http.get(mockUrl('/ideas/:id'), ({ request, params }) => {
-    const denied = authorize(request);
+  http.get(mockUrl('/ideas/:id'), ({ params }) => {
+    const denied = authorize();
     if (denied) return denied;
     const idea =
       typeof params.id === 'string' && /^\d+$/.test(params.id)

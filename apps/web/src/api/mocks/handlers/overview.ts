@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { mockUrl, okResponse } from '../util/response';
+import { authenticateMockRequest } from '../util/session';
 import type { Overview, SignupTrendItem } from '@/type/overview';
 import { fillSignupTrend } from '@/util/signup-trend';
 
@@ -77,4 +78,7 @@ const createDefaultOverview = (): Overview => ({
   ],
 });
 
-export const OVERVIEW_HANDLERS = [http.get(mockUrl('/overview'), () => okResponse(createDefaultOverview()))];
+/** 홈 데이터 가짜 API. 모든 역할이 볼 수 있고, 세션이 없거나 만료·비활성이면 요청을 거부한다. */
+export const OVERVIEW_HANDLERS = [
+  http.get(mockUrl('/overview'), () => authenticateMockRequest().denied ?? okResponse(createDefaultOverview())),
+];

@@ -3,6 +3,7 @@ import type { HistoryActor, HistoryPerson, HistoryRecord, HistoryTargetType } fr
 import { HISTORY_TARGET_TYPES } from '@/routes/history/type/history';
 import { errorResponse, mockUrl, okResponse, pageResponse } from '../util/response';
 import { getMockTeamMembers } from './team-members';
+import { authenticateMockRequest } from '../util/session';
 
 const ADMIN: HistoryPerson = { displayName: '김관리', jobRole: 'PM', email: 'admin@knockdog.test' };
 const OPS: HistoryPerson = { displayName: '김운영', jobRole: 'PM', email: 'ops@knockdog.test' };
@@ -120,15 +121,10 @@ const KST_DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
 });
 
 /** 변경 이력은 최고 관리자만 조회한다(PRD 4.1). 비활성 계정은 거부한다. */
-const authorize = (request: Request) => {
-  const member = getMockTeamMembers().find((item) => item.email === request.headers.get('X-Dev-Email'));
-  if (!member || member.status !== 'active') {
-    return errorResponse(401, {
-      code: 'UNAUTHORIZED',
-      message: '로그인이 필요합니다.',
-      errorMessage: '로그인이 필요합니다.',
-    });
-  }
+const authorize = () => {
+  const auth = authenticateMockRequest();
+  if (auth.denied) return auth.denied;
+  const { member } = auth;
   if (member.role !== 'superAdmin') {
     return errorResponse(403, {
       code: 'FORBIDDEN',
@@ -141,7 +137,7 @@ const authorize = (request: Request) => {
 
 export const CHANGE_HISTORY_HANDLERS = [
   http.get(mockUrl('/change-histories'), ({ request }) => {
-    const denied = authorize(request);
+    const denied = authorize();
     if (denied) return denied;
     const params = new URL(request.url).searchParams;
     const from = params.get('from');
@@ -172,8 +168,8 @@ export const CHANGE_HISTORY_HANDLERS = [
     const size = Number.isSafeInteger(rawSize) && rawSize > 0 && rawSize <= 100 ? rawSize : 20;
     return pageResponse(items, page, size);
   }),
-  http.get(mockUrl('/change-histories/actors'), ({ request }) => {
-    const denied = authorize(request);
+  http.get(mockUrl('/change-histories/actors'), () => {
+    const denied = authorize();
     if (denied) return denied;
     // 기록에 있는 계정만 고른다. 이름은 지금 프로필 값을 쓰고, 프로필이 없으면 마지막 기록 당시 값을 쓴다.
     const members = getMockTeamMembers();

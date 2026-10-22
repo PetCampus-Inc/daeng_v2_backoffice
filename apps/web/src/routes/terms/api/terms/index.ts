@@ -1,5 +1,4 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDevAccountHeaders } from '@/api/account';
 import { apiClient } from '@/api/client';
 import type { ApiResponse } from '@/type/api';
 import type { Term, TermKind, TermInput, TermAction } from '../../type/term';
@@ -8,9 +7,7 @@ export const termsQueryOptions = (email: string, kind: TermKind) =>
   queryOptions({
     queryKey: ['terms', email, 'list', kind],
     retry: false,
-    queryFn: async ({ signal }) =>
-      (await apiClient.get<ApiResponse<Term[]>>(`/terms/${kind}`, { signal, headers: getDevAccountHeaders(email) }))
-        .data.data,
+    queryFn: async ({ signal }) => (await apiClient.get<ApiResponse<Term[]>>(`/terms/${kind}`, { signal })).data.data,
   });
 export const termQueryOptions = (email: string, kind: TermKind, version: number) =>
   queryOptions({
@@ -20,7 +17,6 @@ export const termQueryOptions = (email: string, kind: TermKind, version: number)
       (
         await apiClient.get<ApiResponse<Term>>(`/terms/${kind}/${version}`, {
           signal,
-          headers: getDevAccountHeaders(email),
         })
       ).data.data,
   });
@@ -31,37 +27,26 @@ export type TermMutationInput = {
   action: TermAction;
   input?: TermInput;
 };
-async function postTerm(email: string, { kind, action, input }: TermMutationInput) {
-  return (
-    await apiClient.post<ApiResponse<Term>>(
-      `/terms/${kind}`,
-      { ...input, action },
-      { headers: getDevAccountHeaders(email) }
-    )
-  ).data.data;
+async function postTerm({ kind, action, input }: TermMutationInput) {
+  return (await apiClient.post<ApiResponse<Term>>(`/terms/${kind}`, { ...input, action })).data.data;
 }
-async function patchTerm(email: string, { kind, version, revision, action, input }: TermMutationInput) {
-  return (
-    await apiClient.patch<ApiResponse<Term>>(
-      `/terms/${kind}/${version}`,
-      { ...input, action, revision },
-      { headers: getDevAccountHeaders(email) }
-    )
-  ).data.data;
+async function patchTerm({ kind, version, revision, action, input }: TermMutationInput) {
+  return (await apiClient.patch<ApiResponse<Term>>(`/terms/${kind}/${version}`, { ...input, action, revision })).data
+    .data;
 }
-async function deleteTerm(email: string, { kind, version, revision }: TermMutationInput) {
-  await apiClient.delete(`/terms/${kind}/${version}`, { headers: getDevAccountHeaders(email), data: { revision } });
+async function deleteTerm({ kind, version, revision }: TermMutationInput) {
+  await apiClient.delete(`/terms/${kind}/${version}`, { data: { revision } });
   return null;
 }
-function changeTerm(email: string, input: TermMutationInput) {
-  if (input.action === 'delete') return deleteTerm(email, input);
-  return input.version === undefined ? postTerm(email, input) : patchTerm(email, input);
+function changeTerm(input: TermMutationInput) {
+  if (input.action === 'delete') return deleteTerm(input);
+  return input.version === undefined ? postTerm(input) : patchTerm(input);
 }
 export function useChangeTerm(email: string) {
   const client = useQueryClient();
   return useMutation({
     mutationKey: ['terms', email, 'change'],
-    mutationFn: (input: TermMutationInput) => changeTerm(email, input),
+    mutationFn: (input: TermMutationInput) => changeTerm(input),
     onSuccess: (term, variables) => {
       if (term) client.setQueryData(termQueryOptions(email, term.kind, term.version).queryKey, term);
       else client.removeQueries({ queryKey: termQueryOptions(email, variables.kind, variables.version!).queryKey });

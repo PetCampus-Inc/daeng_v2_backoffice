@@ -35,3 +35,16 @@ CDP IME 이벤트는 조합 상태의 회귀를 검사한다. 실제 OS 입력�
 ```sh
 rtk proxy pnpm --filter @daeng/web test
 ```
+
+## 로그인·세션 통합 회귀
+
+`session-integration.mjs`는 `feat/login`·`feat/history`·`feat/terms` 통합으로 연결된 인증을 검사한다. 위와 같은
+Playwright 경로 변수를 사용하고 `BO_QA_BASE_URL`에 개발 서버 주소를 지정한다(기본 127.0.0.1:5190).
+
+```sh
+rtk proxy node --test apps/web/e2e/session-integration.mjs
+```
+
+세션 없는 요청·다른 역할의 관리자 헤더 우회 거부, 세션 복구, 변경 이력 필터·지연·실패 복구, 약관 작성 중 세션 만료,
+로그인 실패 후 키보드 재로그인(1440/390px)을 검사한다. PNG·trace는 `.local/test-results/session-integration/`에 둔다.
+구글 토큰은 개발용 인증으로 대체하므로 실제 구글·쿠키·서버 연동이나 화면별 전체 TC 완료를 뜻하지 않는다.

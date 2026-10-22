@@ -1,5 +1,6 @@
 import { createBrowserRouter, redirect } from 'react-router';
 
+import { loadSession } from './api/auth.ts';
 import RootLayout from './root-layout.tsx';
 import AppLayout, { type AppRouteHandle } from './routes/app/route.tsx';
 import HistoryRoute from './routes/history/route.tsx';
@@ -30,7 +31,11 @@ function createPageHandle(page: PageInfo): AppRouteHandle {
 
 export const router = createBrowserRouter([
   {
+    // 앱을 처음 열 때 한 번 서버에 세션을 묻고, 결과에 따라 로그인 화면·BO 화면으로 나뉜다.
+    // 묻는 동안은 짧게 지나가므로 아무것도 그리지 않는다.
     Component: RootLayout,
+    loader: loadSession,
+    HydrateFallback: () => null,
     children: [
       { path: '/login', Component: LoginRoute },
       {

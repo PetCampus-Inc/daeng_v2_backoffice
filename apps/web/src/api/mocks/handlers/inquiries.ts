@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { errorResponse, mockUrl, okResponse, pageResponse } from '../util/response';
+import { authenticateMockRequest } from '../util/session';
 import { getMockTeamMembers } from './team-members';
 import {
   INQUIRY_ERROR_CODES,
@@ -242,12 +243,11 @@ const toInquiryDetail = (inquiry: MockInquiry, members: TeamMember[]): InquiryDe
 const rejectInquiryRequest = (status: number, code: string, message: string) =>
   errorResponse(status, { code, message, errorMessage: message });
 
-/** 모든 문의 API에서 현재 계정이 활성이고 최고 관리자·운영자인지 검사한다(PRD 4.1). */
-const authorizeInquiryRequest = (request: Request) => {
-  const member = getMockTeamMembers().find((item) => item.email === request.headers.get('X-Dev-Email'));
-  if (!member || member.status !== 'active') {
-    return { denied: rejectInquiryRequest(401, 'UNAUTHORIZED', '로그인이 필요합니다.') };
-  }
+/** 모든 문의 API에서 세션(만료·비활성 포함)과 최고 관리자·운영자 역할을 검사한다(PRD 4.1, 4.5). */
+const authorizeInquiryRequest = () => {
+  const auth = authenticateMockRequest();
+  if (auth.denied) return { denied: auth.denied };
+  const { member } = auth;
   if (member.role === 'viewer') return { denied: rejectInquiryRequest(403, 'FORBIDDEN', '접근 권한이 없습니다.') };
   return { member };
 };
@@ -295,8 +295,8 @@ const filterInquiries = (inquiries: MockInquiry[], searchParams: URLSearchParams
 };
 
 /** 상태 전환을 적용해 저장하고 응답한다. 거부되면 최신 상태를 다시 읽도록 거부 사유를 준다. */
-const applyInquiryEvent = (request: Request, rawId: unknown, event: InquiryEvent) => {
-  const { denied, member } = authorizeInquiryRequest(request);
+const applyInquiryEvent = (rawId: unknown, event: InquiryEvent) => {
+  const { denied, member } = authorizeInquiryRequest();
   if (denied) return denied;
   const inquiries = getMockInquiries();
   const index = findInquiryIndex(inquiries, rawId);
@@ -311,7 +311,7 @@ const applyInquiryEvent = (request: Request, rawId: unknown, event: InquiryEvent
 
 export const INQUIRY_HANDLERS = [
   http.get(mockUrl('/inquiries'), ({ request }) => {
-    const { denied, member } = authorizeInquiryRequest(request);
+    const { denied, member } = authorizeInquiryRequest();
     if (denied) return denied;
     const searchParams = new URL(request.url).searchParams;
     const members = getMockTeamMembers();
@@ -321,8 +321,8 @@ export const INQUIRY_HANDLERS = [
     });
     return pageResponse(items, Number(searchParams.get('page') ?? 0), Number(searchParams.get('size') ?? 20));
   }),
-  http.get(mockUrl('/inquiries/assignees'), ({ request }) => {
-    const { denied } = authorizeInquiryRequest(request);
+  http.get(mockUrl('/inquiries/assignees'), () => {
+    const { denied } = authorizeInquiryRequest();
     if (denied) return denied;
     // 표시명이 없는 등록됨·등록 취소 팀원은 빠진다(R-담당자필터목록)
     const assignees = getMockTeamMembers()
@@ -331,15 +331,15 @@ export const INQUIRY_HANDLERS = [
       .filter((assignee) => assignee !== null);
     return okResponse(assignees);
   }),
-  http.get(mockUrl('/inquiries/:id'), ({ request, params }) => {
-    const { denied } = authorizeInquiryRequest(request);
+  http.get(mockUrl('/inquiries/:id'), ({ params }) => {
+    const { denied } = authorizeInquiryRequest();
     if (denied) return denied;
     const inquiries = getMockInquiries();
     const index = findInquiryIndex(inquiries, params.id);
     return index < 0 ? notFoundResponse() : okResponse(toInquiryDetail(inquiries[index], getMockTeamMembers()));
   }),
   http.get(mockUrl('/inquiries/:id/adjacent'), ({ request, params }) => {
-    const { denied, member } = authorizeInquiryRequest(request);
+    const { denied, member } = authorizeInquiryRequest();
     if (denied) return denied;
     const list = filterInquiries(getMockInquiries(), new URL(request.url).searchParams, member.email);
     const index = list.findIndex((inquiry) => String(inquiry.id) === params.id);
@@ -350,7 +350,7 @@ export const INQUIRY_HANDLERS = [
     });
   }),
   http.post(mockUrl('/inquiries/:id/assignee'), async ({ request, params }) => {
-    const { denied, member } = authorizeInquiryRequest(request);
+    const { denied, member } = authorizeInquiryRequest();
     if (denied) return denied;
     const { expectedAssigneeEmail } = (await request.json()) as { expectedAssigneeEmail: string | null };
     const inquiries = getMockInquiries();
@@ -377,14 +377,10 @@ export const INQUIRY_HANDLERS = [
     }
     return okResponse(toInquiryDetail(inquiries[index], members));
   }),
-  http.delete(mockUrl('/inquiries/:id/assignee'), ({ request, params }) =>
-    applyInquiryEvent(request, params.id, 'release')
-  ),
-  http.post(mockUrl('/inquiries/:id/assignee/restore'), ({ request, params }) =>
-    applyInquiryEvent(request, params.id, 'restore')
-  ),
+  http.delete(mockUrl('/inquiries/:id/assignee'), ({ params }) => applyInquiryEvent(params.id, 'release')),
+  http.post(mockUrl('/inquiries/:id/assignee/restore'), ({ params }) => applyInquiryEvent(params.id, 'restore')),
   http.post(mockUrl('/inquiries/:id/replies'), async ({ request, params }) => {
-    const { denied, member } = authorizeInquiryRequest(request);
+    const { denied, member } = authorizeInquiryRequest();
     if (denied) return denied;
     const { body } = (await request.json()) as { body: string };
     if (!canSubmitReply(body, false)) {

@@ -19,7 +19,7 @@ export type AppRouteHandle = { page?: PageInfo };
 
 /**
  * 로그인한 뒤의 화면 틀(PRD 4.2, design.md 1.6·2장): 상단바 + 사이드바 + 본문.
- * - 로그인하지 않았으면 로그인 화면으로 보낸다.
+ * - 로그인하지 않았거나 세션이 끝났으면 로그인 화면으로 보낸다(세션 확인은 router의 loadSession).
  * - 역할에 허용되지 않은 화면을 주소로 열면 권한 없음 화면을 보여 준다(PRD 4.1).
  * - 작성 중 이탈 확인창은 여기 한 곳에 둔다(PRD 4.6). 각 화면은 useLeaveGuard로 '작성 중'만 알린다.
  * - 1200px 이상은 사이드바를 펼친 채 시작하고 본문 옆에 붙인다. 미만은 접힌 채 시작하고 펼치면 본문 위에 겹쳐 연다.
@@ -27,6 +27,7 @@ export type AppRouteHandle = { page?: PageInfo };
  */
 export default function AppLayout() {
   const user = useAuthStore((state) => state.user);
+  const sessionStatus = useAuthStore((state) => state.status);
   const location = useLocation();
   const matches = useMatches();
   const isWide = useMediaQuery(WIDE_QUERY);
@@ -40,7 +41,9 @@ export default function AppLayout() {
   }
 
   if (!user) {
-    return <Navigate to='/login' replace state={{ from: `${location.pathname}${location.search}` }} />;
+    // 처음부터 로그인하지 않았으면 로그인 뒤 원래 주소로 돌아간다. 로그아웃·만료·비활성 뒤에는 홈으로 간다(S-로그인-006).
+    const state = sessionStatus === 'guest' ? { from: `${location.pathname}${location.search}` } : undefined;
+    return <Navigate to='/login' replace state={state} />;
   }
 
   if (!user.profileCompleted && location.pathname !== PROFILE_SETUP_PATH) {

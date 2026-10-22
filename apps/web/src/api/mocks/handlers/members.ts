@@ -1,8 +1,8 @@
 import { http } from 'msw';
 import { MEMBER_FILTERS, MEMBER_JOINED_PERIODS } from '@/routes/members/type/member';
 import { getMemberList, type MockMember } from '../util/member-list/index';
-import { errorResponse, mockUrl, pageResponse } from '../util/response';
-import { getMockTeamMembers } from './team-members';
+import { mockUrl, pageResponse } from '../util/response';
+import { authenticateMockRequest } from '../util/session';
 
 export const DEFAULT_MEMBERS: MockMember[] = [
   {
@@ -85,14 +85,8 @@ function getMockMembers(): MockMember[] {
 
 export const MEMBER_HANDLERS = [
   http.get(mockUrl('/members'), ({ request }) => {
-    const account = getMockTeamMembers().find((item) => item.email === request.headers.get('X-Dev-Email'));
-    if (!account || account.status !== 'active') {
-      return errorResponse(401, {
-        code: 'UNAUTHORIZED',
-        message: '로그인이 필요합니다.',
-        errorMessage: '로그인이 필요합니다.',
-      });
-    }
+    const auth = authenticateMockRequest();
+    if (auth.denied) return auth.denied;
     const params = new URL(request.url).searchParams;
     const type = MEMBER_FILTERS.find((value) => value === params.get('type')) ?? 'all';
     const joinedWithin = MEMBER_JOINED_PERIODS.find((value) => value === params.get('joinedWithin')) ?? 'all';

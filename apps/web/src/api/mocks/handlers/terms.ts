@@ -9,7 +9,7 @@ import {
   validateEffectiveDate,
 } from '@/routes/terms/util/term-policy';
 import { errorResponse, mockUrl, okResponse } from '../util/response';
-import { getMockTeamMembers } from './team-members';
+import { authenticateMockRequest } from '../util/session';
 
 const STORAGE_KEY = 'daeng-bo-mock-terms';
 function fixture(
@@ -63,18 +63,18 @@ export function getMockTerms(): Term[] {
 function deny(status: number, code: string, message: string) {
   return errorResponse(status, { code, message, errorMessage: message });
 }
-function authorize(request: Request, write = false) {
-  const member = getMockTeamMembers().find((item) => item.email === request.headers.get('X-Dev-Email'));
-  if (!member || member.status !== 'active') return deny(401, 'UNAUTHORIZED', '로그인이 필요합니다.');
-  return write && member.role !== 'superAdmin' ? deny(403, 'FORBIDDEN', '접근 권한이 없습니다.') : null;
+function authorize(write = false) {
+  const auth = authenticateMockRequest();
+  if (auth.denied) return auth.denied;
+  return write && auth.member.role !== 'superAdmin' ? deny(403, 'FORBIDDEN', '접근 권한이 없습니다.') : null;
 }
 function validInput(input: Partial<TermInput>): input is TermInput {
   return typeof input.body === 'string' && typeof input.effectiveDate === 'string';
 }
 /** 개발용 계약. 버전 번호 체계와 본문 블록은 서버 계약 확정 시 교체한다. */
 export const TERM_HANDLERS = [
-  http.get(mockUrl('/terms/:kind'), ({ request, params }) => {
-    const denied = authorize(request);
+  http.get(mockUrl('/terms/:kind'), ({ params }) => {
+    const denied = authorize();
     if (denied) return denied;
     if (!TERM_KINDS.includes(params.kind as TermKind)) return deny(404, 'NOT_FOUND', '페이지를 찾을 수 없습니다.');
     return okResponse(
@@ -83,14 +83,14 @@ export const TERM_HANDLERS = [
         .sort(compareTerms)
     );
   }),
-  http.get(mockUrl('/terms/:kind/:version'), ({ request, params }) => {
-    const denied = authorize(request);
+  http.get(mockUrl('/terms/:kind/:version'), ({ params }) => {
+    const denied = authorize();
     if (denied) return denied;
     const item = getMockTerms().find((item) => item.kind === params.kind && item.version === Number(params.version));
     return item ? okResponse(item) : deny(404, 'NOT_FOUND', '페이지를 찾을 수 없습니다.');
   }),
   http.post(mockUrl('/terms/:kind'), async ({ request, params }) => {
-    const denied = authorize(request, true);
+    const denied = authorize(true);
     if (denied) return denied;
     if (!TERM_KINDS.includes(params.kind as TermKind)) return deny(404, 'NOT_FOUND', '페이지를 찾을 수 없습니다.');
     const input = (await request.json()) as TermInput & { action: TermAction };
@@ -124,7 +124,7 @@ export const TERM_HANDLERS = [
     return okResponse(item, 201);
   }),
   http.patch(mockUrl('/terms/:kind/:version'), async ({ request, params }) => {
-    const denied = authorize(request, true);
+    const denied = authorize(true);
     if (denied) return denied;
     const input = (await request.json()) as TermInput & { revision: number; action: TermAction };
     const all = getMockTerms();
@@ -160,7 +160,7 @@ export const TERM_HANDLERS = [
     return okResponse(item);
   }),
   http.delete(mockUrl('/terms/:kind/:version'), async ({ request, params }) => {
-    const denied = authorize(request, true);
+    const denied = authorize(true);
     if (denied) return denied;
     const input = (await request.json()) as { revision: number };
     const all = getMockTerms();

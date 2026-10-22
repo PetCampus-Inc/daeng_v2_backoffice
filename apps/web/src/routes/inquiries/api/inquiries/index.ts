@@ -1,5 +1,4 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDevAccountHeaders } from '@/api/account';
 import { apiClient } from '@/api/client';
 import type { ApiResponse, PageResponse } from '@/type/api';
 import type {
@@ -24,9 +23,8 @@ const toListQuery = (params: InquiryListParams) => ({
 });
 
 /** 문의 목록 한 페이지를 조회한다. page는 0부터. */
-const getInquiries = async (email: string, params: InquiryListParams, page: number) => {
+const getInquiries = async (params: InquiryListParams, page: number) => {
   const response = await apiClient.get<ApiResponse<PageResponse<InquirySummary>>>('/inquiries', {
-    headers: getDevAccountHeaders(email),
     params: { ...toListQuery(params), page, size: INQUIRY_PAGE_SIZE },
   });
   return response.data.data;
@@ -36,38 +34,33 @@ const getInquiries = async (email: string, params: InquiryListParams, page: numb
 export const inquiriesQueryOptions = (email: string, params: InquiryListParams, page: number) =>
   queryOptions({
     queryKey: ['inquiries', email, 'list', params, page],
-    queryFn: () => getInquiries(email, params, page),
+    queryFn: () => getInquiries(params, page),
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[1] === email ? previousData : undefined),
   });
 
 /** 담당자 필터에 쓰는 팀원 목록(표시명이 있는 활성·비활성 팀원)을 조회한다. */
-const getInquiryAssignees = async (email: string) => {
-  const response = await apiClient.get<ApiResponse<InquiryAssignee[]>>('/inquiries/assignees', {
-    headers: getDevAccountHeaders(email),
-  });
+const getInquiryAssignees = async () => {
+  const response = await apiClient.get<ApiResponse<InquiryAssignee[]>>('/inquiries/assignees');
   return response.data.data;
 };
 
 /** 담당자 필터 선택지 조회 옵션. */
 export const inquiryAssigneesQueryOptions = (email: string) =>
-  queryOptions({ queryKey: ['inquiries', email, 'assignees'], queryFn: () => getInquiryAssignees(email) });
+  queryOptions({ queryKey: ['inquiries', email, 'assignees'], queryFn: () => getInquiryAssignees() });
 
 /** 문의 상세를 조회한다. */
-const getInquiry = async (email: string, id: number) => {
-  const response = await apiClient.get<ApiResponse<InquiryDetail>>(`/inquiries/${id}`, {
-    headers: getDevAccountHeaders(email),
-  });
+const getInquiry = async (id: number) => {
+  const response = await apiClient.get<ApiResponse<InquiryDetail>>(`/inquiries/${id}`);
   return response.data.data;
 };
 
 /** 문의 상세 조회 옵션. */
 export const inquiryQueryOptions = (email: string, id: number) =>
-  queryOptions({ queryKey: ['inquiries', email, 'detail', id], queryFn: () => getInquiry(email, id), retry: false });
+  queryOptions({ queryKey: ['inquiries', email, 'detail', id], queryFn: () => getInquiry(id), retry: false });
 
 /** 목록 조건 기준 앞뒤 문의 번호를 조회한다. */
-const getInquiryAdjacent = async (email: string, id: number, params: InquiryListParams) => {
+const getInquiryAdjacent = async (id: number, params: InquiryListParams) => {
   const response = await apiClient.get<ApiResponse<InquiryAdjacent>>(`/inquiries/${id}/adjacent`, {
-    headers: getDevAccountHeaders(email),
     params: toListQuery(params),
   });
   return response.data.data;
@@ -77,42 +70,32 @@ const getInquiryAdjacent = async (email: string, id: number, params: InquiryList
 export const inquiryAdjacentQueryOptions = (email: string, id: number, params: InquiryListParams) =>
   queryOptions({
     queryKey: ['inquiries', email, 'adjacent', id, params],
-    queryFn: () => getInquiryAdjacent(email, id, params),
+    queryFn: () => getInquiryAdjacent(id, params),
   });
 
 /** 화면에서 본 담당자를 함께 보내 문의를 맡는다. */
-const postInquiryAssignee = async (email: string, input: AssignInquiryInput) => {
-  const response = await apiClient.post<ApiResponse<InquiryDetail>>(
-    `/inquiries/${input.id}/assignee`,
-    { expectedAssigneeEmail: input.expectedAssigneeEmail },
-    { headers: getDevAccountHeaders(email) }
-  );
+const postInquiryAssignee = async (input: AssignInquiryInput) => {
+  const response = await apiClient.post<ApiResponse<InquiryDetail>>(`/inquiries/${input.id}/assignee`, {
+    expectedAssigneeEmail: input.expectedAssigneeEmail,
+  });
   return response.data.data;
 };
 
 /** 내 담당을 해제한다. */
-const deleteInquiryAssignee = async (email: string, id: number) => {
-  const response = await apiClient.delete<ApiResponse<InquiryDetail>>(`/inquiries/${id}/assignee`, {
-    headers: getDevAccountHeaders(email),
-  });
+const deleteInquiryAssignee = async (id: number) => {
+  const response = await apiClient.delete<ApiResponse<InquiryDetail>>(`/inquiries/${id}/assignee`);
   return response.data.data;
 };
 
 /** 담당 해제를 실행 취소한다. 그 사이 다른 사람이 맡았으면 서버가 거부한다. */
-const postInquiryAssigneeRestore = async (email: string, id: number) => {
-  const response = await apiClient.post<ApiResponse<InquiryDetail>>(`/inquiries/${id}/assignee/restore`, null, {
-    headers: getDevAccountHeaders(email),
-  });
+const postInquiryAssigneeRestore = async (id: number) => {
+  const response = await apiClient.post<ApiResponse<InquiryDetail>>(`/inquiries/${id}/assignee/restore`, null);
   return response.data.data;
 };
 
 /** 답변을 저장한다. */
-const postInquiryReply = async (email: string, id: number, body: string) => {
-  const response = await apiClient.post<ApiResponse<InquiryDetail>>(
-    `/inquiries/${id}/replies`,
-    { body },
-    { headers: getDevAccountHeaders(email) }
-  );
+const postInquiryReply = async (id: number, body: string) => {
+  const response = await apiClient.post<ApiResponse<InquiryDetail>>(`/inquiries/${id}/replies`, { body });
   return response.data.data;
 };
 
@@ -130,7 +113,7 @@ const useApplyInquiryChange = (email: string) => {
 export const useAssignInquiry = (email: string) => {
   const applyInquiryChange = useApplyInquiryChange(email);
   return useMutation({
-    mutationFn: (input: AssignInquiryInput) => postInquiryAssignee(email, input),
+    mutationFn: (input: AssignInquiryInput) => postInquiryAssignee(input),
     onSuccess: applyInquiryChange,
   });
 };
@@ -139,7 +122,7 @@ export const useAssignInquiry = (email: string) => {
 export const useReleaseInquiry = (email: string) => {
   const applyInquiryChange = useApplyInquiryChange(email);
   return useMutation({
-    mutationFn: (id: number) => deleteInquiryAssignee(email, id),
+    mutationFn: (id: number) => deleteInquiryAssignee(id),
     onSuccess: applyInquiryChange,
   });
 };
@@ -148,7 +131,7 @@ export const useReleaseInquiry = (email: string) => {
 export const useRestoreInquiryAssignee = (email: string) => {
   const applyInquiryChange = useApplyInquiryChange(email);
   return useMutation({
-    mutationFn: (id: number) => postInquiryAssigneeRestore(email, id),
+    mutationFn: (id: number) => postInquiryAssigneeRestore(id),
     onSuccess: applyInquiryChange,
   });
 };
@@ -157,7 +140,7 @@ export const useRestoreInquiryAssignee = (email: string) => {
 export const useReplyInquiry = (email: string) => {
   const applyInquiryChange = useApplyInquiryChange(email);
   return useMutation({
-    mutationFn: ({ id, body }: { id: number; body: string }) => postInquiryReply(email, id, body),
+    mutationFn: ({ id, body }: { id: number; body: string }) => postInquiryReply(id, body),
     onSuccess: applyInquiryChange,
   });
 };

@@ -1,5 +1,4 @@
 import { queryOptions } from '@tanstack/react-query';
-import { getDevAccountHeaders } from '@/api/account';
 import { apiClient } from '@/api/client';
 import type { ApiResponse, PageResponse } from '@/type/api';
 import type { Kindergarten, KindergartenListParams } from '../../type/kindergarten';
@@ -12,7 +11,6 @@ export const kindergartensQueryOptions = (email: string, params: KindergartenLis
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[1] === email ? previousData : undefined),
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<PageResponse<Kindergarten>>>('/kindergartens', {
-        headers: getDevAccountHeaders(email),
         params: {
           keyword: params.keyword.trim() || undefined,
           status: params.status === 'all' ? undefined : params.status,

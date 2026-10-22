@@ -1,8 +1,8 @@
 import { http } from 'msw';
 import type { OwnerVerification } from '@/routes/owner-verifications/type/owner-verification';
 import { getOwnerVerificationList } from '../util/owner-verification-list';
-import { errorResponse, mockUrl, pageResponse } from '../util/response';
-import { getMockTeamMembers } from './team-members';
+import { mockUrl, pageResponse } from '../util/response';
+import { authenticateMockRequest } from '../util/session';
 
 /**
  * TC fixtures.md `인증-기본`. 연락처·사업자번호는 서버가 R-가림(11-회원.md)대로 가린 응답 값으로 둔다.
@@ -89,14 +89,8 @@ function getMockOwnerVerifications(): OwnerVerification[] {
 
 export const OWNER_VERIFICATION_HANDLERS = [
   http.get(mockUrl('/owner-verifications'), ({ request }) => {
-    const member = getMockTeamMembers().find((item) => item.email === request.headers.get('X-Dev-Email'));
-    if (!member || member.status !== 'active') {
-      return errorResponse(401, {
-        code: 'UNAUTHORIZED',
-        message: '로그인이 필요합니다.',
-        errorMessage: '로그인이 필요합니다.',
-      });
-    }
+    const denied = authenticateMockRequest().denied;
+    if (denied) return denied;
     const params = new URL(request.url).searchParams;
     const items = getOwnerVerificationList(getMockOwnerVerifications(), {
       keyword: params.get('keyword'),

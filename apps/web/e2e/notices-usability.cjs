@@ -67,7 +67,7 @@ async function waitIds(page, ids) {
 async function login(page, role = '운영자', pathname = '/notices') {
   await page.goto(`${BASE_URL}${pathname}`);
   await page.getByRole('radio', { name: role, exact: true }).click();
-  await page.getByRole('button', { name: '로그인', exact: true }).click();
+  await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
 }
 
 async function selectStatus(page, name) {
@@ -92,7 +92,7 @@ async function main() {
       await page.getByRole('radio', { name: '운영자', exact: true }).waitFor();
       await installListDelay(page);
       await page.getByRole('radio', { name: '운영자', exact: true }).click();
-      await page.getByRole('button', { name: '로그인', exact: true }).click();
+      await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
       await page.locator('[data-slot=list-state][role=status]').waitFor();
       assert.equal(await page.getByText(/^총 \d+건$/).count(), 0);
       assert.equal(await page.locator('[data-slot=pagination]').count(), 0);
@@ -419,7 +419,7 @@ async function main() {
             (
               await fetch('/api/v0/platform-admin/notices/14', {
                 method: 'DELETE',
-                headers: { 'X-Dev-Email': 'viewer@knockdog.test', 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ revision: 1 }),
               })
             ).status

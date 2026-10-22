@@ -1,7 +1,7 @@
 import { http } from 'msw';
 import type { Kindergarten } from '@/routes/kindergartens/type/kindergarten';
-import { errorResponse, mockUrl, pageResponse } from '../util/response';
-import { getMockTeamMembers } from './team-members';
+import { mockUrl, pageResponse } from '../util/response';
+import { authenticateMockRequest } from '../util/session';
 
 /** TC fixtures.md 유치원-기본. localStorage로 빈 목록·25건 시나리오도 확인한다. */
 const DEFAULT_KINDERGARTENS: Kindergarten[] = [
@@ -63,14 +63,8 @@ function getMockKindergartens(): Kindergarten[] {
 
 export const KINDERGARTEN_HANDLERS = [
   http.get(mockUrl('/kindergartens'), ({ request }) => {
-    const member = getMockTeamMembers().find((item) => item.email === request.headers.get('X-Dev-Email'));
-    if (!member || member.status !== 'active') {
-      return errorResponse(401, {
-        code: 'UNAUTHORIZED',
-        message: '로그인이 필요합니다.',
-        errorMessage: '로그인이 필요합니다.',
-      });
-    }
+    const denied = authenticateMockRequest().denied;
+    if (denied) return denied;
     const params = new URL(request.url).searchParams;
     const keyword = (params.get('keyword') ?? '').trim().toLowerCase();
     const status = params.get('status');

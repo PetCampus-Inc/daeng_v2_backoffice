@@ -1,5 +1,6 @@
 import { http } from 'msw';
 import { errorResponse, mockUrl, okResponse } from '../util/response';
+import { authenticateMockRequest } from '../util/session';
 import type { TeamMember, RegisterMemberInput, UpdateMemberInput } from '@/routes/settings/members/type/team-member';
 import {
   getReactivatedStatus,
@@ -16,7 +17,7 @@ const STORAGE_KEY = 'daeng-bo-mock-team-members-v2';
 const REGISTERED_AT = '2026-09-01T00:00:00Z';
 const LAST_LOGIN_AT = '2026-10-06T00:00:00Z';
 /** TC fixtures.md `팀원-기본` 7명(`미등록` 제외). */
-const DEFAULT_MEMBERS: TeamMember[] = [
+export const DEFAULT_MEMBERS: TeamMember[] = [
   {
     email: 'admin@knockdog.test',
     displayName: '김관리',
@@ -93,6 +94,19 @@ export const getMockTeamMembers = (): TeamMember[] => {
   return DEFAULT_MEMBERS.map((member) => ({ ...member }));
 };
 
+/** 개발용 팀원 목록을 저장한다. */
+const saveMockTeamMembers = (members: TeamMember[]) => localStorage.setItem(STORAGE_KEY, JSON.stringify(members));
+
+/** 로그인 성공을 팀원에 반영한다. 첫 로그인(등록됨)은 활성으로 바꾼다(PRD 5.1). */
+export const recordMockMemberLogin = (email: string) => {
+  const members = getMockTeamMembers();
+  const member = members.find((item) => item.email === email);
+  if (!member) return;
+  if (member.status === 'registered') member.status = 'active';
+  member.lastLoginAt = new Date().toISOString();
+  saveMockTeamMembers(members);
+};
+
 /** 프로필 저장 결과를 팀원 목록에도 반영한다. */
 export const syncMockMemberProfile = (account: MyAccount) => {
   const members = getMockTeamMembers();
@@ -102,29 +116,26 @@ export const syncMockMemberProfile = (account: MyAccount) => {
   member.jobRole = account.jobRole;
   member.status = 'active';
   member.lastLoginAt ??= new Date().toISOString();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(members));
+  saveMockTeamMembers(members);
 };
 
 /** 서버 오류와 같은 모양으로 요청 거부 사유를 전달한다. */
 const rejectMemberRequest = (status: number, message: string) =>
   errorResponse(status, { code: 'TEAM_MEMBER_ERROR', message, errorMessage: message });
 
-/** 모든 팀원 API에서 현재 계정의 활성 상태와 최고 관리자 권한을 검사한다. */
-const authorizeMemberRequest = (request: Request) => {
-  const member = getMockTeamMembers().find((item) => item.email === request.headers.get('X-Dev-Email'));
-  if (!member || member.status !== 'active') return rejectMemberRequest(401, '로그인이 필요합니다.');
-  if (member.role !== 'superAdmin') return rejectMemberRequest(403, '접근 권한이 없습니다.');
-  return null;
+/** 모든 팀원 API에서 세션(만료·비활성 포함)과 최고 관리자 권한을 검사한다. */
+const authorizeMemberRequest = () => {
+  const auth = authenticateMockRequest();
+  if (auth.denied) return { denied: auth.denied };
+  if (auth.member.role !== 'superAdmin') return { denied: rejectMemberRequest(403, '접근 권한이 없습니다.') };
+  return { email: auth.member.email };
 };
 
 export const TEAM_MEMBER_HANDLERS = [
-  http.get(
-    mockUrl('/team-members'),
-    ({ request }) => authorizeMemberRequest(request) ?? okResponse(getMockTeamMembers())
-  ),
+  http.get(mockUrl('/team-members'), () => authorizeMemberRequest().denied ?? okResponse(getMockTeamMembers())),
   http.post(mockUrl('/team-members'), async ({ request }) => {
-    const denied = authorizeMemberRequest(request);
-    if (denied) return denied;
+    const auth = authorizeMemberRequest();
+    if (auth.denied) return auth.denied;
     const input = (await request.json()) as RegisterMemberInput;
     const parsedEmail = memberEmailSchema.safeParse(input.email);
     if (!parsedEmail.success) return rejectMemberRequest(400, '올바른 이메일 주소를 입력해 주세요.');
@@ -152,12 +163,12 @@ export const TEAM_MEMBER_HANDLERS = [
     return okResponse(member);
   }),
   http.patch(mockUrl('/team-members/:email'), async ({ request, params }) => {
-    const denied = authorizeMemberRequest(request);
-    if (denied) return denied;
+    const auth = authorizeMemberRequest();
+    if (auth.denied) return auth.denied;
     const members = getMockTeamMembers();
     const member = members.find((item) => item.email === params.email);
     if (!member) return rejectMemberRequest(404, '계정을 찾을 수 없습니다.');
-    if (isMemberProtected(member, members, request.headers.get('X-Dev-Email') ?? '')) {
+    if (isMemberProtected(member, members, auth.email)) {
       return rejectMemberRequest(409, MEMBER_PROTECTION_MESSAGE);
     }
     const input = (await request.json()) as UpdateMemberInput;

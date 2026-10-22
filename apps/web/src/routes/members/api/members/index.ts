@@ -1,5 +1,4 @@
 import { queryOptions } from '@tanstack/react-query';
-import { getDevAccountHeaders } from '@/api/account';
 import { apiClient } from '@/api/client';
 import type { ApiResponse, PageResponse } from '@/type/api';
 import type { Member, MemberListParams } from '../../type/member';
@@ -11,7 +10,6 @@ export const membersQueryOptions = (email: string, params: MemberListParams, pag
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[1] === email ? previousData : undefined),
     queryFn: async () => {
       const response = await apiClient.get<ApiResponse<PageResponse<Member>>>('/members', {
-        headers: getDevAccountHeaders(email),
         params: {
           keyword: params.keyword.trim() || undefined,
           type: params.type === 'all' ? undefined : params.type,
