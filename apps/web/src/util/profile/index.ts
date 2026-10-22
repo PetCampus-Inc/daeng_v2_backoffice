@@ -17,6 +17,11 @@ export function isValidDisplayName(value: string) {
   return value.trim().length > 0 && length >= 1 && length <= 10;
 }
 
+/** 팀원 이름 `표시명 · 직무`. 문의 담당자·변경 이력 행위자 등 여러 화면이 같이 쓴다. */
+export function formatProfileName(profile: { displayName: string; jobRole: JobRole }) {
+  return `${profile.displayName} · ${profile.jobRole}`;
+}
+
 /** 첫 로그인 화면과 프로필 패널이 함께 쓰는 입력 규칙. */
 export const profileFormSchema = z.object({
   displayName: z.string().refine(isValidDisplayName, DISPLAY_NAME_ERROR),

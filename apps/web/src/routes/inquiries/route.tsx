@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
+import { formatProfileName } from '@/util/profile';
 import { inquiriesQueryOptions, inquiryAssigneesQueryOptions } from './api/inquiries/index';
 import {
   INQUIRY_STATUS_LABELS,
@@ -29,7 +30,7 @@ import {
 } from './type/inquiry';
 import { InquiryAssigneeName } from './ui/inquiry-assignee-name';
 import { InquiryStatusBadge } from './ui/inquiry-status-badge';
-import { formatAssigneeName, formatInquiryUser } from './util/inquiry-format';
+import { formatInquiryUser } from './util/inquiry-format';
 import { useInquiryListSearchParams } from './util/list-search-params';
 
 /** 서비스 운영 > 1:1 문의 목록(PRD 7.3). 조건은 주소에 두어 상세에서 돌아와도 그대로다. */
@@ -144,7 +145,7 @@ export default function InquiriesRoute() {
               <SelectItem value='unassigned'>미배정</SelectItem>
               {assigneesQuery.data?.map((assignee) => (
                 <SelectItem key={assignee.email} value={assignee.email}>
-                  {formatAssigneeName(assignee)}
+                  {formatProfileName(assignee)}
                   {!assignee.isActive && ' (비활성)'}
                 </SelectItem>
               ))}

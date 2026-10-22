@@ -2,6 +2,7 @@ import { http, type AnyHandler } from 'msw';
 
 import type { MyAccount, UpdateMyAccountInput } from '@/type/account';
 import { errorResponse, mockUrl, okResponse } from '@/api/mocks/util/response';
+import { CHANGE_HISTORY_HANDLERS } from './change-histories';
 import { IDEA_HANDLERS } from './ideas';
 import { KINDERGARTEN_HANDLERS } from './kindergartens';
 import { MEMBER_HANDLERS } from './members';
@@ -132,4 +133,5 @@ export const handlers: AnyHandler[] = [
   ...OVERVIEW_HANDLERS,
   ...OWNER_VERIFICATION_HANDLERS,
   ...MEMBER_HANDLERS,
+  ...CHANGE_HISTORY_HANDLERS,
 ];

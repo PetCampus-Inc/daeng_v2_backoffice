@@ -29,7 +29,7 @@ import { Field, FieldCounter, FieldDescription, FieldError } from '@/ui/atoms/fi
 import { showErrorToast, showSuccessToast, showUndoToast } from '@/ui/atoms/sonner';
 import { Textarea } from '@/ui/atoms/textarea';
 import { ListState } from '@/ui/molecules/list-state';
-import { countCharacters } from '@/util/profile';
+import { countCharacters, formatProfileName } from '@/util/profile';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import {
   inquiryAdjacentQueryOptions,
@@ -42,7 +42,6 @@ import {
 import { INQUIRY_ERROR_CODES, type InquiryAssignee, type InquiryDetail } from '../type/inquiry';
 import { InquiryAssigneeName } from '../ui/inquiry-assignee-name';
 import { InquiryStatusBadge } from '../ui/inquiry-status-badge';
-import { formatAssigneeName } from '../util/inquiry-format';
 import { getAssignAction, getInquiryViewMode, needsReleaseConfirm } from '../util/inquiry-policy';
 import { canSubmitReply, getReplyLengthError, REPLY_MAX_LENGTH } from '../util/reply-input';
 import { useInquiryListSearchParams } from '../util/list-search-params';
@@ -417,7 +416,7 @@ function InquiryDetailContent({ id }: { id: number }) {
           <AlertDialogHeader>
             <AlertDialogTitle>담당자를 변경할까요?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmAssignee && `${formatAssigneeName(confirmAssignee)}님이 담당 중인 문의입니다.`}
+              {confirmAssignee && `${formatProfileName(confirmAssignee)}님이 담당 중인 문의입니다.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
