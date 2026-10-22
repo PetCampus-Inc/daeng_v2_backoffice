@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { Card } from '@/ui/atoms/card';
 import { ListState } from '@/ui/molecules/list-state';
 import { Page } from '@/ui/templates/page';
-import { PAGES } from '@/util/page';
+import { PAGES } from '@/util/page-config';
 
 /**
  * 권한 없음 화면(PRD 4.5). 화면 제목만 두고 본문 자리에 '접근 권한이 없습니다.' + [홈으로 이동].

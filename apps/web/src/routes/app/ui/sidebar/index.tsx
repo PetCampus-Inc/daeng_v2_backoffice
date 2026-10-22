@@ -14,7 +14,15 @@ const itemClassName =
  * 현재 메뉴는 `--kd-surface-accent` 배경 + 주황 700. 묶음 안 메뉴는 왼쪽 24로 들여쓴다.
  * onNavigate는 메뉴를 고를 때 부른다(좁은 화면에서 사이드바를 접는 데 쓴다).
  */
-export function SidebarNav({ role, onNavigate }: { role: Role; onNavigate?: () => void }) {
+export function SidebarNav({
+  role,
+  disabled = false,
+  onNavigate,
+}: {
+  role: Role;
+  disabled?: boolean;
+  onNavigate?: () => void;
+}) {
   const sections = visibleMenu(role);
 
   return (
@@ -28,10 +36,15 @@ export function SidebarNav({ role, onNavigate }: { role: Role; onNavigate?: () =
                 {section.group}
               </p>
             )}
-            <ul aria-labelledby={groupId} className='flex flex-col gap-0.5'>
+            <ul aria-labelledby={groupId} className={cn('flex flex-col gap-0.5', disabled && 'opacity-45')}>
               {section.items.map((item) => (
                 <li key={menuItemKey(item)}>
-                  <SidebarItem item={item} indented={Boolean(section.group)} onNavigate={onNavigate} />
+                  <SidebarItem
+                    item={item}
+                    indented={Boolean(section.group)}
+                    disabled={disabled}
+                    onNavigate={onNavigate}
+                  />
                 </li>
               ))}
             </ul>
@@ -48,7 +61,25 @@ function menuItemKey(item: MenuItem) {
 }
 
 /** 메뉴 항목 하나. 바깥 링크(팀 체크인)는 새 탭으로 연다. */
-function SidebarItem({ item, indented, onNavigate }: { item: MenuItem; indented: boolean; onNavigate?: () => void }) {
+function SidebarItem({
+  item,
+  indented,
+  disabled,
+  onNavigate,
+}: {
+  item: MenuItem;
+  indented: boolean;
+  disabled: boolean;
+  onNavigate?: () => void;
+}) {
+  if (disabled) {
+    return (
+      <span aria-disabled className={cn(itemClassName, 'cursor-not-allowed', indented && 'pl-6')}>
+        {item.kind === 'page' ? item.page.title : item.label}
+      </span>
+    );
+  }
+
   if (item.kind === 'external') {
     return (
       <a

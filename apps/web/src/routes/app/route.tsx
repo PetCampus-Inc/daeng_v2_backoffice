@@ -8,9 +8,10 @@ import { SidebarNav } from '@/routes/app/ui/sidebar';
 import { TopBar } from '@/routes/app/ui/top-bar';
 import { useMediaQuery, WIDE_QUERY } from '@/routes/app/util/use-media-query';
 import { useAuthStore } from '@/store/auth';
-import { canAccess, type PageInfo } from '@/util/page';
+import { canAccessPage, PAGES, type PageInfo } from '@/util/page-config';
 
 const SIDEBAR_ID = 'app-sidebar';
+const PROFILE_SETUP_PATH = '/profile-setup';
 
 /** 라우트 handle. 메뉴 화면은 page를 달아 역할 검사에 쓴다. */
 export type AppRouteHandle = { page?: PageInfo };
@@ -40,14 +41,28 @@ export default function AppLayout() {
     return <Navigate to='/login' replace state={{ from: `${location.pathname}${location.search}` }} />;
   }
 
+  if (!user.profileCompleted && location.pathname !== PROFILE_SETUP_PATH) {
+    return <Navigate to={PROFILE_SETUP_PATH} replace />;
+  }
+
+  if (user.profileCompleted && location.pathname === PROFILE_SETUP_PATH) {
+    return <Navigate to={PAGES.home.path} replace />;
+  }
+
   const page = matches.map((match) => (match.handle as AppRouteHandle | undefined)?.page).findLast(Boolean);
-  const forbiddenPage = page && !canAccess(user.role, page) ? page : undefined;
-  const nav = <SidebarNav role={user.role} onNavigate={isWide ? undefined : () => setSidebarOpen(false)} />;
+  const forbiddenPage = page && !canAccessPage(user.role, page) ? page : undefined;
+  const nav = (
+    <SidebarNav
+      role={user.role}
+      disabled={!user.profileCompleted}
+      onNavigate={isWide ? undefined : () => setSidebarOpen(false)}
+    />
+  );
 
   return (
     <div className='min-h-svh bg-kd-surface'>
       <TopBar
-        user={user}
+        user={user.profileCompleted ? user : undefined}
         sidebarOpen={sidebarOpen}
         sidebarId={SIDEBAR_ID}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}

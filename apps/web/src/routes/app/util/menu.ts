@@ -1,5 +1,5 @@
 import type { Role } from '@/type/role';
-import { canAccess, PAGES, type PageInfo } from '@/util/page';
+import { canAccessPage, PAGES, type PageInfo } from '@/util/page-config';
 
 /** 기존 팀 체크인 화면(PRD 7.16). BO 밖에서 새 탭으로 연다. */
 export const CHECK_IN_URL = 'https://admin.knockdog.net/';
@@ -40,6 +40,6 @@ const MENU: MenuSection[] = [
 export function visibleMenu(role: Role): MenuSection[] {
   return MENU.map((section) => ({
     ...section,
-    items: section.items.filter((item) => item.kind === 'external' || canAccess(role, item.page)),
+    items: section.items.filter((item) => item.kind === 'external' || canAccessPage(role, item.page)),
   })).filter((section) => section.items.length > 0);
 }

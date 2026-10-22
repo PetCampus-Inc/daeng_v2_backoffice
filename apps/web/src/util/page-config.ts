@@ -27,11 +27,11 @@ export const PAGES = {
 } as const satisfies Record<string, PageInfo>;
 
 /** 이 역할이 화면을 볼 수 있는지. */
-export function canAccess(role: Role, page: PageInfo) {
+export function canAccessPage(role: Role, page: PageInfo) {
   return page.roles.includes(role);
 }
 
 /** 브라우저 탭 제목 `{화면 제목} · 똑독 BO`(PRD 4.2). */
-export function documentTitle(title: string) {
+export function formatDocumentTitle(title: string) {
   return `${title} · 똑독 BO`;
 }

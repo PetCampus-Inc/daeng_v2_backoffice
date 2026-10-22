@@ -36,6 +36,9 @@ Router 관례를 따라 복수형으로 둔다.
 라우트 진입 파일 `route.tsx`는 이 분류 대상이 아니며 라우트 폴더 루트에 둔다. `src/router.tsx`가 이 파일을 가져와 라우트
 객체(`createBrowserRouter`)에 연결한다.
 
+단위 테스트가 생기면 해당 로직 이름의 폴더로 구현과 테스트를 함께 묶는다. 예를 들어 `src/util/profile/` 안에
+`index.ts`와 `profile.test.ts`를 둔다. 테스트가 없는 단일 파일까지 미리 폴더로 감싸지는 않는다.
+
 ## 스코프 3계층
 
 같은 5분류(`api/ui/util/type/store`)가 스코프만 바꿔가며 반복된다. 상위로 갈수록 "더 많은 곳이 공유한다"는 뜻일 뿐, 별도
@@ -57,8 +60,9 @@ src/
         queries.ts        (조회: axios 요청 함수 + queryOptions)
         mutations.ts      (생성/수정/삭제: axios 요청 함수 + useMutation)
       util/
-        validation.ts
-        validation.test.ts
+        validation/
+          index.ts
+          validation.test.ts
       type/
         <type>.ts
       ui/
@@ -76,7 +80,7 @@ src/
 
 `src/api/`, `src/util/`, `src/type/`, `src/store/`처럼 최상위로 승격된 코드는 이미 "앱 전체가 쓰는 것"이 된 상태이므로,
 그 안에서 도메인별 하위 폴더로 다시 나누지 않는다. 도메인 구분이 필요한 동안은 아직 그 도메인의 라우트 폴더 하위에
-있어야 한다는 뜻이다.
+있어야 한다는 뜻이다. 단, 개별 로직의 구현과 테스트를 함께 묶는 폴더는 허용한다.
 
 ## 공유 승격 규칙
 

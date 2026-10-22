@@ -2,15 +2,14 @@ import { BellIcon, MenuIcon } from 'lucide-react';
 import type { Ref } from 'react';
 
 import { Button } from '@/ui/atoms/button';
-import { Field, FieldDescription, FieldLabel } from '@/ui/atoms/field';
 import { Logo } from '@/ui/atoms/logo';
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/ui/atoms/popover';
-import { RadioGroup, RadioGroupItem } from '@/ui/atoms/radio-group';
-import { ROLE_LABELS, ROLES, type Role } from '@/type/role';
-import { useAuthStore, type SessionUser } from '@/store/auth';
+import type { CompletedSessionUser } from '@/store/auth';
+
+import { ProfilePanel } from '@/routes/app/ui/top-bar/ui/profile-panel';
 
 type TopBarProps = {
-  user: SessionUser;
+  user?: CompletedSessionUser;
   sidebarOpen: boolean;
   sidebarId: string;
   onToggleSidebar: () => void;
@@ -44,8 +43,12 @@ export function TopBar({ user, sidebarOpen, sidebarId, onToggleSidebar, menuButt
         </span>
       </div>
       <div className='ml-auto flex items-center gap-1'>
-        <NotificationButton />
-        <ProfileButton user={user} />
+        {user && (
+          <>
+            <NotificationButton />
+            <ProfilePanel user={user} />
+          </>
+        )}
       </div>
     </header>
   );
@@ -65,49 +68,6 @@ function NotificationButton() {
           <PopoverTitle>알림</PopoverTitle>
         </PopoverHeader>
         <p className='px-6 py-5 text-kd-body text-kd-foreground-muted'>준비 중입니다.</p>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-/**
- * 프로필 버튼(`표시명 · 직무`, 1199px 이하는 직무 숨김)과 팝오버.
- * 프로필 패널(7.15)을 만들기 전까지 개발용 역할 전환과 로그아웃만 둔다.
- */
-function ProfileButton({ user }: { user: SessionUser }) {
-  const devLogin = useAuthStore((state) => state.devLogin);
-  const logout = useAuthStore((state) => state.logout);
-
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant='ghost' className='gap-1.5 px-3'>
-          <span>{user.displayName}</span>
-          <span className='font-normal text-kd-foreground-muted max-[1199px]:hidden'>{user.jobRole}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <PopoverHeader>
-          <PopoverTitle>내 계정</PopoverTitle>
-        </PopoverHeader>
-        <div className='px-6 py-5'>
-          <Field>
-            <FieldLabel>역할 전환(개발용)</FieldLabel>
-            <RadioGroup value={user.role} onValueChange={(value) => devLogin(value as Role)}>
-              {ROLES.map((role) => (
-                <RadioGroupItem key={role} value={role}>
-                  {ROLE_LABELS[role]}
-                </RadioGroupItem>
-              ))}
-            </RadioGroup>
-            <FieldDescription>구글 로그인을 붙이기 전까지 쓰는 임시 기능이에요.</FieldDescription>
-          </Field>
-        </div>
-        <div className='flex border-t border-kd-border px-6 py-4'>
-          <Button variant='destructive-ghost' size='sm' onClick={logout}>
-            로그아웃
-          </Button>
-        </div>
       </PopoverContent>
     </Popover>
   );

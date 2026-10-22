@@ -1,4 +1,4 @@
-import type { PageInfo } from '@/util/page';
+import type { PageInfo } from '@/util/page-config';
 
 import { Page } from './page';
 

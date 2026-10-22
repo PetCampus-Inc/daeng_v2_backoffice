@@ -8,7 +8,7 @@ import { Logo } from '@/ui/atoms/logo';
 import { RadioGroup, RadioGroupItem } from '@/ui/atoms/radio-group';
 import { useAuthStore } from '@/store/auth';
 import { ROLE_LABELS, ROLES, type Role } from '@/type/role';
-import { documentTitle, PAGES } from '@/util/page';
+import { formatDocumentTitle, PAGES } from '@/util/page-config';
 
 /**
  * 개발용 로그인 화면. 구글 로그인(7.1, OQ-D4)을 붙이기 전까지 역할을 골라 들어간다.
@@ -33,7 +33,7 @@ export default function LoginRoute() {
 
   return (
     <main className='flex min-h-svh items-center justify-center bg-kd-surface p-4'>
-      <title>{documentTitle('로그인')}</title>
+      <title>{formatDocumentTitle('로그인')}</title>
       <Card className='w-full max-w-[400px]'>
         <form className='flex flex-col gap-6 p-6' onSubmit={handleSubmit}>
           {/* 로고 높이 32 → 8 → 'BO'(16, 진한 글자색). 시안 그대로 */}
@@ -53,7 +53,8 @@ export default function LoginRoute() {
           </Field>
           <Button type='submit'>로그인</Button>
           <p className='text-kd-caption text-kd-foreground-muted'>
-            구글 로그인을 붙이기 전까지 쓰는 개발용 로그인이에요.
+            구글 로그인을 붙이기 전까지 쓰는 개발용 로그인이에요. 조회자를 고르면 첫 로그인 프로필 설정을 확인할 수
+            있어요.
           </p>
         </form>
       </Card>

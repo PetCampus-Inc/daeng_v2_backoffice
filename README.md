@@ -18,6 +18,8 @@
 - `packages/shared`는 빌드 없이 `src/index.ts`를 바로 가져다 쓴다.
 - 다른 패키지를 의존성으로 쓸 때는 `"@daeng/shared": "workspace:*"`처럼 `workspace:` 프로토콜로 적는다.
 - 서버 설정 방법은 [apps/server/README.md](apps/server/README.md)를 본다.
+- 네이밍 규칙은 [기여 가이드](CONTRIBUTING.md), 프론트 파일 배치는 [폴더 구조 규칙](apps/web/docs/folder-structure.md)을
+  따른다.
 
 ## 요구 사항
 
