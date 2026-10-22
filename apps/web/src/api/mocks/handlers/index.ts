@@ -4,6 +4,7 @@ import type { MyAccount, UpdateMyAccountInput } from '@/type/account';
 import { errorResponse, mockUrl, okResponse } from '@/api/mocks/util/response';
 import { IDEA_HANDLERS } from './ideas';
 import { INQUIRY_HANDLERS } from './inquiries';
+import { NOTICE_HANDLERS } from './notices';
 import { TEAM_MEMBER_HANDLERS, getMockTeamMembers, syncMockMemberProfile } from './team-members';
 
 const DISPLAY_NAME_DUPLICATE_CODE = 'PROFILE_DISPLAY_NAME_DUPLICATE';
@@ -120,4 +121,5 @@ export const handlers: AnyHandler[] = [
   ...TEAM_MEMBER_HANDLERS,
   ...INQUIRY_HANDLERS,
   ...IDEA_HANDLERS,
+  ...NOTICE_HANDLERS,
 ];

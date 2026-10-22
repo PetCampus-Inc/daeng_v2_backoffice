@@ -13,6 +13,8 @@ import LoginRoute from './routes/login/route.tsx';
 import MembersRoute from './routes/members/route.tsx';
 import NotFoundRoute from './routes/not-found/route.tsx';
 import NoticesRoute from './routes/notices/route.tsx';
+import NoticeDetailRoute, { NoticeEditRoute } from './routes/notices/detail/route.tsx';
+import NoticeWriteRoute from './routes/notices/write/route.tsx';
 import OwnerVerificationsRoute from './routes/owner-verifications/route.tsx';
 import ProfileSetupRoute from './routes/profile-setup/route.tsx';
 import TeamMembersRoute from './routes/settings/members/route.tsx';
@@ -55,6 +57,17 @@ export const router = createBrowserRouter([
           { path: PAGES.ideas.path, Component: IdeasRoute, handle: createPageHandle(PAGES.ideas) },
           { path: `${PAGES.ideas.path}/:ideaId`, Component: IdeaDetailRoute, handle: createPageHandle(PAGES.ideas) },
           { path: PAGES.notices.path, Component: NoticesRoute, handle: createPageHandle(PAGES.notices) },
+          { path: `${PAGES.notices.path}/new`, Component: NoticeWriteRoute, handle: createPageHandle(PAGES.notices) },
+          {
+            path: `${PAGES.notices.path}/:noticeId`,
+            Component: NoticeDetailRoute,
+            handle: createPageHandle(PAGES.notices),
+          },
+          {
+            path: `${PAGES.notices.path}/:noticeId/edit`,
+            Component: NoticeEditRoute,
+            handle: createPageHandle(PAGES.notices),
+          },
           { path: PAGES.terms.path, Component: TermsRoute, handle: createPageHandle(PAGES.terms) },
           { path: PAGES.history.path, Component: HistoryRoute, handle: createPageHandle(PAGES.history) },
           { path: PAGES.teamMembers.path, Component: TeamMembersRoute, handle: createPageHandle(PAGES.teamMembers) },
