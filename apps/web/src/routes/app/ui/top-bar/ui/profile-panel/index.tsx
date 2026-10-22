@@ -3,10 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useBeforeUnload, useBlocker } from 'react-router';
 
 import { myAccountQueryOptions, useUpdateMyAccount } from '@/api/account';
 import { useAuthStore, type CompletedSessionUser } from '@/store/auth';
+import { useLeaveGuard, useLeaveGuardStore } from '@/store/leave-guard';
 import type { ApiError } from '@/type/api';
 import { ROLE_LABELS } from '@/type/role';
 import {
@@ -33,27 +33,22 @@ export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
   const updateAccountMutation = useUpdateMyAccount(user.email);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isClosePending, setIsClosePending] = useState(false);
-  const [isLogoutPending, setIsLogoutPending] = useState(false);
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: { displayName: user.displayName, jobRole: user.jobRole },
   });
   const isDirty = form.formState.isDirty;
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      isProfileOpen &&
-      isDirty &&
-      `${currentLocation.pathname}${currentLocation.search}` !== `${nextLocation.pathname}${nextLocation.search}`
-  );
-
-  useBeforeUnload(
-    (event) => {
-      if (!isProfileOpen || !isDirty) return;
-      event.preventDefault();
-      event.returnValue = '';
+  const requestLeave = useLeaveGuardStore((state) => state.requestLeave);
+  const isLeavePending = useLeaveGuardStore((state) => state.pendingAction !== null);
+  // 바꾼 표시명·직무가 있으면 화면 이동·로그아웃 전에 앱 이탈 확인창(AppLayout)을 거친다.
+  useLeaveGuard({
+    isDirty: isProfileOpen && isDirty,
+    description: '저장하지 않은 표시명과 직무 변경을 버립니다.',
+    discard: () => {
+      form.reset({ displayName: user.displayName, jobRole: user.jobRole });
+      setIsProfileOpen(false);
     },
-    { capture: true }
-  );
+  });
 
   useEffect(() => {
     if (!isProfileOpen || isDirty) return;
@@ -93,36 +88,15 @@ export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
     }
   });
 
-  /** 로그아웃도 저장하지 않은 변경을 버릴지 확인한 뒤 실행한다. */
-  const handleClickLogout = () => {
-    if (isDirty) {
-      setIsLogoutPending(true);
-      return;
-    }
-    logout();
-  };
+  /** 로그아웃도 작성 중인 입력(이 패널·열려 있는 화면)을 버릴지 앱 이탈 확인창에서 확인한 뒤 실행한다. */
+  const handleClickLogout = () => requestLeave(logout);
 
-  /** 이탈 확인창에서 변경을 버리고 원래 닫기·이동·로그아웃 동작을 계속한다. */
+  /** 바깥 클릭·Esc로 닫을 때의 확인창에서 변경을 버리고 닫는다. */
   const handleDiscardChanges = () => {
     form.reset({ displayName: user.displayName, jobRole: user.jobRole });
     setIsProfileOpen(false);
     setIsClosePending(false);
-    if (isLogoutPending) {
-      setIsLogoutPending(false);
-      logout();
-      return;
-    }
-    if (blocker.state === 'blocked') blocker.proceed();
   };
-
-  /** 이탈을 취소하고 입력 중인 프로필 패널에 머문다. */
-  const handleCancelDiscard = () => {
-    setIsClosePending(false);
-    setIsLogoutPending(false);
-    if (blocker.state === 'blocked') blocker.reset();
-  };
-
-  const isDiscardDialogOpen = isClosePending || isLogoutPending || blocker.state === 'blocked';
 
   return (
     <>
@@ -133,7 +107,10 @@ export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
             <span className='font-normal text-kd-foreground-muted max-[1199px]:hidden'>{user.jobRole}</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent>
+        <PopoverContent
+          // 로그아웃 이탈 확인창으로 초점이 옮겨 가도 패널 닫기(바깥 클릭 확인)로 보지 않는다.
+          onFocusOutside={(event) => isLeavePending && event.preventDefault()}
+        >
           <PopoverHeader>
             <PopoverTitle>내 계정</PopoverTitle>
           </PopoverHeader>
@@ -155,14 +132,14 @@ export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
           </form>
         </PopoverContent>
       </Popover>
-      <AlertDialog open={isDiscardDialogOpen} onOpenChange={(nextOpen) => !nextOpen && handleCancelDiscard()}>
+      <AlertDialog open={isClosePending} onOpenChange={setIsClosePending}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>작성 중인 내용이 사라집니다. 나갈까요?</AlertDialogTitle>
             <AlertDialogDescription>저장하지 않은 표시명과 직무 변경을 버립니다.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelDiscard}>취소</AlertDialogCancel>
+            <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction onClick={handleDiscardChanges}>나가기</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

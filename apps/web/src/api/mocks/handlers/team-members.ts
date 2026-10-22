@@ -10,61 +10,75 @@ import {
 import { ROLES } from '@/type/role';
 import type { MyAccount } from '@/type/account';
 
-const STORAGE_KEY = 'daeng-bo-mock-team-members';
+// fixtures가 바뀌어 저장 키를 바꿨다. 이전 키(`daeng-bo-mock-team-members`)의 값은 더 읽지 않는다.
+const STORAGE_KEY = 'daeng-bo-mock-team-members-v2';
+/** TC fixtures.md 기준: 등록일 2026. 09. 01. 09:00, 로그인 이력이 있으면 마지막 로그인 2026. 10. 06. 09:00(KST). */
+const REGISTERED_AT = '2026-09-01T00:00:00Z';
+const LAST_LOGIN_AT = '2026-10-06T00:00:00Z';
+/** TC fixtures.md `팀원-기본` 7명(`미등록` 제외). */
 const DEFAULT_MEMBERS: TeamMember[] = [
   {
-    email: 'admin@knockdog.net',
+    email: 'admin@knockdog.test',
     displayName: '김관리',
     jobRole: 'PM',
     role: 'superAdmin',
     status: 'active',
-    lastLoginAt: '2026-10-22T00:02:00Z',
-    registeredAt: '2026-09-20T00:00:00Z',
+    lastLoginAt: LAST_LOGIN_AT,
+    registeredAt: REGISTERED_AT,
   },
   {
-    email: 'operator@knockdog.net',
-    displayName: '이운영',
+    email: 'ops@knockdog.test',
+    displayName: '김운영',
+    jobRole: 'PM',
+    role: 'operator',
+    status: 'active',
+    lastLoginAt: LAST_LOGIN_AT,
+    registeredAt: REGISTERED_AT,
+  },
+  {
+    email: 'ops2@knockdog.test',
+    displayName: '이담당',
     jobRole: 'FE',
     role: 'operator',
     status: 'active',
-    lastLoginAt: '2026-10-22T00:11:00Z',
-    registeredAt: '2026-10-06T00:00:00Z',
+    lastLoginAt: LAST_LOGIN_AT,
+    registeredAt: REGISTERED_AT,
   },
   {
-    email: 'viewer@knockdog.net',
-    displayName: null,
-    jobRole: null,
+    email: 'viewer@knockdog.test',
+    displayName: '박조회',
+    jobRole: 'UX/UI',
     role: 'viewer',
-    status: 'registered',
-    lastLoginAt: null,
-    registeredAt: '2026-10-08T00:00:00Z',
+    status: 'active',
+    lastLoginAt: LAST_LOGIN_AT,
+    registeredAt: REGISTERED_AT,
   },
   {
-    email: 'inactive@example.com',
-    displayName: '최비활',
+    email: 'inactive@knockdog.test',
+    displayName: '정비활',
     jobRole: 'BE',
     role: 'operator',
     status: 'inactive',
-    lastLoginAt: '2026-09-30T09:20:00Z',
-    registeredAt: '2026-09-22T00:00:00Z',
+    lastLoginAt: LAST_LOGIN_AT,
+    registeredAt: REGISTERED_AT,
   },
   {
-    email: 'new@example.com',
+    email: 'new@knockdog.test',
     displayName: null,
     jobRole: null,
-    role: 'viewer',
+    role: 'superAdmin',
     status: 'registered',
     lastLoginAt: null,
-    registeredAt: '2026-10-08T00:00:00Z',
+    registeredAt: REGISTERED_AT,
   },
   {
-    email: 'cancelled@example.com',
+    email: 'canceled@knockdog.test',
     displayName: null,
     jobRole: null,
-    role: 'viewer',
+    role: 'operator',
     status: 'cancelled',
     lastLoginAt: null,
-    registeredAt: '2026-10-07T00:00:00Z',
+    registeredAt: REGISTERED_AT,
   },
 ];
 

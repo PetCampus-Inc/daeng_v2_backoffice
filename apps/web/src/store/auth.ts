@@ -29,30 +29,30 @@ export type SessionUser = PendingSessionUser | CompletedSessionUser;
 type DevProfile = Omit<PendingSessionUser, 'role'> | Omit<CompletedSessionUser, 'role'>;
 
 /**
- * 개발용 가짜 팀원. 조회자는 첫 로그인 프로필 설정, 나머지는 프로필 패널 확인에 쓴다.
+ * 개발용 가짜 팀원. TC fixtures.md의 `최고관리자`·`운영자`·`조회자` 계정과 같다.
  * 실제 로그인·세션 API를 붙이면 이 목록은 없앤다.
  */
 const DEFAULT_DEV_PROFILES: Record<Role, DevProfile> = {
   superAdmin: {
-    email: 'admin@knockdog.net',
+    email: 'admin@knockdog.test',
     googleName: '김관리',
     displayName: '김관리',
     jobRole: 'PM',
     profileCompleted: true,
   },
   operator: {
-    email: 'operator@knockdog.net',
-    googleName: '이운영',
-    displayName: '이운영',
-    jobRole: 'FE',
+    email: 'ops@knockdog.test',
+    googleName: '김운영',
+    displayName: '김운영',
+    jobRole: 'PM',
     profileCompleted: true,
   },
   viewer: {
-    email: 'viewer@knockdog.net',
+    email: 'viewer@knockdog.test',
     googleName: '박조회',
-    displayName: null,
-    jobRole: null,
-    profileCompleted: false,
+    displayName: '박조회',
+    jobRole: 'UX/UI',
+    profileCompleted: true,
   },
 };
 
@@ -95,8 +95,8 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'daeng-bo-dev-auth',
       storage: createJSONStorage(() => localStorage),
-      version: 2,
-      // 이전 버전에는 이메일·첫 로그인 상태가 없어 개발용 기본 계정으로 한 번 옮긴다.
+      version: 3,
+      // 이전 버전은 개발 계정(이메일·표시명)이 fixtures와 달라 개발용 기본 계정으로 한 번 옮긴다.
       migrate: (persistedState) => {
         const previous = persistedState as Partial<AuthState>;
         const role = previous.user?.role;

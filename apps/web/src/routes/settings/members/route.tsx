@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useRef, useState, type SubmitEvent } from 'react';
-import { useBeforeUnload, useBlocker } from 'react-router';
 import { useAuthStore } from '@/store/auth';
+import { useLeaveGuard } from '@/store/leave-guard';
 import { ROLE_LABELS, type Role } from '@/type/role';
 import type { ApiError } from '@/type/api';
 import { Badge } from '@/ui/atoms/badge';
@@ -23,6 +23,7 @@ import {
 } from '@/ui/atoms/alert-dialog';
 import { showErrorToast, showSuccessToast } from '@/ui/atoms/sonner';
 import { ListState } from '@/ui/molecules/list-state';
+import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle } from '@/util/page-config';
 import { teamMembersQueryOptions, useRegisterTeamMember, useUpdateTeamMember } from './api/team-members';
 import { MEMBER_STATUS_LABELS, type TeamMember, type UpdateMemberInput } from './type/team-member';
@@ -36,18 +37,6 @@ const ACTION_MESSAGES = {
   cancel: '등록을 취소했습니다.',
   reactivate: '계정을 다시 활성화했습니다.',
 };
-
-/** 서버 날짜를 한국 시간으로 표시한다. */
-const formatMemberDate = (value: string | null, hasTime = false) =>
-  value
-    ? new Intl.DateTimeFormat('ko-KR', {
-        timeZone: 'Asia/Seoul',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        ...(hasTime ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' as const } : {}),
-      }).format(new Date(value))
-    : '—';
 
 /** 서버가 전달한 요청 거부 사유를 읽는다. */
 const getMemberErrorMessage = (error: unknown) =>
@@ -94,16 +83,6 @@ export default function TeamMembersRoute() {
   const members = membersQuery.data ?? [];
   const isDirty = isRegisterOpen && memberEmail.length > 0;
   const isPending = registerMemberMutation.isPending || updateMemberMutation.isPending;
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) => isDirty && currentLocation.key !== nextLocation.key
-  );
-  useBeforeUnload((event) => {
-    if (isDirty) {
-      event.preventDefault();
-      event.returnValue = '';
-    }
-  });
-
   /** 등록 창의 입력을 비우고 닫는다. */
   const closeRegisterDialog = () => {
     setIsRegisterOpen(false);
@@ -111,6 +90,8 @@ export default function TeamMembersRoute() {
     setEmailError('');
     setSelectedRole('viewer');
   };
+  // 이메일을 입력한 채 화면을 벗어나면(브라우저 뒤로 등) 앱 이탈 확인창(AppLayout)을 거친다.
+  useLeaveGuard({ isDirty, description: '입력한 이메일과 역할을 버립니다.', discard: closeRegisterDialog });
   /** 이메일을 입력했다면 버릴지 먼저 묻는다. */
   const handleCloseRegister = () => {
     if (isDirty) setIsClosePending(true);
@@ -143,16 +124,10 @@ export default function TeamMembersRoute() {
       void membersQuery.refetch();
     }
   };
-  /** 이탈을 취소하면 입력을 유지한다. */
-  const handleCancelDiscard = () => {
-    setIsClosePending(false);
-    if (blocker.state === 'blocked') blocker.reset();
-  };
-  /** 입력을 버리고 원래 동작을 계속한다. */
+  /** 등록 창 닫기 확인창에서 입력을 버리고 창을 닫는다. */
   const handleDiscardChanges = () => {
     closeRegisterDialog();
     setIsClosePending(false);
-    if (blocker.state === 'blocked') blocker.proceed();
   };
 
   return (
@@ -219,8 +194,8 @@ export default function TeamMembersRoute() {
                     </TableCell>
                     <TableCell>{ROLE_LABELS[member.role]}</TableCell>
                     <TableCell>{member.jobRole ?? '—'}</TableCell>
-                    <TableCell className='tabular-nums'>{formatMemberDate(member.lastLoginAt, true)}</TableCell>
-                    <TableCell className='tabular-nums'>{formatMemberDate(member.registeredAt)}</TableCell>
+                    <TableCell className='tabular-nums'>{formatDate(member.lastLoginAt, true)}</TableCell>
+                    <TableCell className='tabular-nums'>{formatDate(member.registeredAt)}</TableCell>
                     <TableCell>
                       {member.email !== currentEmail && (
                         <DropdownMenu>
@@ -347,15 +322,12 @@ export default function TeamMembersRoute() {
           </div>
         </MemberDialog>
       )}
-      <AlertDialog
-        open={isClosePending || blocker.state === 'blocked'}
-        onOpenChange={(isOpen) => !isOpen && handleCancelDiscard()}
-      >
+      <AlertDialog open={isClosePending} onOpenChange={setIsClosePending}>
         <AlertDialogContent>
           <AlertDialogTitle>작성 중인 내용이 사라집니다. 나갈까요?</AlertDialogTitle>
           <AlertDialogDescription>입력한 이메일과 역할을 버립니다.</AlertDialogDescription>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={handleCancelDiscard}>취소</AlertDialogCancel>
+            <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction onClick={handleDiscardChanges}>나가기</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

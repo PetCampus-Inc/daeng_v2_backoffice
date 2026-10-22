@@ -5,7 +5,7 @@ import type { ApiResponse } from '@/type/api';
 import type { MyAccount, UpdateMyAccountInput } from '@/type/account';
 
 /** 개발용 가짜 서버가 현재 계정을 구분할 때만 쓰는 헤더. 실제 서버 요청에는 보내지 않는다. */
-function getDevAccountHeaders(email: string) {
+export function getDevAccountHeaders(email: string) {
   return import.meta.env.DEV ? { 'X-Dev-Email': email } : undefined;
 }
 

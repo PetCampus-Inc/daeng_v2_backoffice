@@ -1,3 +1,5 @@
+import { Link } from 'react-router';
+
 import { Button } from '@/ui/atoms/button';
 import { cn } from '@/util/cn';
 
@@ -13,11 +15,14 @@ const listStateCopy = {
   forbidden: { title: '접근 권한이 없습니다.', description: undefined, actionLabel: '홈으로 이동' },
   // 없는 주소. 문구는 '상세 대상 없음'과 같고, 돌아갈 목록이 없어 홈으로 보낸다(개발에서 정함)
   'not-found': { title: '페이지를 찾을 수 없습니다.', description: undefined, actionLabel: '홈으로 이동' },
+  // 상세 대상 없음(PRD 4.5). 문의·제안·공지·약관 TC 문구가 같아 문구는 고정하고, 돌아갈 목록 주소만 받는다
+  missing: { title: '페이지를 찾을 수 없습니다.', description: undefined, actionLabel: '목록으로' },
 } as const;
 
 type ListStateProps = { className?: string } & (
   | { kind: 'loading' | 'empty' }
   | { kind: 'no-results' | 'error' | 'forbidden' | 'not-found'; onAction: () => void }
+  | { kind: 'missing'; listPath: string }
 );
 
 /**
@@ -28,7 +33,8 @@ type ListStateProps = { className?: string } & (
  * - error: '데이터를 불러오지 못했습니다.' / '잠시 후 다시 시도해 주세요.' + [다시 시도]
  * - forbidden: '접근 권한이 없습니다.' + [홈으로 이동]
  * - not-found: '페이지를 찾을 수 없습니다.' + [홈으로 이동] (없는 주소)
- * 버튼이 있는 상태는 onAction으로 동작을 받는다.
+ * - missing: '페이지를 찾을 수 없습니다.' + [목록으로] (상세 대상 없음, listPath로 이동)
+ * 버튼이 있는 상태는 onAction으로 동작을 받는다. missing만 목록 주소(listPath)를 받는다.
  */
 function ListState(props: ListStateProps) {
   const { className, kind } = props;
@@ -56,6 +62,11 @@ function ListState(props: ListStateProps) {
       {'onAction' in props && copy.actionLabel && (
         <Button variant='outline' className='mt-4' onClick={props.onAction}>
           {copy.actionLabel}
+        </Button>
+      )}
+      {'listPath' in props && (
+        <Button variant='outline' className='mt-4' asChild>
+          <Link to={props.listPath}>{copy.actionLabel}</Link>
         </Button>
       )}
     </div>

@@ -4,6 +4,7 @@ import { Navigate, Outlet, useLocation, useMatches } from 'react-router';
 import { Sheet, SheetContent, SheetTitle } from '@/ui/atoms/sheet';
 import { cn } from '@/util/cn';
 import { Forbidden } from '@/routes/app/ui/forbidden';
+import { LeaveConfirmDialog } from '@/routes/app/ui/leave-confirm-dialog';
 import { SidebarNav } from '@/routes/app/ui/sidebar';
 import { TopBar } from '@/routes/app/ui/top-bar';
 import { useMediaQuery, WIDE_QUERY } from '@/routes/app/util/use-media-query';
@@ -20,6 +21,7 @@ export type AppRouteHandle = { page?: PageInfo };
  * 로그인한 뒤의 화면 틀(PRD 4.2, design.md 1.6·2장): 상단바 + 사이드바 + 본문.
  * - 로그인하지 않았으면 로그인 화면으로 보낸다.
  * - 역할에 허용되지 않은 화면을 주소로 열면 권한 없음 화면을 보여 준다(PRD 4.1).
+ * - 작성 중 이탈 확인창은 여기 한 곳에 둔다(PRD 4.6). 각 화면은 useLeaveGuard로 '작성 중'만 알린다.
  * - 1200px 이상은 사이드바를 펼친 채 시작하고 본문 옆에 붙인다. 미만은 접힌 채 시작하고 펼치면 본문 위에 겹쳐 연다.
  *   폭이 기준을 넘나들면 그 폭의 시작 상태로 돌아가고, 접힘 상태는 기억하지 않는다.
  */
@@ -101,6 +103,7 @@ export default function AppLayout() {
           {forbiddenPage ? <Forbidden title={forbiddenPage.title} /> : <Outlet />}
         </div>
       </main>
+      <LeaveConfirmDialog />
     </div>
   );
 }

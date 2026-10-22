@@ -5,6 +5,7 @@ import AppLayout, { type AppRouteHandle } from './routes/app/route.tsx';
 import HistoryRoute from './routes/history/route.tsx';
 import HomeRoute from './routes/home/route.tsx';
 import IdeasRoute from './routes/ideas/route.tsx';
+import InquiryDetailRoute from './routes/inquiries/detail/route.tsx';
 import InquiriesRoute from './routes/inquiries/route.tsx';
 import KindergartensRoute from './routes/kindergartens/route.tsx';
 import LoginRoute from './routes/login/route.tsx';
@@ -45,6 +46,11 @@ export const router = createBrowserRouter([
             handle: createPageHandle(PAGES.ownerVerifications),
           },
           { path: PAGES.inquiries.path, Component: InquiriesRoute, handle: createPageHandle(PAGES.inquiries) },
+          {
+            path: `${PAGES.inquiries.path}/:inquiryId`,
+            Component: InquiryDetailRoute,
+            handle: createPageHandle(PAGES.inquiries),
+          },
           { path: PAGES.ideas.path, Component: IdeasRoute, handle: createPageHandle(PAGES.ideas) },
           { path: PAGES.notices.path, Component: NoticesRoute, handle: createPageHandle(PAGES.notices) },
           { path: PAGES.terms.path, Component: TermsRoute, handle: createPageHandle(PAGES.terms) },

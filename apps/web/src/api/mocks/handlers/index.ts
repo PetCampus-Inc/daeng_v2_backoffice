@@ -2,40 +2,30 @@ import { http, type AnyHandler } from 'msw';
 
 import type { MyAccount, UpdateMyAccountInput } from '@/type/account';
 import { errorResponse, mockUrl, okResponse } from '@/api/mocks/util/response';
+import { INQUIRY_HANDLERS } from './inquiries';
 import { TEAM_MEMBER_HANDLERS, getMockTeamMembers, syncMockMemberProfile } from './team-members';
 
 const DISPLAY_NAME_DUPLICATE_CODE = 'PROFILE_DISPLAY_NAME_DUPLICATE';
 const DISPLAY_NAME_ERROR = '표시명은 1~10자이며 이미 사용 중인 이름은 사용할 수 없습니다.';
 
+/** TC fixtures.md `팀원-기본` 계정. 표시명 중복 검사에 쓰도록 로그인하지 않는 계정도 둔다. */
 const DEFAULT_ACCOUNTS: MyAccount[] = [
-  {
-    email: 'admin@knockdog.net',
-    googleName: '김관리',
-    suggestedDisplayName: '김관리',
-    displayName: '김관리',
-    jobRole: 'PM',
-    role: 'superAdmin',
-    profileCompleted: true,
-  },
-  {
-    email: 'operator@knockdog.net',
-    googleName: '이운영',
-    suggestedDisplayName: '이운영',
-    displayName: '이운영',
-    jobRole: 'FE',
-    role: 'operator',
-    profileCompleted: true,
-  },
-  {
-    email: 'viewer@knockdog.net',
-    googleName: '박조회',
-    suggestedDisplayName: '박조회',
-    displayName: null,
-    jobRole: null,
-    role: 'viewer',
-    profileCompleted: false,
-  },
-];
+  ['admin@knockdog.test', '김관리', '김관리', 'PM', 'superAdmin'],
+  ['ops@knockdog.test', '김운영', '김운영', 'PM', 'operator'],
+  ['ops2@knockdog.test', '이담당', '이담당', 'FE', 'operator'],
+  ['viewer@knockdog.test', '박조회', '박조회', 'UX/UI', 'viewer'],
+  ['inactive@knockdog.test', '정비활', '정비활', 'BE', 'operator'],
+  ['new@knockdog.test', '한새봄', null, null, 'superAdmin'],
+  ['canceled@knockdog.test', '오취소', null, null, 'operator'],
+].map(([email, googleName, displayName, jobRole, role]) => ({
+  email,
+  googleName,
+  suggestedDisplayName: googleName,
+  displayName,
+  jobRole,
+  role,
+  profileCompleted: displayName !== null,
+})) as MyAccount[];
 
 /** 페이지를 새로 열 때도 저장한 개발 계정 프로필을 이어 쓰기 위해 zustand 저장값을 읽는다. */
 function getStoredAccounts() {
@@ -46,7 +36,7 @@ function getStoredAccounts() {
       state?: { devProfiles?: Record<string, Omit<MyAccount, 'role' | 'suggestedDisplayName'>> };
     };
     // auth store가 새 모양으로 migrate하기 전 저장값은 가짜 서버도 기본값으로 시작한다.
-    if (persistedAuth.version !== 2) return mockAccounts;
+    if (persistedAuth.version !== 3) return mockAccounts;
     Object.entries(persistedAuth.state?.devProfiles ?? {}).forEach(([role, profile]) => {
       const displayNameIsAvailable =
         profile.googleName.length <= 10 &&
@@ -124,4 +114,4 @@ const ACCOUNT_HANDLERS: AnyHandler[] = [
 ];
 
 /** 가짜 API 주소별 응답 모음. */
-export const handlers: AnyHandler[] = [...ACCOUNT_HANDLERS, ...TEAM_MEMBER_HANDLERS];
+export const handlers: AnyHandler[] = [...ACCOUNT_HANDLERS, ...TEAM_MEMBER_HANDLERS, ...INQUIRY_HANDLERS];
