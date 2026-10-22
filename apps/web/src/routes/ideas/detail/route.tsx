@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
+import { useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router';
 import { useAuthStore } from '@/store/auth';
 import {
@@ -14,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
-import { ideaQueryOptions } from '../api/ideas';
+import { ideaQueryOptions } from '../api/ideas/index';
 import { IDEA_USER_TYPE_LABELS } from '../type/idea';
 import { useIdeaListSearchParams } from '../util/list-search-params';
 
@@ -39,6 +40,14 @@ function IdeaDetailContent({ id }: { id: number }) {
   const email = useAuthStore((state) => state.user?.email) ?? '';
   const { listSearch } = useIdeaListSearchParams();
   const query = useQuery(ideaQueryOptions(email, id));
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const shouldFocusAfterRetryRef = useRef(false);
+  useEffect(() => {
+    if (query.isSuccess && shouldFocusAfterRetryRef.current) {
+      shouldFocusAfterRetryRef.current = false;
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [query.isSuccess]);
   if (query.isPending) {
     return (
       <>
@@ -55,7 +64,13 @@ function IdeaDetailContent({ id }: { id: number }) {
       <>
         <title>{formatDocumentTitle(`제안 #${id}`)}</title>
         <Card>
-          <ListState kind='error' onAction={() => void query.refetch()} />
+          <ListState
+            kind='error'
+            onAction={() => {
+              shouldFocusAfterRetryRef.current = true;
+              void query.refetch();
+            }}
+          />
         </Card>
       </>
     );
@@ -80,7 +95,9 @@ function IdeaDetailContent({ id }: { id: number }) {
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
-      <h1 className='text-kd-title-1'>{title}</h1>
+      <h1 ref={headingRef} tabIndex={-1} className='text-kd-title-1 outline-none'>
+        {title}
+      </h1>
       <div className='mt-6 grid grid-cols-[minmax(0,1fr)_320px] items-start gap-6 max-[1199px]:grid-cols-1'>
         <Card>
           <CardHeader>

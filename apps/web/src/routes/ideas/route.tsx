@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { useNavigate } from 'react-router';
+import { useListReturnPosition } from '@/util/use-list-return-position';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
 import { Card } from '@/ui/atoms/card';
@@ -17,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
-import { ideasQueryOptions } from './api/ideas';
+import { ideasQueryOptions } from './api/ideas/index';
 import { IDEA_USER_TYPE_LABELS, IDEA_USER_TYPES, type IdeaListParams } from './type/idea';
 import { useIdeaListSearchParams } from './util/list-search-params';
 
@@ -25,28 +27,49 @@ import { useIdeaListSearchParams } from './util/list-search-params';
 export default function IdeasRoute() {
   const currentEmail = useAuthStore((state) => state.user?.email) ?? '';
   const navigate = useNavigate();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { listParams, page, listSearch, setSearchParams } = useIdeaListSearchParams();
   const ideasQuery = useQuery(ideasQueryOptions(currentEmail, listParams, page - 1));
   const ideas = ideasQuery.data?.items ?? [];
   const totalPages = ideasQuery.data?.totalPages ?? 0;
   const hasCondition = listParams.keyword !== '' || listParams.userType !== 'all';
-  const isListShown = ideasQuery.isSuccess && ideas.length > 0;
+  const isListShown = ideasQuery.isSuccess;
+  const saveReturnPosition = useListReturnPosition(
+    `ideas:${currentEmail}:${listSearch}`,
+    isListShown && !ideasQuery.isPlaceholderData
+  );
 
   /** 검색·필터를 바꾸면 1페이지로 간다(PRD 4.4). */
   const handleChangeCondition = (condition: Partial<IdeaListParams>) =>
     void setSearchParams({ ...condition, page: null });
   /** 검색어와 필터를 처음 값으로 되돌린다. 정렬은 그대로 둔다. */
-  const handleResetFilters = () => void setSearchParams({ keyword: null, userType: null, page: null });
+  const handleResetFilters = () => {
+    searchInputRef.current?.focus({ preventScroll: true });
+    void setSearchParams({ keyword: null, userType: null, page: null });
+  };
+  const handleRetry = () => {
+    searchInputRef.current?.focus({ preventScroll: true });
+    void ideasQuery.refetch();
+  };
+  const handleChangePage = (nextPage: number) => {
+    if (ideasQuery.isPlaceholderData || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    void setSearchParams({ page: nextPage === 1 ? null : nextPage });
+  };
   /** 목록 조건을 상세 주소에 이어 붙여 목록 복귀에 쓴다. */
-  const handleOpenIdea = (id: number) => navigate({ pathname: `${PAGES.ideas.path}/${id}`, search: listSearch });
+  const handleOpenIdea = (id: number) => {
+    if (ideasQuery.isPlaceholderData) return;
+    saveReturnPosition(id);
+    void navigate({ pathname: `${PAGES.ideas.path}/${id}`, search: listSearch });
+  };
 
   return (
     <>
       <title>{formatDocumentTitle(PAGES.ideas.title)}</title>
       <h1 className='text-kd-title-1'>{PAGES.ideas.title}</h1>
-      <Card className='mt-6'>
+      <Card className='mt-6' aria-busy={ideasQuery.isFetching}>
         <div className='flex flex-wrap items-center gap-2 p-4'>
           <Input
+            ref={searchInputRef}
             type='search'
             aria-label='검색'
             placeholder='내용, 사용자 계정'
@@ -78,15 +101,22 @@ export default function IdeasRoute() {
             </Button>
           )}
           {isListShown && (
-            <p className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              총 {ideasQuery.data.totalElements}건
+            <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
+              {ideasQuery.isPlaceholderData ? '조회 중…' : `총 ${ideasQuery.data.totalElements}건`}
             </p>
           )}
         </div>
         {ideasQuery.isPending ? (
           <ListState kind='loading' />
         ) : ideasQuery.isError ? (
-          <ListState kind='error' onAction={() => void ideasQuery.refetch()} />
+          <ListState kind='error' onAction={handleRetry} />
+        ) : ideasQuery.isPlaceholderData && ideas.length === 0 ? (
+          <p
+            role='status'
+            className='flex min-h-48 items-center justify-center px-4 py-14 text-center text-kd-foreground-muted'
+          >
+            조건에 맞는 제안을 조회하고 있습니다.
+          </p>
         ) : ideas.length === 0 ? (
           hasCondition ? (
             <ListState kind='no-results' onAction={handleResetFilters} />
@@ -95,13 +125,13 @@ export default function IdeasRoute() {
           )
         ) : (
           <>
-            <Table scrollLabel='제안 목록 가로 스크롤'>
+            <Table className='table-fixed' scrollLabel='제안 목록 가로 스크롤'>
               <caption className='sr-only'>제안 목록</caption>
               <TableHeader>
                 <TableRow>
                   <TableHead className='w-kd-col-number'>제안 번호</TableHead>
                   <TableHead>내용</TableHead>
-                  <TableHead>사용자</TableHead>
+                  <TableHead className='w-44'>사용자</TableHead>
                   <TableHead
                     className='w-kd-col-time'
                     sort={listParams.sort === 'latest' ? 'descending' : 'ascending'}
@@ -118,6 +148,8 @@ export default function IdeasRoute() {
                     <TableCell className='max-w-80'>
                       <button
                         type='button'
+                        aria-disabled={ideasQuery.isPlaceholderData}
+                        data-list-item-id={idea.id}
                         className='block max-w-full truncate rounded-kd-2 text-left font-semibold outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kd-primary focus-visible:outline-solid'
                         onClick={(event) => {
                           event.stopPropagation();
@@ -139,13 +171,19 @@ export default function IdeasRoute() {
               <Pagination className='border-t border-kd-border p-4'>
                 <PaginationContent>
                   <PaginationItem>
-                    <PaginationPrevious disabled={page <= 1} onClick={() => void setSearchParams({ page: page - 1 })} />
+                    <PaginationPrevious
+                      className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
+                      aria-disabled={page <= 1 || ideasQuery.isPlaceholderData}
+                      onClick={() => handleChangePage(page - 1)}
+                    />
                   </PaginationItem>
                   {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
                     <PaginationItem key={pageNumber}>
                       <PaginationButton
                         isActive={pageNumber === page}
-                        onClick={() => void setSearchParams({ page: pageNumber === 1 ? null : pageNumber })}
+                        className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
+                        aria-disabled={ideasQuery.isPlaceholderData}
+                        onClick={() => handleChangePage(pageNumber)}
                       >
                         {pageNumber}
                       </PaginationButton>
@@ -153,8 +191,9 @@ export default function IdeasRoute() {
                   ))}
                   <PaginationItem>
                     <PaginationNext
-                      disabled={page >= totalPages}
-                      onClick={() => void setSearchParams({ page: page + 1 })}
+                      className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
+                      aria-disabled={page >= totalPages || ideasQuery.isPlaceholderData}
+                      onClick={() => handleChangePage(page + 1)}
                     />
                   </PaginationItem>
                 </PaginationContent>

@@ -1,4 +1,4 @@
-import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDevAccountHeaders } from '@/api/account';
 import { apiClient } from '@/api/client';
 import type { ApiResponse, PageResponse } from '@/type/api';
@@ -9,7 +9,7 @@ import type {
   InquiryDetail,
   InquiryListParams,
   InquirySummary,
-} from '../type/inquiry';
+} from '../../type/inquiry';
 
 /** 문의 목록 한 페이지 크기(PRD 4.4). */
 export const INQUIRY_PAGE_SIZE = 20;
@@ -37,7 +37,7 @@ export const inquiriesQueryOptions = (email: string, params: InquiryListParams, 
   queryOptions({
     queryKey: ['inquiries', email, 'list', params, page],
     queryFn: () => getInquiries(email, params, page),
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[1] === email ? previousData : undefined),
   });
 
 /** 담당자 필터에 쓰는 팀원 목록(표시명이 있는 활성·비활성 팀원)을 조회한다. */

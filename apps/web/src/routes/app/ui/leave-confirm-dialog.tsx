@@ -26,6 +26,7 @@ export function LeaveConfirmDialog() {
   const isDirty = guards.length > 0;
   // [나가기] 뒤에 Radix가 닫힘(onOpenChange)을 다시 알려도 취소로 처리하지 않게 한다.
   const isConfirmingRef = useRef(false);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       isDirty &&
@@ -55,6 +56,7 @@ export function LeaveConfirmDialog() {
   /** 작성 중인 입력을 모두 버리고 멈춰 둔 이동·동작을 계속한다. */
   const handleConfirmLeave = () => {
     isConfirmingRef.current = true;
+    returnFocusRef.current = null;
     guards.forEach((guard) => guard.discard());
     clearPendingAction();
     if (blocker.state === 'blocked') blocker.proceed();
@@ -63,7 +65,19 @@ export function LeaveConfirmDialog() {
 
   return (
     <AlertDialog open={isOpen} onOpenChange={(nextOpen) => !nextOpen && isOpen && handleCancelLeave()}>
-      <AlertDialogContent>
+      <AlertDialogContent
+        onOpenAutoFocus={() => {
+          returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        }}
+        onCloseAutoFocus={(event) => {
+          // 확인으로 이동한 경우에는 이전 화면으로 초점을 되돌리지 않는다.
+          const target = returnFocusRef.current;
+          if (target?.isConnected) {
+            event.preventDefault();
+            target.focus({ preventScroll: true });
+          }
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>작성 중인 내용이 사라집니다. 나갈까요?</AlertDialogTitle>
           <AlertDialogDescription>{guards.at(-1)?.description}</AlertDialogDescription>

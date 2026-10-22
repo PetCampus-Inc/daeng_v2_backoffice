@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { useNavigate } from 'react-router';
+import { useListReturnPosition } from '@/util/use-list-return-position';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
 import { Card } from '@/ui/atoms/card';
@@ -17,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
-import { inquiriesQueryOptions, inquiryAssigneesQueryOptions } from './api/inquiries';
+import { inquiriesQueryOptions, inquiryAssigneesQueryOptions } from './api/inquiries/index';
 import {
   INQUIRY_STATUS_LABELS,
   INQUIRY_STATUSES,
@@ -34,6 +36,8 @@ import { useInquiryListSearchParams } from './util/list-search-params';
 export default function InquiriesRoute() {
   const currentEmail = useAuthStore((state) => state.user?.email) ?? '';
   const navigate = useNavigate();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const assigneeTriggerRef = useRef<HTMLButtonElement>(null);
   const { listParams, page, listSearch, setSearchParams } = useInquiryListSearchParams();
   const inquiriesQuery = useQuery(inquiriesQueryOptions(currentEmail, listParams, page - 1));
   const assigneesQuery = useQuery(inquiryAssigneesQueryOptions(currentEmail));
@@ -44,24 +48,43 @@ export default function InquiriesRoute() {
     listParams.status !== 'all' ||
     listParams.userType !== 'all' ||
     listParams.assignee !== 'all';
-  const isListShown = inquiriesQuery.isSuccess && inquiries.length > 0;
+  const isListShown = inquiriesQuery.isSuccess;
+  const saveReturnPosition = useListReturnPosition(
+    `inquiries:${currentEmail}:${listSearch}`,
+    isListShown && !inquiriesQuery.isPlaceholderData
+  );
 
   /** 검색·필터를 바꾸면 1페이지로 간다(PRD 4.4). */
   const handleChangeCondition = (condition: Partial<InquiryListParams>) =>
     void setSearchParams({ ...condition, page: null });
   /** 검색어와 필터를 처음 값으로 되돌린다. 정렬은 그대로 둔다. */
-  const handleResetFilters = () =>
+  const handleResetFilters = () => {
+    searchInputRef.current?.focus({ preventScroll: true });
     void setSearchParams({ keyword: null, status: null, userType: null, assignee: null, page: null });
+  };
+  const handleRetry = () => {
+    searchInputRef.current?.focus({ preventScroll: true });
+    void inquiriesQuery.refetch();
+  };
+  const handleChangePage = (nextPage: number) => {
+    if (inquiriesQuery.isPlaceholderData || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    void setSearchParams({ page: nextPage === 1 ? null : nextPage });
+  };
   /** 지금 목록 조건을 상세 주소에 이어 붙여 이전·다음 문의와 목록 복귀에 쓴다. */
-  const handleOpenInquiry = (id: number) => navigate({ pathname: `${PAGES.inquiries.path}/${id}`, search: listSearch });
+  const handleOpenInquiry = (id: number) => {
+    if (inquiriesQuery.isPlaceholderData) return;
+    saveReturnPosition(id);
+    void navigate({ pathname: `${PAGES.inquiries.path}/${id}`, search: listSearch });
+  };
 
   return (
     <>
       <title>{formatDocumentTitle(PAGES.inquiries.title)}</title>
       <h1 className='text-kd-title-1'>{PAGES.inquiries.title}</h1>
-      <Card className='mt-6'>
+      <Card className='mt-6' aria-busy={inquiriesQuery.isFetching}>
         <div className='flex flex-wrap items-center gap-2 p-4'>
           <Input
+            ref={searchInputRef}
             type='search'
             aria-label='검색'
             placeholder='제목, 사용자, 문의 번호, 대화 내용'
@@ -106,8 +129,14 @@ export default function InquiriesRoute() {
             </SelectContent>
           </Select>
           <Select value={listParams.assignee} onValueChange={(value) => handleChangeCondition({ assignee: value })}>
-            <SelectTrigger aria-label='담당자' className='w-52'>
-              <SelectValue>{listParams.assignee === 'all' ? '담당자 전체' : undefined}</SelectValue>
+            <SelectTrigger ref={assigneeTriggerRef} aria-label='담당자' className='w-52'>
+              <SelectValue>
+                {assigneesQuery.isPending
+                  ? '담당자 불러오는 중…'
+                  : listParams.assignee === 'all'
+                    ? '담당자 전체'
+                    : undefined}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='all'>전체</SelectItem>
@@ -121,21 +150,44 @@ export default function InquiriesRoute() {
               ))}
             </SelectContent>
           </Select>
+          {assigneesQuery.isError && (
+            <div className='flex items-center gap-2'>
+              <p role='status' className='text-kd-sub text-kd-foreground-muted'>
+                담당자를 불러오지 못했습니다.
+              </p>
+              <Button
+                variant='link'
+                onClick={() => {
+                  assigneeTriggerRef.current?.focus({ preventScroll: true });
+                  void assigneesQuery.refetch();
+                }}
+              >
+                담당자 다시 시도
+              </Button>
+            </div>
+          )}
           {hasCondition && (
             <Button variant='link' onClick={handleResetFilters}>
               필터 초기화
             </Button>
           )}
           {isListShown && (
-            <p className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              총 {inquiriesQuery.data.totalElements}건
+            <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
+              {inquiriesQuery.isPlaceholderData ? '조회 중…' : `총 ${inquiriesQuery.data.totalElements}건`}
             </p>
           )}
         </div>
         {inquiriesQuery.isPending ? (
           <ListState kind='loading' />
         ) : inquiriesQuery.isError ? (
-          <ListState kind='error' onAction={() => void inquiriesQuery.refetch()} />
+          <ListState kind='error' onAction={handleRetry} />
+        ) : inquiriesQuery.isPlaceholderData && inquiries.length === 0 ? (
+          <p
+            role='status'
+            className='flex min-h-48 items-center justify-center px-4 py-14 text-center text-kd-foreground-muted'
+          >
+            조건에 맞는 문의를 조회하고 있습니다.
+          </p>
         ) : inquiries.length === 0 ? (
           hasCondition ? (
             <ListState kind='no-results' onAction={handleResetFilters} />
@@ -172,6 +224,8 @@ export default function InquiriesRoute() {
                     <TableCell className='max-w-80'>
                       <button
                         type='button'
+                        aria-disabled={inquiriesQuery.isPlaceholderData}
+                        data-list-item-id={inquiry.id}
                         className='block max-w-full truncate rounded-kd-2 text-left font-semibold outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kd-primary focus-visible:outline-solid'
                         onClick={(event) => {
                           event.stopPropagation();
@@ -194,13 +248,19 @@ export default function InquiriesRoute() {
               <Pagination className='border-t border-kd-border p-4'>
                 <PaginationContent>
                   <PaginationItem>
-                    <PaginationPrevious disabled={page <= 1} onClick={() => void setSearchParams({ page: page - 1 })} />
+                    <PaginationPrevious
+                      className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
+                      aria-disabled={page <= 1 || inquiriesQuery.isPlaceholderData}
+                      onClick={() => handleChangePage(page - 1)}
+                    />
                   </PaginationItem>
                   {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
                     <PaginationItem key={pageNumber}>
                       <PaginationButton
                         isActive={pageNumber === page}
-                        onClick={() => void setSearchParams({ page: pageNumber === 1 ? null : pageNumber })}
+                        className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
+                        aria-disabled={inquiriesQuery.isPlaceholderData}
+                        onClick={() => handleChangePage(pageNumber)}
                       >
                         {pageNumber}
                       </PaginationButton>
@@ -208,8 +268,9 @@ export default function InquiriesRoute() {
                   ))}
                   <PaginationItem>
                     <PaginationNext
-                      disabled={page >= totalPages}
-                      onClick={() => void setSearchParams({ page: page + 1 })}
+                      className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
+                      aria-disabled={page >= totalPages || inquiriesQuery.isPlaceholderData}
+                      onClick={() => handleChangePage(page + 1)}
                     />
                   </PaginationItem>
                 </PaginationContent>

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { useState, type SubmitEvent } from 'react';
+import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
@@ -38,7 +38,7 @@ import {
   useReleaseInquiry,
   useReplyInquiry,
   useRestoreInquiryAssignee,
-} from '../api/inquiries';
+} from '../api/inquiries/index';
 import { INQUIRY_ERROR_CODES, type InquiryAssignee, type InquiryDetail } from '../type/inquiry';
 import { InquiryAssigneeName } from '../ui/inquiry-assignee-name';
 import { InquiryStatusBadge } from '../ui/inquiry-status-badge';
@@ -98,13 +98,34 @@ function InquiryDetailContent({ id }: { id: number }) {
   const restoreMutation = useRestoreInquiryAssignee(currentEmail);
   const replyMutation = useReplyInquiry(currentEmail);
   const [draft, setDraft] = useState('');
+  const actionButtonRef = useRef<HTMLButtonElement>(null);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
+  const actionPendingRef = useRef(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [confirmAssignee, setConfirmAssignee] = useState<InquiryAssignee | null>(null);
   const [isReleaseConfirmOpen, setIsReleaseConfirmOpen] = useState(false);
   // 저장 순간 담당자가 바뀌어 저장하지 못한 답변. 복사할 수 있게 남기고 저장은 막는다(FR-BO-058).
   const [isDraftLocked, setIsDraftLocked] = useState(false);
+  const [isRequestPending, setIsRequestPending] = useState(false);
   const isDirty = draft !== '';
   const isActionPending =
-    assignMutation.isPending || releaseMutation.isPending || restoreMutation.isPending || replyMutation.isPending;
+    isRequestPending ||
+    assignMutation.isPending ||
+    releaseMutation.isPending ||
+    restoreMutation.isPending ||
+    replyMutation.isPending;
+  const wasActionPendingRef = useRef(false);
+  const shouldFocusAfterRetryRef = useRef(false);
+  useEffect(() => {
+    if (shouldFocusAfterRetryRef.current && inquiryQuery.isSuccess) {
+      shouldFocusAfterRetryRef.current = false;
+      headingRef.current?.focus({ preventScroll: true });
+    }
+    if (wasActionPendingRef.current && !isActionPending && document.activeElement === document.body) {
+      (replyInputRef.current ?? actionButtonRef.current ?? headingRef.current)?.focus({ preventScroll: true });
+    }
+    wasActionPendingRef.current = isActionPending;
+  }, [isActionPending, inquiryQuery.isSuccess]);
   // 쓰던 답변이 있으면 화면 이동·로그아웃 전에 앱 이탈 확인창(AppLayout)을 거친다(PRD 4.6).
   useLeaveGuard({ isDirty, description: '저장하지 않은 답변을 버립니다.', discard: () => setDraft('') });
 
@@ -120,6 +141,9 @@ function InquiryDetailContent({ id }: { id: number }) {
 
   /** 화면에서 본 담당자를 보내 맡는다. 그 사이 바뀌었으면 최신 담당자로 다시 판단한다(FR-BO-054). */
   const requestAssign = async (expectedAssigneeEmail: string | null): Promise<void> => {
+    if (actionPendingRef.current) return;
+    actionPendingRef.current = true;
+    setIsRequestPending(true);
     try {
       await assignMutation.mutateAsync({ id, expectedAssigneeEmail });
       setIsDraftLocked(false);
@@ -130,8 +154,10 @@ function InquiryDetailContent({ id }: { id: number }) {
         const latest = await refetchInquiry();
         if (!latest) return;
         const action = getAssignAction(latest.assignee?.email ?? null, currentEmail);
-        if (action === 'assign') await requestAssign(null);
-        else if (action === 'confirm') setConfirmAssignee(latest.assignee);
+        if (action === 'assign') {
+          actionPendingRef.current = false;
+          await requestAssign(null);
+        } else if (action === 'confirm') setConfirmAssignee(latest.assignee);
         return;
       }
       if (code === INQUIRY_ERROR_CODES.resolved) {
@@ -139,6 +165,9 @@ function InquiryDetailContent({ id }: { id: number }) {
         return;
       }
       showErrorToast(GENERIC_ERROR_MESSAGE);
+    } finally {
+      actionPendingRef.current = false;
+      setIsRequestPending(false);
     }
   };
 
@@ -151,6 +180,9 @@ function InquiryDetailContent({ id }: { id: number }) {
 
   /** 담당 해제를 실행 취소한다. 그 사이 다른 사람이 맡았으면 최신 담당자를 보여 준다. */
   const handleUndoRelease = async () => {
+    if (actionPendingRef.current) return;
+    actionPendingRef.current = true;
+    setIsRequestPending(true);
     try {
       await restoreMutation.mutateAsync(id);
       showSuccessToast('담당 해제를 취소했습니다.');
@@ -159,14 +191,25 @@ function InquiryDetailContent({ id }: { id: number }) {
       if (code === INQUIRY_ERROR_CODES.assigneeChanged || code === INQUIRY_ERROR_CODES.resolved) {
         // 이 화면을 떠난 뒤에 눌러도 같은 문의를 다시 읽게 한다.
         await queryClient.invalidateQueries({ queryKey: inquiryQueryOptions(currentEmail, id).queryKey });
+        showErrorToast(
+          code === INQUIRY_ERROR_CODES.resolved
+            ? '해결 완료된 문의라 실행 취소할 수 없습니다.'
+            : '담당자가 변경되어 실행 취소할 수 없습니다.'
+        );
         return;
       }
       showErrorToast(GENERIC_ERROR_MESSAGE);
+    } finally {
+      actionPendingRef.current = false;
+      setIsRequestPending(false);
     }
   };
 
   /** 담당을 해제하고 쓰던 답변을 비운 뒤 실행 취소 토스트(8초)를 띄운다(FR-BO-055). */
   const requestRelease = async () => {
+    if (actionPendingRef.current) return;
+    actionPendingRef.current = true;
+    setIsRequestPending(true);
     try {
       await releaseMutation.mutateAsync(id);
       setDraft('');
@@ -175,8 +218,14 @@ function InquiryDetailContent({ id }: { id: number }) {
     } catch (error) {
       const code = getInquiryErrorCode(error);
       if (code === INQUIRY_ERROR_CODES.resolved) await handleResolvedRejection();
-      else if (code === INQUIRY_ERROR_CODES.assigneeChanged) await refetchInquiry();
-      else showErrorToast(GENERIC_ERROR_MESSAGE);
+      else if (code === INQUIRY_ERROR_CODES.assigneeChanged) {
+        setIsDraftLocked(draft !== '');
+        await refetchInquiry();
+        showErrorToast('담당자가 변경되었습니다.');
+      } else showErrorToast(GENERIC_ERROR_MESSAGE);
+    } finally {
+      actionPendingRef.current = false;
+      setIsRequestPending(false);
     }
   };
 
@@ -189,7 +238,9 @@ function InquiryDetailContent({ id }: { id: number }) {
   /** 답변을 저장한다. 성공하면 입력을 비우고, 담당자가 바뀌었으면 입력을 남긴 채 저장을 막는다(FR-BO-057, 058). */
   const handleSubmitReply = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isDraftLocked || !canSubmitReply(draft, replyMutation.isPending)) return;
+    if (actionPendingRef.current || isDraftLocked || !canSubmitReply(draft, isActionPending)) return;
+    actionPendingRef.current = true;
+    setIsRequestPending(true);
     try {
       await replyMutation.mutateAsync({ id, body: draft });
       setDraft('');
@@ -207,6 +258,9 @@ function InquiryDetailContent({ id }: { id: number }) {
         return;
       }
       showErrorToast(GENERIC_ERROR_MESSAGE);
+    } finally {
+      actionPendingRef.current = false;
+      setIsRequestPending(false);
     }
   };
 
@@ -226,7 +280,13 @@ function InquiryDetailContent({ id }: { id: number }) {
       <InquiryNotFound />
     ) : (
       <Card>
-        <ListState kind='error' onAction={() => void inquiryQuery.refetch()} />
+        <ListState
+          kind='error'
+          onAction={() => {
+            shouldFocusAfterRetryRef.current = true;
+            void inquiryQuery.refetch();
+          }}
+        />
       </Card>
     );
   }
@@ -277,26 +337,31 @@ function InquiryDetailContent({ id }: { id: number }) {
         </div>
       </div>
       <div className='flex flex-wrap items-center justify-between gap-3'>
-        <h1 className='min-w-0 text-kd-title-1 [overflow-wrap:anywhere]'>{inquiry.title}</h1>
+        <h1 ref={headingRef} tabIndex={-1} className='min-w-0 text-kd-title-1 outline-none [overflow-wrap:anywhere]'>
+          {inquiry.title}
+        </h1>
         <div className='flex items-center gap-3'>
           <p className='text-kd-body'>
             <span className='sr-only'>담당 </span>
             <InquiryAssigneeName assignee={inquiry.assignee} />
           </p>
           {viewMode === 'mine' && (
-            <Button variant='outline' disabled={isActionPending} onClick={handleClickRelease}>
+            <Button ref={actionButtonRef} variant='outline' disabled={isActionPending} onClick={handleClickRelease}>
               담당 해제
             </Button>
           )}
           {viewMode === 'notMine' && (
-            <Button disabled={isActionPending} onClick={() => handleClickAssign(inquiry)}>
+            <Button ref={actionButtonRef} disabled={isActionPending} onClick={() => handleClickAssign(inquiry)}>
               내가 맡기
             </Button>
           )}
         </div>
       </div>
-      <div className='mt-3'>
+      <div className='mt-3 flex items-center gap-3'>
         <InquiryStatusBadge status={inquiry.status} />
+        <span role='status' className='text-kd-sub text-kd-foreground-muted'>
+          {isActionPending ? '문의 처리 중…' : ''}
+        </span>
       </div>
       {/* 상세 2열: 왼쪽 1fr + 오른쪽 정보 320(design.md 2장, 시안 값이라 토큰이 없다). 1199px 이하 한 열 */}
       <div className='mt-6 grid grid-cols-[minmax(0,1fr)_320px] items-start gap-6 max-[1199px]:grid-cols-1'>
@@ -306,12 +371,13 @@ function InquiryDetailContent({ id }: { id: number }) {
             {viewMode === 'resolved' ? (
               <ReplyNotice>{RESOLVED_NOTICE}</ReplyNotice>
             ) : isReplyFormShown ? (
-              <form onSubmit={handleSubmitReply} noValidate className='flex flex-col gap-3'>
+              <form aria-busy={isActionPending} onSubmit={handleSubmitReply} noValidate className='flex flex-col gap-3'>
                 <Field invalid={!!replyLengthError}>
                   <Textarea
+                    ref={replyInputRef}
                     aria-label='답변'
                     value={draft}
-                    readOnly={isDraftLocked}
+                    readOnly={isDraftLocked || isActionPending}
                     onChange={(event) => setDraft(event.target.value)}
                   />
                   <div className='flex items-start justify-between gap-3'>
@@ -321,11 +387,15 @@ function InquiryDetailContent({ id }: { id: number }) {
                       </FieldDescription>
                       <FieldError>{replyLengthError}</FieldError>
                     </div>
-                    <FieldCounter current={countCharacters(draft)} max={REPLY_MAX_LENGTH} />
+                    <FieldCounter
+                      className='shrink-0 whitespace-nowrap'
+                      current={countCharacters(draft)}
+                      max={REPLY_MAX_LENGTH}
+                    />
                   </div>
                 </Field>
                 <div className='flex justify-end'>
-                  <Button type='submit' disabled={isDraftLocked || !canSubmitReply(draft, replyMutation.isPending)}>
+                  <Button type='submit' disabled={isDraftLocked || !canSubmitReply(draft, isActionPending)}>
                     답변 저장
                   </Button>
                 </div>
@@ -338,7 +408,12 @@ function InquiryDetailContent({ id }: { id: number }) {
         <InquiryInfo inquiry={inquiry} />
       </div>
       <AlertDialog open={confirmAssignee !== null} onOpenChange={(isOpen) => !isOpen && setConfirmAssignee(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>담당자를 변경할까요?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -354,7 +429,12 @@ function InquiryDetailContent({ id }: { id: number }) {
         </AlertDialogContent>
       </AlertDialog>
       <AlertDialog open={isReleaseConfirmOpen} onOpenChange={setIsReleaseConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>담당을 해제할까요?</AlertDialogTitle>
             <AlertDialogDescription>작성 중인 답변이 사라집니다.</AlertDialogDescription>
