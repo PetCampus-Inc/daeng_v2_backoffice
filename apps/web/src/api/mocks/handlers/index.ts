@@ -2,6 +2,7 @@ import { http, type AnyHandler } from 'msw';
 
 import type { MyAccount, UpdateMyAccountInput } from '@/type/account';
 import { errorResponse, mockUrl, okResponse } from '@/api/mocks/util/response';
+import { TEAM_MEMBER_HANDLERS, getMockTeamMembers, syncMockMemberProfile } from './team-members';
 
 const DISPLAY_NAME_DUPLICATE_CODE = 'PROFILE_DISPLAY_NAME_DUPLICATE';
 const DISPLAY_NAME_ERROR = '표시명은 1~10자이며 이미 사용 중인 이름은 사용할 수 없습니다.';
@@ -84,12 +85,18 @@ const ACCOUNT_HANDLERS: AnyHandler[] = [
   http.get(mockUrl('/me'), ({ request }) => {
     const email = getRequestEmail(request);
     const account = email ? mockAccounts.get(email) : undefined;
-    return account ? okResponse(account) : createUnauthorizedResponse();
+    const member = getMockTeamMembers().find((item) => item.email === email);
+    return account && member && member.status !== 'inactive' && member.status !== 'cancelled'
+      ? okResponse({ ...account, role: member.role })
+      : createUnauthorizedResponse();
   }),
   http.patch(mockUrl('/me'), async ({ request }) => {
     const email = getRequestEmail(request);
     const account = email ? mockAccounts.get(email) : undefined;
-    if (!account) return createUnauthorizedResponse();
+    const member = getMockTeamMembers().find((item) => item.email === email);
+    if (!account || !member || member.status === 'inactive' || member.status === 'cancelled') {
+      return createUnauthorizedResponse();
+    }
 
     const input = (await request.json()) as UpdateMyAccountInput;
     const isDisplayNameDuplicate = [...mockAccounts.values()].some(
@@ -105,14 +112,16 @@ const ACCOUNT_HANDLERS: AnyHandler[] = [
 
     const updatedAccount: MyAccount = {
       ...account,
+      role: member.role,
       displayName: input.displayName,
       jobRole: input.jobRole,
       profileCompleted: true,
     };
     mockAccounts.set(account.email, updatedAccount);
+    syncMockMemberProfile(updatedAccount);
     return okResponse(updatedAccount);
   }),
 ];
 
 /** 가짜 API 주소별 응답 모음. */
-export const handlers: AnyHandler[] = [...ACCOUNT_HANDLERS];
+export const handlers: AnyHandler[] = [...ACCOUNT_HANDLERS, ...TEAM_MEMBER_HANDLERS];
