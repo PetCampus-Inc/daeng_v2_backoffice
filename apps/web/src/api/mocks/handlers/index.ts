@@ -4,6 +4,7 @@ import type { MyAccount, UpdateMyAccountInput } from '@/type/account';
 import { errorResponse, mockUrl, okResponse } from '@/api/mocks/util/response';
 import { IDEA_HANDLERS } from './ideas';
 import { KINDERGARTEN_HANDLERS } from './kindergartens';
+import { MEMBER_HANDLERS } from './members';
 import { INQUIRY_HANDLERS } from './inquiries';
 import { NOTICE_HANDLERS } from './notices';
 import { OVERVIEW_HANDLERS } from './overview';
@@ -128,4 +129,5 @@ export const handlers: AnyHandler[] = [
   ...KINDERGARTEN_HANDLERS,
   ...OVERVIEW_HANDLERS,
   ...OWNER_VERIFICATION_HANDLERS,
+  ...MEMBER_HANDLERS,
 ];
