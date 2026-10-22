@@ -1,6 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
 import { NavLink } from 'react-router';
 
+import { overviewQueryOptions } from '@/api/overview';
 import { cn } from '@/util/cn';
+import { formatCount } from '@/util/count-format';
+import { PAGES } from '@/util/page-config';
+import { getVerificationSummary } from '@/util/verification-summary';
 import type { Role } from '@/type/role';
 
 import { visibleMenu, type MenuItem } from '@/routes/app/util/menu';
@@ -104,6 +109,25 @@ function SidebarItem({
       onClick={onNavigate}
     >
       {item.page.title}
+      {item.page.path === PAGES.ownerVerifications.path && <VerificationCountBadge />}
     </NavLink>
+  );
+}
+
+/**
+ * '원장 인증 현황' 메뉴의 주황 배지. 홈 '인증 진행 중'과 같은 값이며 홈과 같은 요청을 함께 쓴다(S-인증-012).
+ * 0건이면 `0`, 불러오는 중·실패면 `—`(service-admin.html 기준).
+ */
+function VerificationCountBadge() {
+  const overviewQuery = useQuery(overviewQueryOptions());
+  const stats = overviewQuery.data?.stats;
+  const count = stats
+    ? formatCount(getVerificationSummary(stats.verificationCounts, stats.revokedOwners).inProgress)
+    : null;
+  return (
+    <span className='ml-auto min-w-[22px] rounded-kd-full bg-kd-primary px-[7px] py-0.5 text-center text-kd-caption font-semibold text-kd-primary-foreground tabular-nums'>
+      <span aria-hidden>{count ?? '—'}</span>
+      <span className='sr-only'>{count === null ? ', 인증 진행 중 수 없음' : `, 인증 진행 중 ${count}건`}</span>
+    </span>
   );
 }

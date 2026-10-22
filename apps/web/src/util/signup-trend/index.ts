@@ -1,5 +1,5 @@
-import type { SignupTrendItem } from '../../type/overview';
-import { toCount } from '../format';
+import type { SignupTrendItem } from '@/type/overview';
+import { toCount } from '@/util/count-format';
 
 /** 신규 가입 추이 기간(오늘 포함). */
 export const SIGNUP_TREND_DAYS = 30;

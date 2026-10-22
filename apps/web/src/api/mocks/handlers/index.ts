@@ -7,6 +7,7 @@ import { KINDERGARTEN_HANDLERS } from './kindergartens';
 import { INQUIRY_HANDLERS } from './inquiries';
 import { NOTICE_HANDLERS } from './notices';
 import { OVERVIEW_HANDLERS } from './overview';
+import { OWNER_VERIFICATION_HANDLERS } from './owner-verifications';
 import { TEAM_MEMBER_HANDLERS, getMockTeamMembers, syncMockMemberProfile } from './team-members';
 
 const DISPLAY_NAME_DUPLICATE_CODE = 'PROFILE_DISPLAY_NAME_DUPLICATE';
@@ -126,4 +127,5 @@ export const handlers: AnyHandler[] = [
   ...NOTICE_HANDLERS,
   ...KINDERGARTEN_HANDLERS,
   ...OVERVIEW_HANDLERS,
+  ...OWNER_VERIFICATION_HANDLERS,
 ];

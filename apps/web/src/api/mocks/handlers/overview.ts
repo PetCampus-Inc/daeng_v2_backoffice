@@ -1,7 +1,7 @@
 import { http } from 'msw';
 import { mockUrl, okResponse } from '../util/response';
-import type { Overview, SignupTrendItem } from '@/routes/home/type/overview';
-import { fillSignupTrend } from '@/routes/home/util/signup-trend';
+import type { Overview, SignupTrendItem } from '@/type/overview';
+import { fillSignupTrend } from '@/util/signup-trend';
 
 /**
  * fixtures.md `홈-기본` 가입 추이 30일(하루 1~5명, 합계 42 = 최근 30일 신규 회원).

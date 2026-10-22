@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import type { LoadState } from '../type/load-state';
-import type { Overview } from '../type/overview';
-import { formatCount } from '../util/format';
-import { getVerificationSummary } from '../util/verification-summary';
+import type { Overview } from '@/type/overview';
+import { formatCount } from '@/util/count-format';
+import { getVerificationSummary } from '@/util/verification-summary';
 import { Skeleton } from './skeleton';
 
 /** 원장 인증 구성 4칸의 이름과 숫자. 실패하면 숫자를 '—'로 둔다(S-홈-012). */

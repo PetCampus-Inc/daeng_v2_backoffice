@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { ListState } from '@/ui/molecules/list-state';
 import { PAGES } from '@/util/page-config';
 import type { LoadState } from '../type/load-state';
-import { VERIFICATION_STATUS_LABELS, type RecentVerification } from '../type/overview';
+import { VERIFICATION_STATUS_LABELS, type RecentVerification } from '@/type/overview';
 import { formatDate } from '@/util/date-format';
 
 /** 홈에 보여 주는 최근 원장 인증 최대 줄 수. */

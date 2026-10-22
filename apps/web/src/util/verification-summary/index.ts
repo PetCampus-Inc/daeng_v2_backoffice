@@ -1,5 +1,5 @@
-import type { OverviewStats } from '../../type/overview';
-import { toCount } from '../format';
+import type { OverviewStats } from '@/type/overview';
+import { toCount } from '@/util/count-format';
 
 /** 인증 단계별 건수로 홈 카드 숫자를 계산한다(10-홈.md R-홈인증수). */
 export const getVerificationSummary = (

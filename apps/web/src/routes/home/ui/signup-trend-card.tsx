@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/ui/atoms/chart';
 import { ListState } from '@/ui/molecules/list-state';
 import type { LoadState } from '../type/load-state';
-import type { SignupTrendItem } from '../type/overview';
+import type { SignupTrendItem } from '@/type/overview';
 import { formatDate } from '@/util/date-format';
 import { Skeleton } from './skeleton';
 

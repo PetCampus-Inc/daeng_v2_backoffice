@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { Card } from '@/ui/atoms/card';
 import type { LoadState } from '../type/load-state';
-import type { Overview } from '../type/overview';
-import { formatCount } from '../util/format';
-import { getVerificationSummary } from '../util/verification-summary';
+import type { Overview } from '@/type/overview';
+import { formatCount } from '@/util/count-format';
+import { getVerificationSummary } from '@/util/verification-summary';
 import { Skeleton } from './skeleton';
 
 type StatCard = { label: string; value: string; foot: ReactNode };

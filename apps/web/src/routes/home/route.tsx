@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { formatDocumentTitle } from '@/util/page-config';
-import { overviewQueryOptions } from './api/overview';
+import { overviewQueryOptions } from '@/api/overview';
 import type { LoadState } from './type/load-state';
 import { ReadOnlyDbBadge } from '@/ui/molecules/read-only-db-badge';
 import { RecentVerificationsCard } from './ui/recent-verifications-card';
