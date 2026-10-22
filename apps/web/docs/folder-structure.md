@@ -44,6 +44,7 @@ Router 관례를 따라 복수형으로 둔다.
 ```
 src/
   api/     ← 앱 전체가 공유하는 서버 통신 (예: client.ts의 axios 인스턴스)
+    mocks/ ← 개발 때만 쓰는 가짜 서버(MSW): handlers/, util/
   ui/      ← 앱 전체가 공유하는 컴포넌트. atomic design 적용 (atoms/molecules/organisms/templates)
   util/    ← 앱 전체가 공유하는 순수 로직 (예: cn())
   type/    ← 앱 전체가 공유하는 타입
