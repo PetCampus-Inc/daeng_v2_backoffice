@@ -1,13 +1,133 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
-@import '@fontsource-variable/geist';
+@import '@fontsource-variable/noto-sans-kr';
 
+/* 다크 모드는 두지 않는다. .dark 클래스를 붙이지 않으므로 shadcn 컴포넌트의 dark: 클래스는 켜지지 않는다. */
 @custom-variant dark (&:is(.dark *));
+
+/* design.md 1장 토큰. 값은 여기에만 적고, 아래 shadcn 이름은 이 값을 따라간다. */
+:root {
+  /* 1.1 색 — 확정 */
+  --kd-primary: #ff6e0c;
+  --kd-primary-foreground: #ffffff;
+  --kd-background: #ffffff;
+  --kd-surface: #f9f9fa;
+  --kd-surface-accent: #fff7ec;
+  --kd-foreground: #15161b;
+  --kd-foreground-muted: #70727c;
+  --kd-border: #f3f3f7;
+  --kd-neutral-200: #ebebf0;
+  --kd-neutral-300: #dedee3;
+  --kd-neutral-400: #b4b4bb;
+  --kd-success-background: #ecf8f0;
+  --kd-success-foreground: #176b3a;
+  --kd-success-border: #bfe3cb;
+  --kd-warning-background: #fff7e6;
+  --kd-warning-foreground: #7a4d00;
+  --kd-warning-border: #f0d39a;
+  --kd-error-background: #fff1f0;
+  --kd-error-foreground: #a12820;
+  --kd-error-border: #f3c6c2;
+  --kd-info-background: #eef5ff;
+  --kd-info-foreground: #245a9a;
+  --kd-info-border: #c8dbf5;
+
+  /* 1.1 시안에서 더한 색 — 시안 */
+  --kd-primary-hover: #f05506;
+  --kd-overlay: rgb(21 22 27 / 32%);
+  --kd-shadow-float: 0 8px 28px rgb(21 22 27 / 14%);
+  --kd-toast-action: #ffb27a;
+
+  /* design.md에 없음 — 개발에서 정함(2026-10-21) */
+  --kd-error-hover: #8a2019;
+
+  /* 1.2 글자 — 시안 (기본 자간은 확정) */
+  --kd-letter-spacing: -0.01em;
+  --kd-text-title-1-size: 24px;
+  --kd-text-title-1-line-height: 34px;
+  --kd-text-title-1-letter-spacing: -0.02em;
+  --kd-text-title-1-weight: 700;
+  --kd-text-title-2-size: 18px;
+  --kd-text-title-2-line-height: 26px;
+  --kd-text-title-2-weight: 700;
+  --kd-text-title-3-size: 16px;
+  --kd-text-title-3-line-height: 24px;
+  --kd-text-title-3-weight: 700;
+  --kd-text-body-size: 14px;
+  --kd-text-body-line-height: 20px;
+  --kd-text-sub-size: 13px;
+  --kd-text-sub-line-height: 20px;
+  --kd-text-caption-size: 12px;
+  --kd-text-caption-line-height: 18px;
+  --kd-text-tiny-size: 11px;
+  --kd-text-tiny-line-height: 18px;
+  --kd-text-tiny-weight: 700;
+
+  /* 1.4 크기 — 확정 */
+  --kd-bo-sidebar-width: 240px;
+  --kd-bo-topbar-height: 64px;
+  --kd-bo-control-height: 40px;
+  --kd-bo-control-small-height: 32px;
+  --kd-bo-table-head-height: 44px;
+  --kd-bo-table-row-min-height: 64px;
+
+  /* 1.4 시안에서 정한 크기 — 시안 */
+  --kd-bo-dialog-max-width: 440px;
+  --kd-bo-popover-width: 380px;
+  --kd-bo-table-min-width: 860px;
+  --kd-bo-badge-height: 26px;
+  /* 3.3 표 열 폭 — 시안 */
+  --kd-bo-table-col-number: 104px;
+  --kd-bo-table-col-status: 112px;
+  --kd-bo-table-col-time: 176px;
+  /* 1.3 입력 폼 칸 사이 — 시안 (척도 밖이어도 그대로 둔다) */
+  --kd-bo-form-field-gap: 22px;
+  /* 3.3 ⋯ 메뉴 — 시안 */
+  --kd-bo-menu-min-width: 140px;
+  --kd-bo-menu-item-height: 36px;
+
+  /* 1.5 모서리 — 확정 */
+  --kd-radius-2: 8px;
+  --kd-radius-3: 12px;
+  --kd-radius-4: 16px;
+  --kd-radius-full: 999px;
+
+  /* shadcn 이름 → design.md 토큰 */
+  --background: var(--kd-background);
+  --foreground: var(--kd-foreground);
+  --card: var(--kd-background);
+  --card-foreground: var(--kd-foreground);
+  --popover: var(--kd-background);
+  --popover-foreground: var(--kd-foreground);
+  --primary: var(--kd-primary);
+  --primary-foreground: var(--kd-primary-foreground);
+  --secondary: var(--kd-surface);
+  --secondary-foreground: var(--kd-foreground);
+  --muted: var(--kd-surface);
+  --muted-foreground: var(--kd-foreground-muted);
+  --accent: var(--kd-surface);
+  --accent-foreground: var(--kd-foreground);
+  --destructive: var(--kd-error-foreground);
+  --border: var(--kd-border);
+  --input: var(--kd-neutral-200);
+  --ring: var(--kd-primary);
+  --radius: var(--kd-radius-3);
+  --sidebar: var(--kd-background);
+  --sidebar-foreground: var(--kd-foreground);
+  --sidebar-primary: var(--kd-primary);
+  --sidebar-primary-foreground: var(--kd-primary-foreground);
+  --sidebar-accent: var(--kd-surface-accent);
+  --sidebar-accent-foreground: var(--kd-primary);
+  --sidebar-border: var(--kd-neutral-200);
+  --sidebar-ring: var(--kd-primary);
+}
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: 'Noto Sans KR Variable', system-ui, sans-serif;
+
+  /* shadcn 컴포넌트가 쓰는 이름 */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -16,11 +136,6 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -46,75 +161,75 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-}
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* design.md 이름 그대로 쓰는 클래스 (예: bg-kd-surface, h-kd-control, rounded-kd-3) */
+  --color-kd-primary: var(--kd-primary);
+  --color-kd-primary-foreground: var(--kd-primary-foreground);
+  --color-kd-primary-hover: var(--kd-primary-hover);
+  --color-kd-error-hover: var(--kd-error-hover);
+  --color-kd-background: var(--kd-background);
+  --color-kd-surface: var(--kd-surface);
+  --color-kd-surface-accent: var(--kd-surface-accent);
+  --color-kd-foreground: var(--kd-foreground);
+  --color-kd-foreground-muted: var(--kd-foreground-muted);
+  --color-kd-border: var(--kd-border);
+  --color-kd-neutral-200: var(--kd-neutral-200);
+  --color-kd-neutral-300: var(--kd-neutral-300);
+  --color-kd-neutral-400: var(--kd-neutral-400);
+  --color-kd-success-background: var(--kd-success-background);
+  --color-kd-success-foreground: var(--kd-success-foreground);
+  --color-kd-success-border: var(--kd-success-border);
+  --color-kd-warning-background: var(--kd-warning-background);
+  --color-kd-warning-foreground: var(--kd-warning-foreground);
+  --color-kd-warning-border: var(--kd-warning-border);
+  --color-kd-error-background: var(--kd-error-background);
+  --color-kd-error-foreground: var(--kd-error-foreground);
+  --color-kd-error-border: var(--kd-error-border);
+  --color-kd-info-background: var(--kd-info-background);
+  --color-kd-info-foreground: var(--kd-info-foreground);
+  --color-kd-info-border: var(--kd-info-border);
+  --color-kd-overlay: var(--kd-overlay);
+  --color-kd-toast-action: var(--kd-toast-action);
+  --shadow-kd-float: var(--kd-shadow-float);
+  --spacing-kd-sidebar: var(--kd-bo-sidebar-width);
+  --spacing-kd-topbar: var(--kd-bo-topbar-height);
+  --spacing-kd-control: var(--kd-bo-control-height);
+  --spacing-kd-control-small: var(--kd-bo-control-small-height);
+  --spacing-kd-table-head: var(--kd-bo-table-head-height);
+  --spacing-kd-table-row: var(--kd-bo-table-row-min-height);
+  --spacing-kd-dialog: var(--kd-bo-dialog-max-width);
+  --spacing-kd-popover: var(--kd-bo-popover-width);
+  --spacing-kd-table: var(--kd-bo-table-min-width);
+  --spacing-kd-badge: var(--kd-bo-badge-height);
+  --spacing-kd-col-number: var(--kd-bo-table-col-number);
+  --spacing-kd-col-status: var(--kd-bo-table-col-status);
+  --spacing-kd-col-time: var(--kd-bo-table-col-time);
+  --spacing-kd-menu: var(--kd-bo-menu-min-width);
+  --spacing-kd-menu-item: var(--kd-bo-menu-item-height);
+  --spacing-kd-field-gap: var(--kd-bo-form-field-gap);
+  --radius-kd-2: var(--kd-radius-2);
+  --radius-kd-3: var(--kd-radius-3);
+  --radius-kd-4: var(--kd-radius-4);
+  --radius-kd-full: var(--kd-radius-full);
+  --text-kd-title-1: var(--kd-text-title-1-size);
+  --text-kd-title-1--line-height: var(--kd-text-title-1-line-height);
+  --text-kd-title-1--letter-spacing: var(--kd-text-title-1-letter-spacing);
+  --text-kd-title-1--font-weight: var(--kd-text-title-1-weight);
+  --text-kd-title-2: var(--kd-text-title-2-size);
+  --text-kd-title-2--line-height: var(--kd-text-title-2-line-height);
+  --text-kd-title-2--font-weight: var(--kd-text-title-2-weight);
+  --text-kd-title-3: var(--kd-text-title-3-size);
+  --text-kd-title-3--line-height: var(--kd-text-title-3-line-height);
+  --text-kd-title-3--font-weight: var(--kd-text-title-3-weight);
+  --text-kd-body: var(--kd-text-body-size);
+  --text-kd-body--line-height: var(--kd-text-body-line-height);
+  --text-kd-sub: var(--kd-text-sub-size);
+  --text-kd-sub--line-height: var(--kd-text-sub-line-height);
+  --text-kd-caption: var(--kd-text-caption-size);
+  --text-kd-caption--line-height: var(--kd-text-caption-line-height);
+  --text-kd-tiny: var(--kd-text-tiny-size);
+  --text-kd-tiny--line-height: var(--kd-text-tiny-line-height);
+  --text-kd-tiny--font-weight: var(--kd-text-tiny-weight);
 }
 
 @layer base {
@@ -122,7 +237,8 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-kd-surface text-foreground;
+    letter-spacing: var(--kd-letter-spacing);
   }
   html {
     @apply font-sans;

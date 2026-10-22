@@ -26,6 +26,17 @@
         "max": 30,
         "exceptions": ["_", "i", "j", "x", "y", "e"]
       }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "cn",
+            "message": "cn은 '@/lib/utils'에서 가져오세요. 프로젝트 토큰(text-kd-*)을 아는 설정된 cn입니다."
+          }
+        ]
+      }
     ]
   },
   "overrides": [
@@ -33,6 +44,12 @@
       "files": ["src/components/ui/**"],
       "rules": {
         "react/only-export-components": "off"
+      }
+    },
+    {
+      "files": ["src/lib/utils.ts"],
+      "rules": {
+        "no-restricted-imports": "off"
       }
     }
   ]
