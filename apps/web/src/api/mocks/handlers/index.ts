@@ -6,6 +6,7 @@ import { IDEA_HANDLERS } from './ideas';
 import { KINDERGARTEN_HANDLERS } from './kindergartens';
 import { MEMBER_HANDLERS } from './members';
 import { INQUIRY_HANDLERS } from './inquiries';
+import { TERM_HANDLERS } from './terms';
 import { NOTICE_HANDLERS } from './notices';
 import { OVERVIEW_HANDLERS } from './overview';
 import { OWNER_VERIFICATION_HANDLERS } from './owner-verifications';
@@ -126,6 +127,7 @@ export const handlers: AnyHandler[] = [
   ...INQUIRY_HANDLERS,
   ...IDEA_HANDLERS,
   ...NOTICE_HANDLERS,
+  ...TERM_HANDLERS,
   ...KINDERGARTEN_HANDLERS,
   ...OVERVIEW_HANDLERS,
   ...OWNER_VERIFICATION_HANDLERS,

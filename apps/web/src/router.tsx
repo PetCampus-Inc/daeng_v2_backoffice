@@ -19,6 +19,8 @@ import OwnerVerificationsRoute from './routes/owner-verifications/route.tsx';
 import ProfileSetupRoute from './routes/profile-setup/route.tsx';
 import TeamMembersRoute from './routes/settings/members/route.tsx';
 import TermsRoute from './routes/terms/route.tsx';
+import TermDetailRoute, { TermEditRoute } from './routes/terms/detail/route.tsx';
+import TermWriteRoute from './routes/terms/write/route.tsx';
 import { PAGES, type PageInfo } from './util/page-config.ts';
 
 /** 메뉴 화면의 handle. AppLayout이 이 page로 역할을 검사한다. */
@@ -69,6 +71,9 @@ export const router = createBrowserRouter([
             handle: createPageHandle(PAGES.notices),
           },
           { path: PAGES.terms.path, Component: TermsRoute, handle: createPageHandle(PAGES.terms) },
+          { path: '/terms/:kind/new', Component: TermWriteRoute, handle: createPageHandle(PAGES.terms) },
+          { path: '/terms/:kind/:version', Component: TermDetailRoute, handle: createPageHandle(PAGES.terms) },
+          { path: '/terms/:kind/:version/edit', Component: TermEditRoute, handle: createPageHandle(PAGES.terms) },
           { path: PAGES.history.path, Component: HistoryRoute, handle: createPageHandle(PAGES.history) },
           { path: PAGES.teamMembers.path, Component: TeamMembersRoute, handle: createPageHandle(PAGES.teamMembers) },
           { path: '*', Component: NotFoundRoute },
