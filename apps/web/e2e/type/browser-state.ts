@@ -33,6 +33,7 @@ type ListState = {
 type Frame = { busy: boolean; table: boolean; loading: boolean; inputTop?: number; height?: number; scroll: number };
 declare global {
   interface Window {
+    __notificationQA: { fail: boolean; calls: number };
     __schoolQA: ListState;
     __memberQA: ListState;
     __schoolFrames: Frame[];

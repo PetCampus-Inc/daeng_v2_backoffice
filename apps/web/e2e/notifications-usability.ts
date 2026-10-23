@@ -1,13 +1,15 @@
+import type { Browser, Page } from 'playwright';
+
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { before, after, test } from 'node:test';
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright') as typeof import('playwright');
 const BASE = process.env.BO_QA_BASE_URL || 'http://127.0.0.1:5193';
 const OUTPUT = path.resolve(process.env.BO_QA_OUTPUT_DIR || '.local/test-results/notifications');
-let browser;
+let browser: Browser;
 before(async () => {
   await mkdir(OUTPUT, { recursive: true });
   browser = await chromium.launch({
@@ -16,11 +18,11 @@ before(async () => {
   });
 });
 after(async () => browser?.close());
-async function scenario(id, run, width = 1440) {
+async function scenario(id: string, run: (page: Page) => Promise<unknown>, width = 1440) {
   const context = await browser.newContext({ viewport: { width, height: 1000 } });
   await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
-  const errors = [];
+  const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.setDefaultTimeout(15000);
   try {
@@ -37,26 +39,26 @@ async function scenario(id, run, width = 1440) {
   }
 }
 
-async function login(page, role = '운영자', route = '/home') {
+async function login(page: Page, role = '운영자', route = '/home') {
   await page.goto(`${BASE}${route}`);
   await page.getByRole('radio', { name: role, exact: true }).check();
   await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
   await page.getByRole('button', { name: '알림 3건 안 읽음', exact: true }).waitFor();
 }
-const trigger = (page) => page.getByRole('button', { name: /^알림(?: \d+건 안 읽음| 상태 확인 중)?$/ });
-const list = (page) => page.getByRole('list', { name: '알림 목록' });
-const item = (page, text) => list(page).getByRole('button', { name: new RegExp(text) });
-async function open(page) {
+const trigger = (page: Page) => page.getByRole('button', { name: /^알림(?: \d+건 안 읽음| 상태 확인 중)?$/ });
+const list = (page: Page) => page.getByRole('list', { name: '알림 목록' });
+const item = (page: Page, text: string) => list(page).getByRole('button', { name: new RegExp(text) });
+async function open(page: Page) {
   await trigger(page).click();
   await list(page).waitFor();
 }
-async function switchAccount(page, fromName, role) {
+async function switchAccount(page: Page, fromName: string, role: string) {
   await page.getByRole('button', { name: new RegExp(fromName) }).click();
   await page.getByRole('button', { name: '로그아웃', exact: true }).click();
   await page.getByRole('radio', { name: role, exact: true }).check();
   await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
 }
-async function post(page, endpoint, body) {
+async function post<Result = unknown>(page: Page, endpoint: string, body: unknown): Promise<Result> {
   return page.evaluate(
     async ({ endpoint, body }) => {
       const response = await fetch(`/api/v0/platform-admin${endpoint}`, {
@@ -70,7 +72,12 @@ async function post(page, endpoint, body) {
     { endpoint, body }
   );
 }
-async function intercept(page, method, endpoint, { delay = 0, fail = false } = {}) {
+async function intercept(
+  page: Page,
+  method: 'get' | 'patch',
+  endpoint: string,
+  { delay = 0, fail = false }: { delay?: number; fail?: boolean } = {}
+) {
   await page.evaluate(
     async ({ method, endpoint, delay, fail }) => {
       const { network } = await import('/@id/__x00__virtual:msw');
@@ -162,7 +169,7 @@ for (const action of ['one', 'all']) {
       await page.getByText('처리 중…', { exact: true }).waitFor();
       assert.equal(await target.isDisabled(), true);
       assert.deepEqual(await list(page).locator('li').last().boundingBox(), rowBounds);
-      await target.evaluate((element) => {
+      await target.evaluate((element: HTMLButtonElement) => {
         element.click();
         element.click();
       });
@@ -229,7 +236,7 @@ test('작성 중 취소·확인: 초안·읽음·포커스 보존', async () =>
     await login(page, '운영자', '/inquiries/1043');
     const input = page.getByRole('textbox', { name: /답변/ });
     await input.fill('확인해 보겠습니다');
-    await input.evaluate((e) => e.setSelectionRange(3, 3));
+    await input.evaluate((e: HTMLTextAreaElement) => e.setSelectionRange(3, 3));
     await open(page);
     await item(page, '새 아이디어').focus();
     await page.keyboard.press('Enter');
@@ -240,7 +247,7 @@ test('작성 중 취소·확인: 초안·읽음·포커스 보존', async () =>
     await page.getByRole('dialog', { name: '알림 센터' }).waitFor({ state: 'hidden' });
     assert.equal(await input.inputValue(), '확인해 보겠습니다');
     assert.equal(await input.evaluate((e) => e === document.activeElement), true);
-    assert.equal(await input.evaluate((e) => e.selectionStart), 3);
+    assert.equal(await input.evaluate((e: HTMLTextAreaElement) => e.selectionStart), 3);
     await page.getByRole('button', { name: '알림 3건 안 읽음' }).waitFor();
     await open(page);
     await item(page, '새 아이디어').click();
@@ -289,6 +296,7 @@ for (const width of [1440, 390]) {
         assert.ok(scroll > 0);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
         const bounds = await page.getByRole('dialog', { name: '알림 센터' }).boundingBox();
+        assert.ok(bounds);
         assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width);
         await page.screenshot({ path: path.join(OUTPUT, `popover-${width}.png`) });
         await page.keyboard.press('Escape');
@@ -309,7 +317,7 @@ test('새 문의 수신→맡기→추가 문의→해제 후 추가 문의는 �
   scenario('flow-new-follow-up', async (page) => {
     await login(page);
     await page.evaluate(() => localStorage.setItem('daeng-bo-mock-notifications', '[]'));
-    const inquiry = await post(page, '/dev/inquiries', { title: '새 문의 흐름', body: '문의합니다' });
+    const inquiry = await post<{ id: number }>(page, '/dev/inquiries', { title: '새 문의 흐름', body: '문의합니다' });
     assert.equal(inquiry.id, 1051);
     await page.reload();
     await page.getByRole('button', { name: '알림 1건 안 읽음' }).waitFor();
@@ -411,16 +419,22 @@ test('알림 API의 비로그인·다른 수신자 읽음 거부', async () =>
 for (const [id, title, question, answer] of [
   [1048, '비밀번호 변경', '비밀번호를 바꾸고 싶어요', '설정 메뉴에서 바꿀 수 있습니다'],
   [1049, '앱 오류', '앱이 자꾸 꺼져요', '최신 버전으로 업데이트해 주세요'],
-]) {
+] as const) {
   test(`해결 완료 문의 #${id} 알림은 읽음 후 읽기 전용 상세로 이동`, async () =>
     scenario(`resolved-${id}`, async (page) => {
       await login(page);
       await page.evaluate((id) => {
         const key = 'daeng-bo-mock-notifications';
-        const notifications = JSON.parse(localStorage.getItem(key));
+        const notifications = JSON.parse(localStorage.getItem(key) ?? '[]') as {
+          id: string;
+          recipientEmail: string;
+          targetId: number;
+          message: string;
+        }[];
         const notification = notifications.find(
           (item) => item.id === 'fixture-1' && item.recipientEmail === 'ops@knockdog.test'
         );
+        if (!notification) throw new Error('알림 fixture-1을 찾을 수 없습니다.');
         notification.targetId = id;
         notification.message = `새 1:1 문의가 등록되었습니다. 문의 #${id}`;
         localStorage.setItem(key, JSON.stringify(notifications));
