@@ -1,13 +1,15 @@
+import type { Browser, BrowserContext, Page } from 'playwright';
+import type { ScenarioOptions } from './type/browser-state.ts';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { before, after, test } from 'node:test';
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright') as typeof import('playwright');
 const BASE = process.env.BO_QA_BASE_URL || 'http://127.0.0.1:5186';
 const OUTPUT = process.env.BO_QA_OUTPUT_DIR || path.resolve('.local/test-results/terms');
-let browser;
+let browser: Browser;
 before(async () => {
   await mkdir(OUTPUT, { recursive: true });
   browser = await chromium.launch({
@@ -16,11 +18,15 @@ before(async () => {
   });
 });
 after(async () => browser?.close());
-async function scenario(id, run, { role = '최고관리자', width = 1440, initialDelay = 0 } = {}) {
+async function scenario(
+  id: string,
+  run: (page: Page, context: BrowserContext) => Promise<unknown>,
+  { role = '최고관리자', width = 1440, initialDelay = 0 }: ScenarioOptions = {}
+) {
   const context = await browser.newContext({ viewport: { width, height: 1000 } });
   await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
-  const errors = [];
+  const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.setDefaultTimeout(12000);
   try {
@@ -40,7 +46,7 @@ async function scenario(id, run, { role = '최고관리자', width = 1440, initi
             setTimeout(
               resolve,
               method === 'GET'
-                ? (qa.delays[new URL(request.url).pathname.split('/').at(-1)] ?? qa.delay)
+                ? (qa.delays[new URL(request.url).pathname.split('/').at(-1)!] ?? qa.delay)
                 : qa.mutationDelay
             )
           );
@@ -59,10 +65,11 @@ async function scenario(id, run, { role = '최고관리자', width = 1440, initi
     await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
     if (!initialDelay) await page.getByRole('button', { name: '#4', exact: true }).waitFor();
-    await run(page);
+    await run(page, context);
     assert.deepEqual(errors, []);
     await page.screenshot({ path: path.join(OUTPUT, `${id}.png`), fullPage: true });
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     await page.screenshot({ path: path.join(OUTPUT, `${id}-failure.png`), fullPage: true }).catch(() => {});
     error.message += `\npage errors: ${errors.join('; ')}`;
     throw error;
@@ -71,23 +78,23 @@ async function scenario(id, run, { role = '최고관리자', width = 1440, initi
     await context.close();
   }
 }
-async function qa(page, values) {
+async function qa(page: Page, values: Partial<Window['__termsQA']>) {
   await page.evaluate((values) => Object.assign(window.__termsQA, values), values);
 }
-async function openDraft(page) {
+async function openDraft(page: Page) {
   await page.getByRole('button', { name: '#4', exact: true }).click();
   await page.getByLabel('시행일 *', { exact: true }).waitFor();
 }
-async function validDate(page) {
+async function validDate(page: Page) {
   await page.getByLabel('시행일 *', { exact: true }).fill('2026. 11. 10.');
 }
-async function confirm(page, label) {
+async function confirm(page: Page, label: string) {
   await page.getByRole('alertdialog').getByRole('button', { name: label, exact: true }).click();
 }
-async function text(page, value) {
+async function text(page: Page, value: string) {
   await page.getByText(value, { exact: true }).first().waitFor();
 }
-async function api(page, method, url, body) {
+async function api(page: Page, method: string, url: string, body?: unknown) {
   return page.evaluate(
     async ({ method, url, body }) => {
       const response = await fetch(`/api/v0/platform-admin${url}`, {
@@ -126,6 +133,7 @@ test('종류 전환 지연·역순 응답·실패 복구·복귀', async () =>
   scenario('kinds', async (page) => {
     const tab = page.getByRole('tab', { name: '개인정보 처리방침', exact: true });
     const before = await tab.boundingBox();
+    assert.ok(before, '검사 대상 요소가 표시되어야 한다');
     await qa(page, { delays: { privacy: 2000, location: 1000 } });
     await tab.click();
     await page.getByRole('tab', { name: '위치기반서비스 이용약관', exact: true }).click();
@@ -135,6 +143,7 @@ test('종류 전환 지연·역순 응답·실패 복구·복귀', async () =>
     await page.waitForTimeout(1200);
     await text(page, '등록된 항목이 없습니다.');
     const after = await tab.boundingBox();
+    assert.ok(after, '검사 대상 요소가 표시되어야 한다');
     assert.deepEqual(after, before);
     await qa(page, { failGet: true, delays: {} });
     await tab.click();
@@ -205,7 +214,7 @@ test('확인 취소·Esc·포커스·초안 삭제·이탈', async () =>
   scenario('dialogs', async (page) => {
     await openDraft(page);
     await validDate(page);
-    for (const label of ['공개하기', '초안 삭제']) {
+    for (const label of ['공개하기', '초안 삭제'] as const) {
       const trigger = page.getByRole('button', { name: label, exact: true });
       await trigger.click();
       await page.getByRole('alertdialog').waitFor();
@@ -262,7 +271,7 @@ test('공개 실패와 복구', async () =>
   scenario('publish-errors', async (page) => {
     await openDraft(page);
     await validDate(page);
-    for (const status of [500, 409, 404, 400]) {
+    for (const status of [500, 409, 404, 400] as const) {
       await qa(page, { mutationStatus: status, mutationDelay: 100 });
       await page.getByRole('button', { name: '공개하기', exact: true }).click();
       await confirm(page, '공개하기');
@@ -288,7 +297,7 @@ test('예정 철회·실패 복구·복제 기준', async () =>
     await trigger.click();
     await confirm(page, '공개 철회');
     await page.waitForFunction(
-      (element) => element.disabled,
+      (element) => (element as HTMLButtonElement).disabled,
       await page.getByRole('alertdialog').getByRole('button', { name: '공개 철회', exact: true }).elementHandle()
     );
     await text(page, '일시적 오류로 요청을 완료하지 못했습니다.');
@@ -333,7 +342,7 @@ test('저장됨·미변경·주소 교체·beforeunload', async () =>
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
   }));
 
-for (const role of ['운영자', '조회자']) {
+for (const role of ['운영자', '조회자'] as const) {
   test(`${role} 읽기 권한과 API 거부`, async () =>
     scenario(
       `role-${role}`,
@@ -346,10 +355,10 @@ for (const role of ['운영자', '조회자']) {
           ['POST', '/terms/service', { action: 'save', body: 'a', effectiveDate: '' }],
           ['PATCH', '/terms/service/4', { action: 'publish', revision: 1, body: 'a', effectiveDate: '2026-11-10' }],
           ['DELETE', '/terms/service/4', { revision: 1 }],
-        ]) {
+        ] as const) {
           assert.equal((await api(page, method, url, body)).status, 403);
         }
-        for (const url of ['/terms/service/new', '/terms/service/4/edit']) {
+        for (const url of ['/terms/service/new', '/terms/service/4/edit'] as const) {
           await page.goto(BASE + url);
           await text(page, '접근 권한이 없습니다.');
         }
@@ -396,10 +405,10 @@ test('KST 경계 현행 판정·철회 경합·404', async () =>
     await page.getByRole('button', { name: '#3', exact: true }).click();
     await page.getByRole('button', { name: '공개 철회', exact: true }).click();
     await page.clock.setFixedTime(new Date('2026-10-20T00:00:00+09:00'));
-    // 날짜 경합만 검사한다. 장기 무활동 만료는 session-integration.mjs에서 별도로 검증한다.
+    // 날짜 경합만 검사한다. 장기 무활동 만료는 session-integration.ts에서 별도로 검증한다.
     await page.evaluate(() => {
       const key = 'daeng-bo-mock-session';
-      const session = JSON.parse(localStorage.getItem(key));
+      const session = JSON.parse(localStorage.getItem(key)!);
       session.lastRequestAt = Date.now();
       localStorage.setItem(key, JSON.stringify(session));
     });
@@ -413,7 +422,7 @@ test('KST 경계 현행 판정·철회 경합·404', async () =>
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
   }));
 
-for (const width of [1440, 1200, 1199, 390]) {
+for (const width of [1440, 1200, 1199, 390] as const) {
   test(`${width}px 입력 연속성·키보드·미리보기`, async () =>
     scenario(
       `width-${width}`,
@@ -424,7 +433,7 @@ for (const width of [1440, 1200, 1199, 390]) {
         await body.fill('긴본문'.repeat(500) + '\n{{공고일}} {{시행일}}');
         await body.evaluate((el) => {
           el.focus();
-          el.setSelectionRange(20, 25);
+          (el as HTMLInputElement).setSelectionRange(20, 25);
           el.scrollTop = 50;
         });
         if (width < 1200) {
@@ -438,7 +447,11 @@ for (const width of [1440, 1200, 1199, 390]) {
               '작성'
           );
           assert.deepEqual(
-            await body.evaluate((el) => [el.selectionStart, el.selectionEnd, el.scrollTop]),
+            await body.evaluate((el) => [
+              (el as HTMLInputElement).selectionStart,
+              (el as HTMLInputElement).selectionEnd,
+              el.scrollTop,
+            ]),
             [20, 25, 50]
           );
         } else {
@@ -466,7 +479,7 @@ test('초안 삭제 지연·실패·경합 뒤 입력과 이탈 경고 보존', 
     await validDate(page);
     const body = page.getByLabel('본문 *', { exact: true });
     await body.fill('복사할 미저장 내용');
-    for (const status of [500, 409, 404]) {
+    for (const status of [500, 409, 404] as const) {
       await qa(page, { mutationDelay: 1500, mutationStatus: status });
       await page.getByRole('button', { name: '초안 삭제', exact: true }).click();
       await confirm(page, '초안 삭제');

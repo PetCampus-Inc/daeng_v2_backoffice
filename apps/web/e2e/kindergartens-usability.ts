@@ -1,3 +1,5 @@
+import type { Browser, BrowserContext, Page } from 'playwright';
+import type { ScenarioOptions } from './type/browser-state.ts';
 // 저장소 루트에서 node --test로 실행. 기존 Playwright·Chromium 경로는 아래 환경변수로 지정한다.
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
@@ -6,7 +8,7 @@ import path from 'node:path';
 import { after, before, test } from 'node:test';
 
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright') as typeof import('playwright');
 const BASE_URL = process.env.BO_QA_BASE_URL || 'http://localhost:5173';
 const OUTPUT_DIR = process.env.BO_QA_OUTPUT_DIR || path.resolve('.local/test-results/kindergartens');
 const FIXTURES_25 = Array.from({ length: 25 }, (_, index) => ({
@@ -20,7 +22,7 @@ const FIXTURES_25 = Array.from({ length: 25 }, (_, index) => ({
   businessVerified: false,
   createdAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
 }));
-let browser;
+let browser: Browser;
 
 before(async () => {
   await mkdir(OUTPUT_DIR, { recursive: true });
@@ -31,11 +33,15 @@ before(async () => {
 });
 after(async () => browser?.close());
 
-async function scenario(id, run, { fixtures, width = 1440, initialDelay = 0 } = {}) {
+async function scenario(
+  id: string,
+  run: (page: Page, context: BrowserContext) => Promise<unknown>,
+  { fixtures, width = 1440, initialDelay = 0 }: ScenarioOptions = {}
+) {
   const context = await browser.newContext({ viewport: { width, height: 1000 } });
   await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
-  const errors = [];
+  const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.setDefaultTimeout(15000);
   try {
@@ -76,10 +82,11 @@ async function scenario(id, run, { fixtures, width = 1440, initialDelay = 0 } = 
     await page.getByRole('button', { name: '로그인', exact: true }).click();
     await page.getByRole('heading', { name: '유치원 관리', exact: true }).waitFor();
     if (!initialDelay) await total(page, fixtures?.length ?? 4);
-    await run(page);
+    await run(page, context);
     assert.deepEqual(errors, []);
     await page.screenshot({ path: path.join(OUTPUT_DIR, `${id}.png`), fullPage: true });
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     if (errors.length) error.message += `\n브라우저 오류: ${errors.join('\n')}`;
     await page.screenshot({ path: path.join(OUTPUT_DIR, `${id}-failure.png`), fullPage: true }).catch(() => {});
     throw error;
@@ -89,20 +96,20 @@ async function scenario(id, run, { fixtures, width = 1440, initialDelay = 0 } = 
   }
 }
 
-const total = (page, count) => page.getByText(`총 ${count}건`, { exact: true }).waitFor();
-const search = (page) => page.getByRole('searchbox', { name: '유치원 검색' });
-const tab = (page, name) => page.getByRole('button', { name, exact: true });
-const names = (page) => page.locator('tbody tr td:first-child p:first-child').allTextContents();
-async function configure(page, config) {
+const total = (page: Page, count: number) => page.getByText(`총 ${count}건`, { exact: true }).waitFor();
+const search = (page: Page) => page.getByRole('searchbox', { name: '유치원 검색' });
+const tab = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
+const names = (page: Page) => page.locator('tbody tr td:first-child p:first-child').allTextContents();
+async function configure(page: Page, config: Partial<Window['__schoolQA']>) {
   await page.evaluate((next) => Object.assign(window.__schoolQA, next), config);
 }
-async function watchTransition(page) {
+async function watchTransition(page: Page) {
   await page.evaluate(() => {
     window.__schoolFrames = [];
     window.__schoolWatching = true;
     function sample() {
       const table = document.querySelector('table');
-      const input = document.querySelector('input[type=search]');
+      const input = document.querySelector<HTMLInputElement>('input[type=search]');
       window.__schoolFrames.push({
         busy: document.querySelector('[data-slot=card]')?.getAttribute('aria-busy') === 'true',
         table: Boolean(table),
@@ -116,7 +123,7 @@ async function watchTransition(page) {
     sample();
   });
 }
-async function assertStable(page) {
+async function assertStable(page: Page) {
   const frames = await page.evaluate(() => {
     window.__schoolWatching = false;
     return window.__schoolFrames;
@@ -127,7 +134,7 @@ async function assertStable(page) {
     '전환 중 빈 화면·로딩 화면 점멸'
   );
   assert.ok(
-    frames.every((frame) => Math.abs(frame.inputTop - frames[0].inputTop) < 1),
+    frames.every((frame) => Math.abs((frame.inputTop ?? NaN) - (frames[0].inputTop ?? NaN)) < 1),
     '검색창 위치 이동'
   );
   assert.ok(
@@ -156,16 +163,17 @@ test('S-012 최초 진입: 진행 표시 후 목록 표시', async () => {
 for (const [label, count, expected] of [
   ['운영 중', 3, ['햇살유치원', '달빛유치원', '별빛유치원']],
   ['폐업', 1, ['도담유치원']],
-]) {
+] as const) {
   test(`S-017 ${label} 첫 전환: 중간 프레임·위치·반응 확인`, async () => {
     await scenario(`017-${count}`, async (page) => {
       await configure(page, { delay: 1200 });
       await watchTransition(page);
       const before = await page.locator('table').boundingBox();
+      assert.ok(before, '검사 대상 요소가 표시되어야 한다');
       await tab(page, label).click();
       assert.equal(await tab(page, label).getAttribute('aria-pressed'), 'true');
       await page.getByText('조회 중…', { exact: true }).waitFor();
-      assert.equal((await page.locator('table').boundingBox()).height, before.height);
+      assert.equal((await page.locator('table').boundingBox())!.height, before.height);
       await total(page, count);
       await assertStable(page);
       assert.deepEqual(await names(page), expected);
@@ -201,13 +209,17 @@ test('S-019 검색: 입력 반응·중간 편집·커서·초점 유지', async 
     assert.equal(await search(page).inputValue(), '서울');
     await page.getByText('조회 중…', { exact: true }).waitFor();
     assert.equal(
-      await search(page).evaluate((element) => element === document.activeElement && element.selectionStart === 1),
+      await search(page).evaluate(
+        (element) => element === document.activeElement && (element as HTMLInputElement).selectionStart === 1
+      ),
       true
     );
     await total(page, 2);
     await assertStable(page);
     assert.equal(
-      await search(page).evaluate((element) => element === document.activeElement && element.selectionStart === 1),
+      await search(page).evaluate(
+        (element) => element === document.activeElement && (element as HTMLInputElement).selectionStart === 1
+      ),
       true
     );
     assert.deepEqual(await names(page), ['햇살유치원', '별빛유치원']);
@@ -255,7 +267,7 @@ test('S-017/022 페이지: 키보드 순서·지연·중복 실행・초점', as
     '022',
     async (page) => {
       await tab(page, '전체').focus();
-      for (const label of ['운영 중', '폐업']) {
+      for (const label of ['운영 중', '폐업'] as const) {
         await page.keyboard.press('Tab');
         assert.equal(await tab(page, label).evaluate((element) => element === document.activeElement), true);
         assert.equal(
@@ -305,25 +317,26 @@ test('S-017/022 페이지: 키보드 순서·지연·중복 실행・초점', as
   );
 });
 
-for (const width of [390, 768, 1440]) {
+for (const width of [390, 768, 1440] as const) {
   test(`S-023 ${width}px: 가림·가로 스크롤·조회 중 위치`, async () => {
     await scenario(
       `023-${width}`,
       async (page) => {
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-        for (const control of [search(page), tab(page, '운영 중'), tab(page, '폐업')]) {
+        for (const control of [search(page), tab(page, '운영 중'), tab(page, '폐업')] as const) {
           const box = await control.boundingBox();
+          assert.ok(box, '검사 대상 요소가 표시되어야 한다');
           assert.ok(box.x >= 0 && box.x + box.width <= width + 1);
         }
         const region = page.getByRole('region', { name: '유치원 목록 가로 스크롤' });
         if (width < 1000) {
           await region.focus();
           await page.keyboard.press('ArrowRight');
-          await page.waitForFunction(() => document.querySelector('[data-slot=table-container]').scrollLeft > 0);
+          await page.waitForFunction(() => document.querySelector('[data-slot=table-container]')!.scrollLeft > 0);
           // 키보드 가로 스크롤의 애니메이션이 끝난 위치를 기준으로 비교한다.
           await region.evaluate(
             (element) =>
-              new Promise((resolve) => {
+              new Promise<void>((resolve) => {
                 let previous = element.scrollLeft;
                 let stable = 0;
                 function sample() {

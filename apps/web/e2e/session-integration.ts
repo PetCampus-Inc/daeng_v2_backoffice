@@ -1,13 +1,15 @@
+import type { Browser, BrowserContext, Page } from 'playwright';
+
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { before, after, test } from 'node:test';
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright') as typeof import('playwright');
 const BASE = process.env.BO_QA_BASE_URL || 'http://127.0.0.1:5190';
 const OUTPUT = path.resolve(process.env.BO_QA_OUTPUT_DIR || '.local/test-results/session-integration');
-let browser;
+let browser: Browser;
 before(async () => {
   await mkdir(OUTPUT, { recursive: true });
   browser = await chromium.launch({
@@ -16,16 +18,16 @@ before(async () => {
   });
 });
 after(async () => browser?.close());
-async function scenario(id, run, width = 1440) {
+async function scenario(id: string, run: (page: Page, context: BrowserContext) => Promise<unknown>, width = 1440) {
   const context = await browser.newContext({ viewport: { width, height: 1000 } });
   await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
-  const errors = [];
+  const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.setDefaultTimeout(15000);
   try {
     await page.clock.setFixedTime(new Date('2026-10-07T10:00:00+09:00'));
-    await run(page);
+    await run(page, context);
     assert.deepEqual(errors, []);
     await page.screenshot({ path: path.join(OUTPUT, `${id}.png`), fullPage: true });
   } catch (e) {
@@ -36,12 +38,12 @@ async function scenario(id, run, width = 1440) {
     await context.close();
   }
 }
-const loginButton = (page) => page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true });
-async function login(page, role = '최고관리자') {
+const loginButton = (page: Page) => page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true });
+async function login(page: Page, role = '최고관리자') {
   await page.getByRole('radio', { name: role, exact: true }).check();
   await loginButton(page).click();
 }
-async function request(page, method, url, body) {
+async function request(page: Page, method: string, url: string, body?: unknown) {
   return page.evaluate(
     async ({ method, url, body }) => {
       const response = await fetch(`/api/v0/platform-admin${url}`, {
@@ -54,7 +56,7 @@ async function request(page, method, url, body) {
     { method, url, body }
   );
 }
-async function select(page, label, option) {
+async function select(page: Page, label: string, option: string) {
   await page.getByRole('combobox', { name: label, exact: true }).click();
   await page.getByRole('option', { name: option, exact: true }).click();
 }
@@ -63,8 +65,9 @@ test('세션 없는 요청은 개발용 관리자 헤더로 우회하지 못한�
   scenario('guest', async (page) => {
     await page.goto(`${BASE}/history`);
     await loginButton(page).waitFor();
-    for (const url of ['/terms/service', '/members', '/change-histories'])
+    for (const url of ['/terms/service', '/members', '/change-histories'] as const) {
       assert.equal((await request(page, 'GET', url)).status, 401);
+    }
     await login(page);
     await page.getByRole('heading', { name: '변경 이력', exact: true }).waitFor();
     await page.locator('tbody tr').first().waitFor();
@@ -88,11 +91,12 @@ test('변경 이력 필터·지연 전환·실패 복구와 주소 보존', asyn
       network.use(
         http.get('/api/v0/platform-admin/change-histories', async () => {
           await new Promise((resolve) => setTimeout(resolve, window.__historyQA.delay));
-          if (window.__historyQA.fail)
+          if (window.__historyQA.fail) {
             return new Response(JSON.stringify({ status: 500, code: 'QA_ERROR', message: '조회 실패' }), {
               status: 500,
               headers: { 'Content-Type': 'application/json' },
             });
+          }
         })
       );
     });
@@ -123,11 +127,12 @@ test('변경 이력 필터·지연 전환·실패 복구와 주소 보존', asyn
       window.__recover = false;
       network.use(
         http.get('/api/v0/platform-admin/change-histories', () => {
-          if (!window.__recover)
+          if (!window.__recover) {
             return new Response(JSON.stringify({ status: 500, code: 'QA_ERROR', message: '조회 실패' }), {
               status: 500,
               headers: { 'Content-Type': 'application/json' },
             });
+          }
         })
       );
     });
@@ -166,7 +171,7 @@ test('약관 작성 중 세션 만료는 이탈 확인 없이 로그인으로 �
     await body.fill('세션 만료 시 폐기할 초안');
     await page.evaluate(() => {
       const key = 'daeng-bo-mock-session';
-      const session = JSON.parse(localStorage.getItem(key));
+      const session = JSON.parse(localStorage.getItem(key)!);
       session.lastRequestAt = Date.now() - 25 * 60 * 60 * 1000;
       localStorage.setItem(key, JSON.stringify(session));
     });
@@ -179,7 +184,7 @@ test('약관 작성 중 세션 만료는 이탈 확인 없이 로그인으로 �
     assert.equal(await page.getByLabel('본문 *', { exact: true }).count(), 0);
   }));
 
-for (const width of [1440, 390])
+for (const width of [1440, 390] as const) {
   test(`로그인 실패 복구·키보드 ${width}px`, async () =>
     scenario(
       `login-${width}`,
@@ -201,3 +206,4 @@ for (const width of [1440, 390])
       },
       width
     ));
+}

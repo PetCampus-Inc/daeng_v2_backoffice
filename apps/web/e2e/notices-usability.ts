@@ -1,20 +1,25 @@
+import { test } from 'node:test';
+import type { Page } from 'playwright';
+
 // Use an isolated Playwright browser; never connect to an existing browser profile.
-const assert = require('node:assert/strict');
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright') as typeof import('playwright');
 
 const BASE_URL = process.env.NOTICE_TEST_BASE_URL || 'http://localhost:5173';
 const OUTPUT_DIR = process.env.NOTICE_TEST_OUTPUT_DIR || path.resolve('.local/test-results/notices');
-const RESULTS = [];
+const RESULTS: Record<string, unknown>[] = [];
 
-async function check(name, run) {
+async function check(name: string, run: () => Promise<unknown>) {
   const evidence = await run();
   RESULTS.push({ name, result: '통과', evidence: evidence ?? null });
   process.stdout.write(`PASS: ${name}\n`);
 }
 
-async function installListDelay(page) {
+async function installListDelay(page: Page) {
   await page.evaluate(async () => {
     const { network } = await import('/@id/__x00__virtual:msw');
     const { http } = await import('/node_modules/.vite/deps/msw.js');
@@ -39,7 +44,7 @@ async function installListDelay(page) {
   });
 }
 
-async function observeTable(page) {
+async function observeTable(page: Page) {
   await page.evaluate(() => {
     window.__noticeObservation?.disconnect();
     window.__noticeContinuity = { tableLost: false, skeletonShown: false };
@@ -47,15 +52,15 @@ async function observeTable(page) {
       if (!document.querySelector('table')) window.__noticeContinuity.tableLost = true;
       if (document.querySelector('[data-slot=list-state][role=status]')) window.__noticeContinuity.skeletonShown = true;
     });
-    window.__noticeObservation.observe(document.querySelector('[data-slot=card]'), { childList: true, subtree: true });
+    window.__noticeObservation.observe(document.querySelector('[data-slot=card]')!, { childList: true, subtree: true });
   });
 }
 
-async function assertContinuity(page) {
+async function assertContinuity(page: Page) {
   assert.deepEqual(await page.evaluate(() => window.__noticeContinuity), { tableLost: false, skeletonShown: false });
 }
 
-async function waitIds(page, ids) {
+async function waitIds(page: Page, ids: readonly string[]) {
   await page.waitForFunction(
     (expected) =>
       JSON.stringify([...document.querySelectorAll('tbody tr td:first-child')].map((el) => el.textContent)) ===
@@ -64,13 +69,13 @@ async function waitIds(page, ids) {
   );
 }
 
-async function login(page, role = '운영자', pathname = '/notices') {
+async function login(page: Page, role = '운영자', pathname = '/notices') {
   await page.goto(`${BASE_URL}${pathname}`);
   await page.getByRole('radio', { name: role, exact: true }).click();
   await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
 }
 
-async function selectStatus(page, name) {
+async function selectStatus(page: Page, name: string) {
   await page.getByRole('combobox', { name: '상태', exact: true }).click();
   await page.getByRole('option', { name, exact: true }).click();
 }
@@ -83,7 +88,7 @@ async function main() {
   });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
-  const errors = [];
+  const errors: string[] = [];
   page.setDefaultTimeout(15000);
   page.on('pageerror', (error) => errors.push(error.message));
   try {
@@ -107,11 +112,13 @@ async function main() {
         ['초안', ['#14', '#13']],
         ['게시', ['#12', '#10']],
         ['게시 해제', ['#11']],
-      ]) {
+      ] as const) {
         const before = await page.locator('table').boundingBox();
+        assert.ok(before, '검사 대상 요소가 표시되어야 한다');
         await selectStatus(page, status);
         await page.getByText('조회 중…', { exact: true }).waitFor();
         const during = await page.locator('table').boundingBox();
+        assert.ok(during, '검사 대상 요소가 표시되어야 한다');
         assert.equal(during.y, before.y);
         assert.equal(during.height, before.height);
         assert.equal(await page.locator('[data-slot=card][aria-busy=true]').count(), 1);
@@ -135,8 +142,8 @@ async function main() {
       assert.deepEqual(
         await search.evaluate((el) => ({
           focused: el === document.activeElement,
-          value: el.value,
-          cursor: el.selectionStart,
+          value: (el as HTMLInputElement).value,
+          cursor: (el as HTMLInputElement).selectionStart,
         })),
         { focused: true, value: 'TEST', cursor: 4 }
       );
@@ -215,6 +222,7 @@ async function main() {
       const button = page.getByRole('button', { name: '2', exact: true });
       await button.focus();
       const before = await page.locator('table').boundingBox();
+      assert.ok(before, '검사 대상 요소가 표시되어야 한다');
       const scroll = await page.evaluate(() => scrollY);
       await page.keyboard.press('Enter');
       await page.getByText('조회 중…', { exact: true }).waitFor();
@@ -225,6 +233,7 @@ async function main() {
       assert.equal(new URL(page.url()).searchParams.get('page'), '2');
       assert.equal(await page.evaluate(() => scrollY), scroll);
       const during = await page.locator('table').boundingBox();
+      assert.ok(during, '검사 대상 요소가 표시되어야 한다');
       assert.equal(during.y, before.y);
       assert.equal(during.height, before.height);
       await waitIds(page, ['#105', '#104', '#103', '#102', '#101']);
@@ -251,7 +260,7 @@ async function main() {
       await page.getByLabel('본문 *', { exact: true }).fill('<b>HTML은 글자</b>\n둘째 문단');
       await page.locator('#notice-preview-panel').getByText('<b>HTML은 글자</b>', { exact: false }).waitFor();
       const publish = page.getByRole('button', { name: '공지 게시', exact: true });
-      for (const method of ['cancel', 'escape']) {
+      for (const method of ['cancel', 'escape'] as const) {
         await publish.focus();
         await page.keyboard.press('Enter');
         const dialog = page.getByRole('alertdialog');
@@ -300,7 +309,7 @@ async function main() {
       await page.keyboard.press('ArrowLeft');
       await page.waitForFunction(() => document.activeElement?.id === 'notice-write-tab');
       assert.equal(await page.getByLabel('제목 *', { exact: true }).inputValue(), '사용성 확인');
-      for (const width of [390, 320]) {
+      for (const width of [390, 320] as const) {
         await page.setViewportSize({ width, height: 844 });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         await page.getByRole('button', { name: '초안 저장', exact: true }).scrollIntoViewIfNeeded();
@@ -334,7 +343,7 @@ async function main() {
       });
       await page.getByRole('button', { name: '초안 저장', exact: true }).click();
       await page.getByText('처리 중…', { exact: true }).waitFor();
-      await page.waitForFunction(() => document.querySelector('#notice-title')?.disabled === true);
+      await page.waitForFunction(() => document.querySelector<HTMLInputElement>('#notice-title')?.disabled === true);
       await page.getByText('일시적 오류로 요청을 완료하지 못했습니다.', { exact: true }).waitFor();
       assert.equal(await page.getByLabel('제목 *', { exact: true }).inputValue(), '사용성 확인');
       assert.equal(await page.getByLabel('본문 *', { exact: true }).inputValue(), '<b>HTML은 글자</b>\n둘째 문단');
@@ -345,11 +354,13 @@ async function main() {
       const confirm = page.getByRole('alertdialog').getByRole('button', { name: '공지 게시', exact: true });
       // Two same-tick activations exercise the synchronous duplicate-request guard.
       await confirm.evaluate((el) => {
-        el.click();
-        el.click();
+        (el as HTMLElement).click();
+        (el as HTMLElement).click();
       });
       await page.getByText('처리 중…', { exact: true }).waitFor();
-      await page.waitForFunction(() => document.querySelector('[data-slot=alert-dialog-action]')?.disabled === true);
+      await page.waitForFunction(
+        () => document.querySelector<HTMLButtonElement>('[data-slot=alert-dialog-action]')?.disabled === true
+      );
       await page.getByText('공지를 게시했습니다.', { exact: true }).waitFor();
       assert.equal(await page.evaluate(() => window.__noticeWrite.requests), 1);
       assert.equal(await page.getByRole('alertdialog').count(), 0);
@@ -501,6 +512,7 @@ async function main() {
     });
     assert.deepEqual(errors, []);
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     RESULTS.push({ result: '실패', error: error.stack });
     await page.screenshot({ path: path.join(OUTPUT_DIR, 'failure.png'), fullPage: true }).catch(() => {});
     throw error;
@@ -517,7 +529,4 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+test('공지 사용성 회귀', main);

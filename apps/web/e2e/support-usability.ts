@@ -1,4 +1,6 @@
-// 저장소 루트에서 node --test apps/web/e2e/support-usability.mjs 로 실행한다.
+import type { Browser, BrowserContext, Page } from 'playwright';
+import type { SupportOptions, RequestEntry } from './type/browser-state.ts';
+// 저장소 루트에서 node --test apps/web/e2e/support-usability.ts 로 실행한다.
 // 설치된 Playwright/Chromium은 환경변수로 지정하며 개인 브라우저 세션에 연결하지 않는다.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -6,11 +8,11 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { before, after, test } from 'node:test';
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright') as typeof import('playwright');
 const BASE_URL = process.env.BO_QA_BASE_URL || 'http://127.0.0.1:5174';
 const OUTPUT_DIR = process.env.BO_QA_OUTPUT_DIR || path.resolve('.local/test-results/support');
-const RESULTS = [];
-let browser;
+const RESULTS: Record<string, unknown>[] = [];
+let browser: Browser;
 before(async () => {
   await mkdir(OUTPUT_DIR, { recursive: true });
   browser = await chromium.launch({
@@ -19,20 +21,27 @@ before(async () => {
   });
 });
 after(async () => {
+  if (!browser) return;
   await browser?.close();
   await writeFile(path.join(OUTPUT_DIR, 'results.json'), JSON.stringify(RESULTS, null, 2));
 });
 async function scenario(
-  id,
-  pathname,
-  run,
-  { width = 1440, delay = 0, fixtures, rules = [], role = pathname.startsWith('/ideas') ? '조회자' : '운영자' } = {}
+  id: string,
+  pathname: string,
+  run: (page: Page, context: BrowserContext) => Promise<unknown>,
+  {
+    width = 1440,
+    delay = 0,
+    fixtures,
+    rules = [],
+    role = pathname.startsWith('/ideas') ? '조회자' : '운영자',
+  }: SupportOptions = {}
 ) {
   const context = await browser.newContext({ viewport: { width, height: 1000 } });
   await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
   page.setDefaultTimeout(18000);
-  const errors = [];
+  const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   try {
     await page.goto(`${BASE_URL}${pathname}`);
@@ -48,7 +57,7 @@ async function scenario(
             const url = new URL(request.url);
             const key = url.pathname.replace('/api/v0/platform-admin', '');
             const state = window.__supportQA;
-            const entry = {
+            const entry: RequestEntry = {
               path: key,
               method: request.method,
               keyword: url.searchParams.get('keyword'),
@@ -89,6 +98,7 @@ async function scenario(
     RESULTS.push({ id, result: '통과', evidence });
     await page.screenshot({ path: path.join(OUTPUT_DIR, `${id}.png`), fullPage: true });
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     RESULTS.push({ id, result: '실패', error: error.message });
     await page.screenshot({ path: path.join(OUTPUT_DIR, `${id}-failed.png`), fullPage: true }).catch(() => {});
     throw error;
@@ -97,10 +107,10 @@ async function scenario(
     await context.close();
   }
 }
-async function configure(page, config) {
+async function configure(page: Page, config: Partial<Window['__supportQA']>) {
   await page.evaluate((config) => Object.assign(window.__supportQA, config), config);
 }
-async function ids(page, expected) {
+async function ids(page: Page, expected: readonly string[]) {
   await page.waitForFunction(
     (expected) =>
       JSON.stringify([...document.querySelectorAll('tbody tr td:first-child')].map((el) => el.textContent)) ===
@@ -108,18 +118,18 @@ async function ids(page, expected) {
     expected
   );
 }
-async function select(page, label, value) {
+async function select(page: Page, label: string, value: string) {
   await page.getByRole('combobox', { name: label, exact: true }).click();
   await page.getByRole('option', { name: value, exact: true }).click();
 }
-async function observe(page) {
+async function observe(page: Page) {
   await page.evaluate(() => {
     window.__continuity = { lost: false, skeleton: false };
     window.__observer = new MutationObserver(() => {
       if (!document.querySelector('table')) window.__continuity.lost = true;
       if (document.querySelector('[data-slot=list-state][role=status]')) window.__continuity.skeleton = true;
     });
-    window.__observer.observe(document.querySelector('main'), { subtree: true, childList: true });
+    window.__observer.observe(document.querySelector('main')!, { subtree: true, childList: true });
   });
 }
 for (const [resource, first, filtered, total] of [
@@ -130,7 +140,7 @@ for (const [resource, first, filtered, total] of [
     10,
   ],
   ['ideas', ['#350', '#349', '#348', '#347', '#346'], ['#349', '#347'], 5],
-]) {
+] as const) {
   test(`${resource}: initial and delayed list continuity`, () =>
     scenario(
       `${resource}-continuity`,
@@ -145,7 +155,11 @@ for (const [resource, first, filtered, total] of [
               .locator('tbody tr')
               .evaluateAll((rows) =>
                 rows.every((row) =>
-                  [0, 2, 3].every((index) => row.cells[index].scrollWidth <= row.cells[index].clientWidth)
+                  [0, 2, 3].every(
+                    (index) =>
+                      (row as HTMLTableRowElement).cells[index].scrollWidth <=
+                      (row as HTMLTableRowElement).cells[index].clientWidth
+                  )
                 )
               ),
             true,
@@ -154,10 +168,12 @@ for (const [resource, first, filtered, total] of [
         }
         await observe(page);
         const before = await page.locator('table').boundingBox();
+        assert.ok(before, '검사 대상 요소가 표시되어야 한다');
         await page.screenshot({ path: path.join(OUTPUT_DIR, `${resource}-before.png`) });
         await select(page, '사용자 유형', '원장');
         await page.getByText('조회 중…', { exact: true }).waitFor();
         const during = await page.locator('table').boundingBox();
+        assert.ok(during, '검사 대상 요소가 표시되어야 한다');
         await page.screenshot({ path: path.join(OUTPUT_DIR, `${resource}-during.png`) });
         assert.equal(during.y, before.y);
         assert.equal(during.height, before.height);
@@ -179,8 +195,8 @@ test('inquiry reply pending input is preserved', () =>
     await reply.fill('먼저 보낸 답변');
     await configure(page, { rules: [{ path: '/inquiries/1043/replies', method: 'POST', delay: 1500 }] });
     await page.getByRole('button', { name: '답변 저장', exact: true }).evaluate((button) => {
-      button.click();
-      button.click();
+      (button as HTMLElement).click();
+      (button as HTMLElement).click();
     });
     await page.waitForFunction(() => window.__supportQA.requests.some((x) => x.method === 'POST'));
     const editable = await reply.isEditable();
@@ -217,7 +233,7 @@ test('inquiry modal cancel restores focus', () =>
 for (const [resource, firstTerm, lastTerm, lastIds, total] of [
   ['inquiries', '산책', '정산', ['#1042'], 10],
   ['ideas', '산책', 'Daily', ['#349'], 5],
-]) {
+] as const) {
   test(`${resource}: IME, cursor and out of order search`, () =>
     scenario(`${resource}-search`, `/${resource}`, async (page, context) => {
       await page.getByText(`총 ${total}건`, { exact: true }).waitFor();
@@ -254,10 +270,10 @@ for (const [resource, firstTerm, lastTerm, lastIds, total] of [
       await ids(page, lastIds);
       assert.equal(await search.inputValue(), lastTerm);
       assert.equal(await search.evaluate((el) => el === document.activeElement), true);
-      await search.evaluate((el) => el.setSelectionRange(1, 1));
+      await search.evaluate((el) => (el as HTMLInputElement).setSelectionRange(1, 1));
       await page.keyboard.insertText('x');
       assert.equal(await search.inputValue(), lastTerm.slice(0, 1) + 'x' + lastTerm.slice(1));
-      assert.equal(await search.evaluate((el) => el.selectionStart), 2);
+      assert.equal(await search.evaluate((el) => (el as HTMLInputElement).selectionStart), 2);
       return { imeComposition: 'CDP', finalIds: lastIds, lateResponseDidNotOverwrite: true };
     }));
   test(`${resource}: list failure and empty recovery focus`, () =>
@@ -311,7 +327,7 @@ const IDEAS_25 = Array.from({ length: 25 }, (_, i) => ({
 for (const [resource, fixtures, firstId, secondId, label, title] of [
   ['inquiries', { key: 'daeng-bo-mock-inquiries-v2', items: INQUIRIES_25 }, '#1025', '#1005', '1:1 문의', '문의 15'],
   ['ideas', { key: 'daeng-bo-mock-ideas', items: IDEAS_25 }, '#325', '#305', '아이디어 제안', '제안 15'],
-]) {
+] as const) {
   test(`${resource}: pagination progress and return focus/scroll`, () =>
     scenario(
       `${resource}-navigation`,
@@ -343,7 +359,7 @@ for (const [resource, fixtures, firstId, secondId, label, title] of [
             () =>
               !document.querySelector('button[data-slot=button][disabled]') ||
               [...document.querySelectorAll('button')].some(
-                (el) => el.textContent.includes('다음 문의') && !el.disabled
+                (el) => el.textContent.includes('다음 문의') && !(el as HTMLButtonElement).disabled
               )
           );
           await page.getByRole('button', { name: '다음 문의 ›', exact: true }).click();
@@ -395,8 +411,8 @@ test('inquiry reply failure and release failure preserve draft', () =>
     await page.getByRole('button', { name: '취소', exact: true }).click();
     assert.equal(await reply.inputValue(), '보존할 답변');
   }));
-for (const width of [1440, 1200, 1199, 390]) {
-  for (const resource of ['inquiries', 'ideas']) {
+for (const width of [1440, 1200, 1199, 390] as const) {
+  for (const resource of ['inquiries', 'ideas'] as const) {
     test(`${resource}: keyboard and width ${width}`, () =>
       scenario(
         `${resource}-width-${width}`,
@@ -442,7 +458,7 @@ for (const width of [1440, 1200, 1199, 390]) {
   }
 }
 
-for (const resource of ['inquiries', 'ideas']) {
+for (const resource of ['inquiries', 'ideas'] as const) {
   test(`${resource}: detail failure recovery and missing target`, () =>
     scenario(
       `${resource}-detail-recovery`,
@@ -474,12 +490,15 @@ for (const resource of ['inquiries', 'ideas']) {
       assert.equal(new URL(page.url()).pathname, `/${resource}`);
     }));
 }
-async function changeStoredInquiry(page, id, change) {
+async function changeStoredInquiry(page: Page, id: number, change: Record<string, unknown>) {
   await page.evaluate(
     ({ id, change }) => {
-      const items = JSON.parse(localStorage.getItem('daeng-bo-mock-inquiries-v2'));
+      const items = JSON.parse(localStorage.getItem('daeng-bo-mock-inquiries-v2')!) as {
+        id: number;
+        [key: string]: unknown;
+      }[];
       Object.assign(
-        items.find((item) => item.id === id),
+        items.find((item) => item.id === id)!,
         change
       );
       localStorage.setItem('daeng-bo-mock-inquiries-v2', JSON.stringify(items));
@@ -519,7 +538,7 @@ test('inquiry assignment release undo and pending duplicates', () =>
     );
     return { assignment: true, release: true, undo: true };
   }));
-for (const mode of ['assignee', 'resolved']) {
+for (const mode of ['assignee', 'resolved'] as const) {
   test(`inquiry reply race ${mode}`, () =>
     scenario(`inquiry-race-${mode}`, '/inquiries/1043', async (page) => {
       const reply = page.getByRole('textbox', { name: '답변', exact: true });
@@ -584,14 +603,21 @@ test('inquiry attachment loading and failure do not shift reply', () =>
     const reply = page.getByRole('textbox', { name: '답변', exact: true });
     await reply.waitFor();
     const before = await reply.boundingBox();
+    assert.ok(before, '검사 대상 요소가 표시되어야 한다');
     await page.getByRole('img', { name: '이미지를 불러오지 못했습니다', exact: true }).first().waitFor();
     await page.waitForFunction(() =>
       [...document.querySelectorAll('img')].filter((img) => img.alt === 'good.svg').every((img) => img.complete)
     );
     const goodImage = page.getByRole('img', { name: 'good.svg', exact: true });
-    assert.equal(await goodImage.evaluate((image) => image.complete && image.naturalWidth > 0), true);
+    assert.equal(
+      await goodImage.evaluate(
+        (image) => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0
+      ),
+      true
+    );
     assert.equal(await page.getByRole('img', { name: '이미지를 불러오지 못했습니다', exact: true }).count(), 1);
     const after = await reply.boundingBox();
+    assert.ok(after, '검사 대상 요소가 표시되어야 한다');
     assert.equal(after.y, before.y);
     const original = page.getByRole('link', { name: '원본 다운로드', exact: true });
     await original.focus();
@@ -603,13 +629,13 @@ test('inquiry leave and assignment dialog keyboard cancellation', () =>
   scenario('inquiry-dialogs', '/inquiries/1043', async (page) => {
     const reply = page.getByRole('textbox', { name: '답변', exact: true });
     await reply.fill('확인해 보겠습니다');
-    await reply.evaluate((el) => el.setSelectionRange(3, 3));
+    await reply.evaluate((el) => (el as HTMLInputElement).setSelectionRange(3, 3));
     const next = page.getByRole('button', { name: '다음 문의 ›', exact: true });
     await next.focus();
     await page.keyboard.press('Enter');
     await page.getByRole('alertdialog').waitFor();
     await page.keyboard.press('Tab');
-    assert.equal(await page.evaluate(() => !!document.activeElement.closest('[role=alertdialog]')), true);
+    assert.equal(await page.evaluate(() => !!document.activeElement?.closest('[role=alertdialog]')), true);
     await page.keyboard.press('Escape');
     await page.getByRole('alertdialog').waitFor({ state: 'hidden' });
     assert.equal(await reply.inputValue(), '확인해 보겠습니다');
@@ -663,7 +689,9 @@ test('inquiry undo conflict keeps latest assignee', () =>
     assert.equal(
       await page.evaluate(
         () =>
-          JSON.parse(localStorage.getItem('daeng-bo-mock-inquiries-v2')).find((item) => item.id === 1043).assigneeEmail
+          (
+            JSON.parse(localStorage.getItem('daeng-bo-mock-inquiries-v2')!) as { id: number; assigneeEmail: string }[]
+          ).find((item) => item.id === 1043)!.assigneeEmail
       ),
       'ops2@knockdog.test'
     );

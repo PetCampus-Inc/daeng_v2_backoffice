@@ -1,7 +1,9 @@
 # 이용약관 회귀 검사
 
-`terms-usability.mjs`는 기존 Playwright 설치를 사용한다. 개인 브라우저에 연결하지 않고 headless Chromium과 시나리오별
-격리 컨텍스트를 만든다.
+Node.js 22.18 이상이 필요하다. 실행 전에 `rtk proxy pnpm --filter @daeng/web test:e2e:typecheck`로 타입을 검사한다.
+
+`terms-usability.ts`는 웹 패키지의 Playwright 개발 의존성을 사용한다. 개인 브라우저에 연결하지 않고 headless Chromium과
+시나리오별 격리 컨텍스트를 만든다.
 
 개발 서버:
 
@@ -12,7 +14,7 @@ rtk proxy pnpm --filter @daeng/web dev --host 127.0.0.1 --port 5186 --strictPort
 별도 터미널에서 검사한다. 기본 경로로 찾을 수 없으면 기존 설치 경로를 지정한다.
 
 ```sh
-rtk proxy env PLAYWRIGHT_MODULE_PATH=/absolute/path/to/playwright PLAYWRIGHT_EXECUTABLE_PATH=/absolute/path/to/chromium node --test apps/web/e2e/terms-usability.mjs
+rtk proxy env PLAYWRIGHT_MODULE_PATH=/absolute/path/to/playwright PLAYWRIGHT_EXECUTABLE_PATH=/absolute/path/to/chromium node --test apps/web/e2e/terms-usability.ts
 ```
 
 - `BO_QA_BASE_URL`: 기본 `http://127.0.0.1:5186`.

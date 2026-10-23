@@ -1,3 +1,5 @@
+import type { Browser, BrowserContext, Page } from 'playwright';
+import type { ScenarioOptions } from './type/browser-state.ts';
 // 저장소 루트에서 node --test로 실행. 기존 Playwright·Chromium 경로는 아래 환경변수로 지정한다.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -6,7 +8,7 @@ import path from 'node:path';
 import { after, before, test } from 'node:test';
 
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright') as typeof import('playwright');
 const BASE_URL = process.env.BO_QA_BASE_URL || 'http://localhost:5173';
 const OUTPUT_DIR = process.env.BO_QA_OUTPUT_DIR || path.resolve('.local/test-results/members');
 const FIXTURES_25 = Array.from({ length: 25 }, (_, index) => ({
@@ -20,8 +22,8 @@ const FIXTURES_25 = Array.from({ length: 25 }, (_, index) => ({
   schoolName: null,
   createdAt: new Date(Date.UTC(2026, 8, 13 + index)).toISOString(),
 }));
-const RESULTS = [];
-let browser;
+const RESULTS: Record<string, unknown>[] = [];
+let browser: Browser;
 
 before(async () => {
   await mkdir(OUTPUT_DIR, { recursive: true });
@@ -31,15 +33,20 @@ before(async () => {
   });
 });
 after(async () => {
+  if (!browser) return;
   await writeFile(path.join(OUTPUT_DIR, 'results.json'), JSON.stringify(RESULTS, null, 2));
   await browser?.close();
 });
 
-async function scenario(id, run, { fixtures, width = 1440, initialDelay = 0, role = '조회자' } = {}) {
+async function scenario(
+  id: string,
+  run: (page: Page, context: BrowserContext) => Promise<unknown>,
+  { fixtures, width = 1440, initialDelay = 0, role = '조회자' }: ScenarioOptions = {}
+) {
   const context = await browser.newContext({ viewport: { width, height: 1000 } });
   await context.tracing.start({ screenshots: true, snapshots: true });
   const page = await context.newPage();
-  const errors = [];
+  const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   page.setDefaultTimeout(15000);
   try {
@@ -79,11 +86,12 @@ async function scenario(id, run, { fixtures, width = 1440, initialDelay = 0, rol
     await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
     await page.getByRole('heading', { name: '회원 관리', exact: true }).waitFor();
     if (!initialDelay) await total(page, fixtures?.length ?? 6);
-    await run(page);
+    await run(page, context);
     RESULTS.push({ id, result: '통과', runtimeErrors: errors });
     assert.deepEqual(errors, []);
     await page.screenshot({ path: path.join(OUTPUT_DIR, `${id}.png`), fullPage: true });
   } catch (error) {
+    if (!(error instanceof Error)) throw error;
     if (errors.length) error.message += `\n브라우저 오류: ${errors.join('\n')}`;
     await page.screenshot({ path: path.join(OUTPUT_DIR, `${id}-failure.png`), fullPage: true }).catch(() => {});
     throw error;
@@ -93,30 +101,30 @@ async function scenario(id, run, { fixtures, width = 1440, initialDelay = 0, rol
   }
 }
 
-const total = (page, count) => page.getByText(`총 ${count}건`, { exact: true }).waitFor();
-const PERIOD_LABELS = { all: '가입일 전체', '7d': '최근 7일', '30d': '최근 30일' };
-async function choosePeriod(page, value) {
+const total = (page: Page, count: number) => page.getByText(`총 ${count}건`, { exact: true }).waitFor();
+const PERIOD_LABELS: Record<string, string> = { all: '가입일 전체', '7d': '최근 7일', '30d': '최근 30일' };
+async function choosePeriod(page: Page, value: string) {
   await page.getByRole('combobox', { name: '가입일' }).click();
   await page.getByRole('option', { name: PERIOD_LABELS[value], exact: true }).click();
 }
-async function selectedPeriod(page) {
+async function selectedPeriod(page: Page) {
   const label = await page.getByRole('combobox', { name: '가입일' }).innerText();
   return Object.keys(PERIOD_LABELS).find((value) => PERIOD_LABELS[value] === label);
 }
 
-const search = (page) => page.getByRole('searchbox', { name: '회원 검색' });
-const tab = (page, name) => page.getByRole('button', { name, exact: true });
-const names = (page) => page.locator('tbody tr td:first-child p:first-child').allTextContents();
-async function configure(page, config) {
+const search = (page: Page) => page.getByRole('searchbox', { name: '회원 검색' });
+const tab = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
+const names = (page: Page) => page.locator('tbody tr td:first-child p:first-child').allTextContents();
+async function configure(page: Page, config: Partial<Window['__memberQA']>) {
   await page.evaluate((next) => Object.assign(window.__memberQA, next), config);
 }
-async function watchTransition(page) {
+async function watchTransition(page: Page) {
   await page.evaluate(() => {
     window.__memberFrames = [];
     window.__memberWatching = true;
     function sample() {
       const table = document.querySelector('table');
-      const input = document.querySelector('input[type=search]');
+      const input = document.querySelector<HTMLInputElement>('input[type=search]');
       window.__memberFrames.push({
         busy: document.querySelector('[data-slot=card]')?.getAttribute('aria-busy') === 'true',
         table: Boolean(table),
@@ -130,7 +138,7 @@ async function watchTransition(page) {
     sample();
   });
 }
-async function assertStable(page) {
+async function assertStable(page: Page) {
   const frames = await page.evaluate(() => {
     window.__memberWatching = false;
     return window.__memberFrames;
@@ -141,7 +149,7 @@ async function assertStable(page) {
     '전환 중 빈 화면·로딩 화면 점멸'
   );
   assert.ok(
-    frames.every((frame) => Math.abs(frame.inputTop - frames[0].inputTop) < 1),
+    frames.every((frame) => Math.abs((frame.inputTop ?? NaN) - (frames[0].inputTop ?? NaN)) < 1),
     '검색창 위치 이동'
   );
   assert.ok(
@@ -165,10 +173,12 @@ test('S001/002/009/010 회원 칸·개인정보 가림·조회 전용', async ()
       '원장 · 견주',
       '2026. 10. 06.',
       '1마리 · 햇살유치원',
-    ]) {
+    ] as const) {
       assert.ok(text.includes(value), value);
     }
-    for (const raw of ['dog.owner@example.com', 'director@example.com', '01098765432']) assert.ok(!text.includes(raw));
+    for (const raw of ['dog.owner@example.com', 'director@example.com', '01098765432'] as const) {
+      assert.ok(!text.includes(raw));
+    }
     await page.getByText('운영 DB · 읽기 전용', { exact: true }).waitFor();
     assert.equal(await page.getByRole('combobox', { name: '가입일' }).isDisabled(), false);
     assert.equal(await page.getByRole('button', { name: /추가 메뉴/ }).count(), 0);
@@ -186,7 +196,7 @@ test('S001/002/009/010 회원 칸·개인정보 가림·조회 전용', async ()
     });
     assert.equal(payload.data.items.length, 6);
     const serialized = JSON.stringify(payload);
-    for (const raw of ['dog.owner@example.com', 'director@example.com', '01098765432']) {
+    for (const raw of ['dog.owner@example.com', 'director@example.com', '01098765432'] as const) {
       assert.ok(!serialized.includes(raw));
     }
   });
@@ -198,7 +208,7 @@ test('S004/005 탭·검색 결과와 건수', async () => {
       ['견주', ['김견주', '이원장', '정탈퇴']],
       ['원장', ['이원장', '박원장']],
       ['탈퇴', ['정탈퇴']],
-    ]) {
+    ] as const) {
       await tab(page, label).click();
       await total(page, expected.length);
       assert.deepEqual(await names(page), expected);
@@ -210,7 +220,7 @@ test('S004/005 탭·검색 결과와 건수', async () => {
       ['DIRECTOR', '이원장'],
       ['5432', '박원장'],
       ['u003', '박원장'],
-    ]) {
+    ] as const) {
       await search(page).fill(term);
       await total(page, 1);
       await page.getByText(expected, { exact: true }).waitFor();
@@ -231,7 +241,7 @@ test('S014 첫 조회 대기 상태와 완료', async () => {
   );
 });
 
-for (const label of ['견주', '원장', '탈퇴']) {
+for (const label of ['견주', '원장', '탈퇴'] as const) {
   test(`S019 첫 ${label} 전환의 중간 프레임`, async () => {
     await scenario(`continuity-${label}`, async (page) => {
       await configure(page, { delay: 1200 });
@@ -355,13 +365,13 @@ test('S015/018/019 페이지·중복 이동 방지·초점·조건 초기화', a
   );
 });
 
-for (const width of [390, 768, 1440]) {
+for (const width of [390, 768, 1440] as const) {
   test(`S022 ${width}px 키보드·가로 스크롤`, async () => {
     await scenario(
       `width-${width}`,
       async (page) => {
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-        for (const label of ['전체', '견주', '원장', '탈퇴']) {
+        for (const label of ['전체', '견주', '원장', '탈퇴'] as const) {
           const button = tab(page, label);
           await button.focus();
           assert.ok(
@@ -400,7 +410,7 @@ for (const width of [390, 768, 1440]) {
   });
 }
 
-for (const role of ['최고관리자', '운영자']) {
+for (const role of ['최고관리자', '운영자'] as const) {
   test(`S016 ${role} 접근`, async () => {
     await scenario(
       `role-${role}`,
