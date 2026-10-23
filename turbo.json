@@ -15,6 +15,7 @@
     },
     "dev": {
       "dependsOn": ["^build"],
+      "passThroughEnv": ["PORT", "API_DOCS_ENABLED"],
       "cache": false,
       "persistent": true
     }
