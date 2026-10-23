@@ -24,3 +24,4 @@ updated: 2026-10-23
 | [0009](0009-bff-keep-java-features.md)         | 기존 Java 기능은 이전하지 않고 호출          | 제안 |
 | [0010](0010-server-module-and-shared-build.md) | 서버는 ESM으로, shared는 ESM·CommonJS로 빌드 | 확정 |
 | [0011](0011-server-lint-test-config-tools.md)  | 서버 린트·테스트·설정 검증 도구              | 확정 |
+| [0012](0012-enum-value-upper-snake-case.md)    | enum 값은 UPPER_SNAKE_CASE 영어              | 확정 |

@@ -1,8 +1,8 @@
 ---
 title: API 공통 규약
-version: 0.1.0
+version: 0.1.1
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-23
 ---
 
 # API 공통 규약
@@ -96,8 +96,9 @@ HTTP 상태 코드로 실패를 알리고, 본문은 아래 형식으로 통일�
 - 필드 이름은 camelCase다.
 - 약어는 첫 글자만 대문자로 쓴다: `userId`, `apiKey`(`userID` 아님)
 - 불리언은 `is`나 `has`로 시작한다: `isActive`, `hasPermission`
+- enum 값은 영어 UPPER_SNAKE_CASE다: `ACTIVE`, `WAITING_REPLY`. 화면 문구는 프론트가 매핑한다.
 
-근거: [ADR 0007](adr/0007-field-naming-and-null.md)
+근거: [ADR 0007](adr/0007-field-naming-and-null.md), [ADR 0012](adr/0012-enum-value-upper-snake-case.md)
 
 ## 6. null과 필드 생략
 
@@ -135,8 +136,5 @@ PATCH /users/1
 
 ## 9. 아직 정하지 않은 것
 
-해당 시점에 정해서 이 문서에 반영한다.
-
-| 항목                                 | 정할 시점       |
-| ------------------------------------ | --------------- |
-| enum 값 표기(`ACTIVE` 또는 `active`) | 첫 명세 작성 전 |
+- 첫 로그인 프로필 설정 완료 전 다른 API를 서버가 어떻게 제한할지: 인증·권한 구현 전에 결정한다(PRD FR-BO-033).
+- 세션 쿠키의 CSRF 방어 방식: 배포 주소와 쿠키 설정을 확정할 때 결정한다([ADR 0008](adr/0008-session-cookie-auth.md)).

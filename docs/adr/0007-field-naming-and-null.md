@@ -37,3 +37,5 @@ snake_case는 JS 관례와 어긋나고 코드 스타일 린트와 충돌할 수
 enum 값의 표기(`ACTIVE` 또는 `active`)는 아직 정하지 않았다. 첫 명세를 쓰기 전에 정한다. `packages/shared`의
 `JOB_ROLES`는 화면 표시용 문구(`'풀스택'`)이므로 API enum 값과 같은 개념을 따로 정의하지 않도록 enum을 정할 때 함께
 정리한다.
+
+→ enum 값 표기는 [ADR 0012](0012-enum-value-upper-snake-case.md)에서 정했다.
