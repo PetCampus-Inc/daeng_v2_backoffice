@@ -3,8 +3,12 @@ info:
   title: 댕v2 백오피스 API
   version: 0.1.0
   description: |
-    BO 1단계(KD3-578) API 명세 초안. 범위는 로그인·세션, 내 계정, 팀원 계정, 1:1 문의, 아이디어 제안이다.
-    공지, 약관, 변경 이력, 알림은 아직 쓰지 않았다.
+    BO 1단계(KD3-578) API 명세. 범위는 로그인·세션, 내 계정, 팀원 계정, 변경 이력, 1:1 문의, 아이디어 제안, 앱 공지, 이용약관,
+    알림 센터, 서비스 현황 조회(기존 어드민 화면)이다.
+
+    API가 없는 요구사항: 접속 기록 기록(FR-BO-042), 알림 생성과 디스코드 발송(FR-BO-101, 102)은 서버 내부 동작이고,
+    체크인(FR-BO-015, 110)은 BO 메뉴에서 기존 주소로 연결하는 링크이며, 공지·약관 미리보기(FR-BO-082)는 프론트가 처리한다.
+    최초 최고 관리자(FR-BO-025)는 개발 초기 데이터이고, FR-BO-084는 삭제된 요구사항이며, FR-BO-087은 권한 표로 통합되었다.
 
     공통 규약은 docs/api-conventions.md를 따른다: 성공 응답은 감싸지 않고, 에러는 `{ code, message, details? }`,
     목록은 `page`(1부터)·`size`, 시각은 ISO 8601 UTC, 필드는 camelCase, 값이 없으면 `null`, enum 값은 영어
@@ -27,6 +31,16 @@ tags:
     description: 1:1 문의 (최고 관리자·운영자)
   - name: Ideas
     description: 아이디어 제안 (조회 전용)
+  - name: ChangeLogs
+    description: 변경 이력 (최고 관리자)
+  - name: Notices
+    description: 앱 공지 (조회는 전 역할, 작성·게시는 최고 관리자·운영자)
+  - name: Terms
+    description: 이용약관 (조회는 전 역할, 등록·공개·철회는 최고 관리자)
+  - name: Notifications
+    description: 알림 센터 (내 알림)
+  - name: ServiceAdmin
+    description: 기존 어드민 조회 화면(대시보드·회원·유치원·원장 인증 현황), 서비스 DB 읽기 전용
 security:
   - sessionCookie: []
 paths:
@@ -310,6 +324,7 @@ paths:
         전체다(FR-BO-050). 정렬은 최근 활동순이고 동률은 문의 ID 내림차순이다. 최근 활동은 마지막 메시지의 작성 시각이며
         맡기·담당 변경·담당 해제·상태 변경은 갱신하지 않는다.
         "전체"는 파라미터를 보내지 않는 것으로 표현한다.
+        목록에는 담당자(표시명·직무)를 보여 주고 비활성 계정이면 `isActive`가 `false`다(FR-BO-051).
       parameters:
         - $ref: '#/components/parameters/Keyword'
         - name: status
@@ -554,6 +569,43 @@ paths:
         '409':
           $ref: '#/components/responses/InquiryConflict'
 
+  /inquiries/{id}/images/{imageId}/original:
+    get:
+      tags: [Inquiries]
+      operationId: downloadInquiryImageOriginal
+      summary: 문의 이미지 원본 다운로드
+      description: |
+        원본 이미지를 내려받는다(FR-BO-052). 서버가 역할을 검사한 뒤 짧은 유효시간의 원본 주소로 이동시킨다(302).
+        HEIC·HEIF 이미지는 응답의 `url`이 서버 변환본(JPG·PNG)이고, 이 API가 변환 전 원본을 준다.
+        최고 관리자·운영자만 쓸 수 있다.
+      parameters:
+        - $ref: '#/components/parameters/InquiryId'
+        - name: imageId
+          in: path
+          required: true
+          description: 이미지 ID
+          schema:
+            type: string
+      responses:
+        '302':
+          description: 원본 이미지의 임시 주소로 이동한다.
+          headers:
+            Location:
+              description: 원본 이미지의 임시 주소
+              schema:
+                type: string
+                format: uri
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 문의 또는 이미지를 찾을 수 없다(`INQUIRY_NOT_FOUND`, `INQUIRY_IMAGE_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InquiryImageNotFoundError'
+
   /ideas:
     get:
       tags: [Ideas]
@@ -609,6 +661,730 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/IdeaNotFoundError'
+
+  /change-logs:
+    get:
+      tags: [ChangeLogs]
+      operationId: listChangeLogs
+      summary: 변경 이력 목록
+      description: |
+        최고 관리자만 쓸 수 있다(FR-BO-041). 최신순이고 동률은 ID 내림차순이다. 접속 기록(FR-BO-042)은 화면이 없어서 API가
+        없다. 변경 이력은 서버가 쓰기 행동 성공 시 자동으로 남기며 추가만 가능하다(FR-BO-040).
+        기간은 KST 날짜 기준이고 `to` 날짜 하루를 포함한다. 둘 다 생략하면 전체 기간이다.
+      parameters:
+        - name: from
+          in: query
+          description: 시작일(KST, `YYYY-MM-DD`). 생략하면 처음부터
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          description: 종료일(KST, `YYYY-MM-DD`, 이날 포함). 생략하면 끝까지
+          schema:
+            type: string
+            format: date
+        - name: actorId
+          in: query
+          description: 행위자 팀원 ID. 생략하면 전체
+          schema:
+            type: integer
+        - name: targetType
+          in: query
+          description: 대상 종류. 생략하면 전체
+          schema:
+            $ref: '#/components/schemas/ChangeLogTargetType'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 변경 이력 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangeLogPage'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /notices:
+    get:
+      tags: [Notices]
+      operationId: listNotices
+      summary: 앱 공지 목록
+      description: |
+        모든 역할이 조회할 수 있다(FR-BO-080). 정렬은 고정이다: 초안(게시일 없음)을 위에 최근 생성순으로, 그 아래 게시·게시 해제
+        공지를 최초 게시일시 내림차순으로 두고 동률은 ID 내림차순이다. 제목 검색은 부분 일치·대소문자 무시이다.
+      parameters:
+        - name: keyword
+          in: query
+          description: 제목 검색어
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: 게시 상태. 생략하면 전체
+          schema:
+            $ref: '#/components/schemas/NoticeStatus'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 공지 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoticePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Notices]
+      operationId: createNotice
+      summary: 공지 초안 저장
+      description: |
+        최고 관리자·운영자만 쓸 수 있다(FR-BO-081). 새 공지를 초안으로 저장하고 공지 ID가 만들어진다. 초안은 빈 제목·본문도
+        허용하고 최대 길이만 검사한다. 저장 없이 바로 게시하려면 이 API 뒤에 `publishNotice`를 호출한다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNoticeRequest'
+      responses:
+        '201':
+          description: 저장된 초안
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notice'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /notices/{id}:
+    get:
+      tags: [Notices]
+      operationId: getNotice
+      summary: 앱 공지 상세
+      description: 모든 역할이 조회할 수 있다(FR-BO-080).
+      parameters:
+        - $ref: '#/components/parameters/NoticeId'
+      responses:
+        '200':
+          description: 공지 상세
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NoticeNotFound'
+    patch:
+      tags: [Notices]
+      operationId: updateNotice
+      summary: 공지 저장·수정
+      description: |
+        최고 관리자·운영자만 쓸 수 있다(FR-BO-081, 085). 초안, 게시, 게시 해제 공지를 저장한다. 보내지 않은 필드는 바꾸지 않는다.
+        게시된 적이 있는 공지(게시·게시 해제)는 제목·본문을 비울 수 없고(`NOTICE_CONTENT_REQUIRED`), 수정해도 게시일·정렬
+        순서는 바뀌지 않는다. 화면을 연 뒤 다른 사람이 먼저 저장했으면 `version`이 달라 저장하지 않고 409로 거부한다.
+      parameters:
+        - $ref: '#/components/parameters/NoticeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNoticeRequest'
+      responses:
+        '200':
+          description: 저장된 공지
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notice'
+        '400':
+          description: 입력값이 올바르지 않거나 제목·본문이 비어 있다(`VALIDATION_FAILED`, `NOTICE_CONTENT_REQUIRED`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoticeContentError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NoticeNotFound'
+        '409':
+          $ref: '#/components/responses/NoticeVersionConflict'
+    delete:
+      tags: [Notices]
+      operationId: deleteNotice
+      summary: 공지 초안 삭제
+      description: |
+        초안만 삭제할 수 있다(FR-BO-086). 게시된 적이 있는 공지는 삭제할 수 없다. 최고 관리자·운영자만 쓸 수 있다.
+      parameters:
+        - $ref: '#/components/parameters/NoticeId'
+      responses:
+        '204':
+          description: 삭제됨
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NoticeNotFound'
+        '409':
+          description: 초안이 아니라서 삭제할 수 없다(`NOTICE_NOT_DRAFT`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoticeNotDraftError'
+
+  /notices/{id}/publication:
+    put:
+      tags: [Notices]
+      operationId: publishNotice
+      summary: 공지 게시·재게시
+      description: |
+        초안을 게시하거나 게시 해제된 공지를 다시 게시한다(FR-BO-083, 086). 즉시 게시만 제공하고 푸시는 보내지 않는다.
+        최초 게시일시는 처음 게시한 시각으로 유지된다. 처음 게시하면 변경 이력에 `NOTICE_CREATED`가, 게시 해제 뒤 다시 게시하면
+        `NOTICE_REPUBLISHED`가 남는다. 제목·본문은 비어 있을 수 없다. 이미 게시된 공지는 거부한다.
+        게시 해제의 '실행 취소'도 이 API다. 최고 관리자·운영자만 쓸 수 있다.
+      parameters:
+        - $ref: '#/components/parameters/NoticeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoticeVersionRequest'
+      responses:
+        '200':
+          description: 게시된 공지
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notice'
+        '400':
+          description: 제목 또는 본문이 비어 있다(`NOTICE_CONTENT_REQUIRED`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoticeContentRequiredError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NoticeNotFound'
+        '409':
+          description: |
+            이미 게시된 공지이거나(`NOTICE_ALREADY_PUBLISHED`), 화면을 연 뒤 다른 사람이 먼저 저장했다(`NOTICE_VERSION_CONFLICT`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoticePublishConflictError'
+    delete:
+      tags: [Notices]
+      operationId: unpublishNotice
+      summary: 공지 게시 해제
+      description: |
+        게시된 공지를 앱에서 즉시 사라지게 한다(FR-BO-086). 재게시할 수 있다. 게시 상태가 아니면 거부한다.
+        요청 본문 없이 호출하므로 동시 수정 검사는 하지 않는다. 최고 관리자·운영자만 쓸 수 있다.
+      parameters:
+        - $ref: '#/components/parameters/NoticeId'
+      responses:
+        '200':
+          description: 게시 해제된 공지
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NoticeNotFound'
+        '409':
+          description: 게시 상태가 아니다(`NOTICE_NOT_PUBLISHED`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoticeNotPublishedError'
+
+  /notices/images/upload-urls:
+    post:
+      tags: [Notices]
+      operationId: createNoticeImageUploadUrls
+      summary: 공지 이미지 업로드 주소 발급
+      description: |
+        본문에 넣을 이미지를 올릴 주소를 발급한다(FR-BO-081). 프론트는 받은 `uploadUrl`로 파일을 직접 올리고, 업로드가 끝나면
+        `imageUrl`을 마크다운 본문에 `![설명](imageUrl)`로 적어 넣는다.
+        형식은 JPEG·PNG이고 HEIC·HEIF는 받지 않는다. 파일당 20MB 이하, 한 번에 10개 이하이다.
+        [확인 필요] 용량·개수는 기존 v1 값이며 앱 공통 이미지 정책과 같은지 확인한다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoticeImageUploadRequest'
+      responses:
+        '200':
+          description: 업로드 주소
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NoticeImageUploadUrl'
+        '400':
+          description: 형식·용량·개수가 올바르지 않다(`NOTICE_IMAGE_INVALID`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NoticeImageInvalidError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /terms:
+    get:
+      tags: [Terms]
+      operationId: listTerms
+      summary: 약관 3종 요약
+      description: |
+        약관 3종을 고정 순서(서비스 이용약관, 개인정보 처리방침, 위치기반서비스 이용약관)로 반환한다(FR-BO-090). 약관명은
+        입력하지 않는 고정 값이라 `kind`로 구분하고 한국어 이름은 프론트가 매핑한다. 모든 역할이 조회할 수 있다.
+      responses:
+        '200':
+          description: 약관 3종
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TermsKindSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /terms/{kind}/versions:
+    get:
+      tags: [Terms]
+      operationId: listTermsVersions
+      summary: 약관별 버전 목록
+      description: |
+        해당 약관의 모든 버전을 시행일 내림차순으로 반환한다(FR-BO-091). 모든 역할이 조회할 수 있다. 버전 수가 많지 않아서
+        페이지 없이 전체를 배열로 반환한다.
+      parameters:
+        - $ref: '#/components/parameters/TermsKind'
+      responses:
+        '200':
+          description: 버전 목록
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TermsVersionSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Terms]
+      operationId: createTermsVersion
+      summary: 약관 새 버전 초안 저장
+      description: |
+        최고 관리자만 쓸 수 있다(FR-BO-092). 시행일과 마크다운 내용을 초안으로 저장한다. 시행일 검증은 공개할 때 하므로 저장
+        시에는 날짜 형식만 검사한다. 내용 시작 값은 `getTermsDraftTemplate`로 받는다.
+      parameters:
+        - $ref: '#/components/parameters/TermsKind'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTermsVersionRequest'
+      responses:
+        '201':
+          description: 저장된 초안
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsVersion'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /terms/{kind}/draft-template:
+    get:
+      tags: [Terms]
+      operationId: getTermsDraftTemplate
+      summary: 새 버전 초안의 시작 내용
+      description: |
+        새 버전을 쓸 때 채워 넣을 시작 본문을 반환한다(FR-BO-092). 같은 약관에서 시행일이 가장 늦은 공개 버전(예정 포함, 철회
+        제외)의 본문이고, 본문의 공고일·시행일은 어디에 있든 `{{공고일}}`·`{{시행일}}` 자리표시자로 되돌린 상태이다.
+        공개한 버전이 없으면 `content`는 `null`이다. 최고 관리자만 쓸 수 있다.
+      parameters:
+        - $ref: '#/components/parameters/TermsKind'
+      responses:
+        '200':
+          description: 시작 내용
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsDraftTemplate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /terms/versions/{id}:
+    get:
+      tags: [Terms]
+      operationId: getTermsVersion
+      summary: 약관 버전 상세
+      description: 모든 역할이 조회할 수 있다(FR-BO-091).
+      parameters:
+        - $ref: '#/components/parameters/TermsVersionId'
+      responses:
+        '200':
+          description: 버전 상세
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/TermsVersionNotFound'
+    patch:
+      tags: [Terms]
+      operationId: updateTermsVersion
+      summary: 약관 초안 수정
+      description: |
+        최고 관리자만 쓸 수 있다(FR-BO-092). 초안만 수정할 수 있다. 공개했거나 철회한 버전은 수정할 수 없다(FR-BO-094).
+        보내지 않은 필드는 바꾸지 않는다. 화면을 연 뒤 다른 사람이 먼저 저장했으면 409로 거부한다.
+      parameters:
+        - $ref: '#/components/parameters/TermsVersionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTermsVersionRequest'
+      responses:
+        '200':
+          description: 저장된 초안
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsVersion'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TermsVersionNotFound'
+        '409':
+          $ref: '#/components/responses/TermsVersionConflict'
+    delete:
+      tags: [Terms]
+      operationId: deleteTermsVersion
+      summary: 약관 초안 삭제
+      description:
+        최고 관리자만 쓸 수 있다(FR-BO-092, 094). 초안만 삭제할 수 있고 공개했거나 철회한 버전은 삭제할 수 없다.
+      parameters:
+        - $ref: '#/components/parameters/TermsVersionId'
+      responses:
+        '204':
+          description: 삭제됨
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TermsVersionNotFound'
+        '409':
+          description: 초안이 아니라서 삭제할 수 없다(`TERMS_VERSION_NOT_DRAFT`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsVersionNotDraftError'
+
+  /terms/versions/{id}/publication:
+    put:
+      tags: [Terms]
+      operationId: publishTermsVersion
+      summary: 약관 버전 공개
+      description: |
+        최고 관리자만 쓸 수 있다(FR-BO-093). 공개할 때 시행일을 검증한다. 세 조건을 모두 만족해야 공개된다.
+        (1) 시행일이 공개일(KST 날짜)로부터 7일 이후, (2) 과거 날짜가 아님, (3) 같은 약관의 공개 상태 버전 중 가장 최근
+        시행일보다 이후(초안·철회 제외). 공개할 때 본문의 `{{공고일}}`·`{{시행일}}`이 공개일(KST)과 시행일(`YYYY년 M월 D일`)로
+        채워진다. 공개한 버전은 수정·삭제할 수 없다.
+      parameters:
+        - $ref: '#/components/parameters/TermsVersionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TermsVersionRequest'
+      responses:
+        '200':
+          description: 공개된 버전
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsVersion'
+        '400':
+          description: |
+            시행일 검증에 실패했다. 사유별 코드: `TERMS_EFFECTIVE_DATE_TOO_SOON`(공개일로부터 7일 미만),
+            `TERMS_EFFECTIVE_DATE_IN_PAST`(과거 날짜), `TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST`(같은 약관의 최근 시행일 이하),
+            `TERMS_EFFECTIVE_DATE_INVALID_FORMAT`(날짜 형식 오류).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsEffectiveDateError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TermsVersionNotFound'
+        '409':
+          $ref: '#/components/responses/TermsVersionConflict'
+    delete:
+      tags: [Terms]
+      operationId: withdrawTermsVersion
+      summary: 약관 예정 버전 공개 철회
+      description: |
+        시행 전 예정 버전의 공개를 철회한다(FR-BO-095). 철회한 버전은 삭제하지 않고 이력에 남기며 앱에 노출하지 않고 다시
+        공개할 수 없다. 시행일이 지난 버전과 공개 상태가 아닌 버전은 철회할 수 없다(`TERMS_WITHDRAW_NOT_ALLOWED`).
+        최고 관리자만 쓸 수 있다.
+      parameters:
+        - $ref: '#/components/parameters/TermsVersionId'
+      responses:
+        '200':
+          description: 철회된 버전
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsVersion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/TermsVersionNotFound'
+        '409':
+          description: 철회할 수 없는 버전이다(`TERMS_WITHDRAW_NOT_ALLOWED`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsWithdrawNotAllowedError'
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: 내 알림 목록
+      description: |
+        로그인한 팀원의 알림을 최근순으로 반환한다(FR-BO-100). 읽음 상태는 개인별이다. 알림은 이벤트 발생 시점의 활성 계정에만
+        만들어진다(FR-BO-101). 문구는 서버가 만든다. 디스코드 발송(FR-BO-102)은 서버 내부 동작이라 API가 없다.
+        [확인 필요] 한 번에 보여 줄 건수를 PRD가 정하지 않았고 웹의 알림 센터도 아직 없어서, 다른 목록과 같은 페이지 방식(기본 20건)으로 두었다.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 알림 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      operationId: getUnreadNotificationCount
+      summary: 안 읽은 알림 수
+      description: 알림 센터 배지에 표시할 안 읽은 알림 수를 반환한다(FR-BO-100). 프론트가 주기적으로 호출해 갱신한다.
+      responses:
+        '200':
+          description: 안 읽은 알림 수
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadNotificationCount'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      operationId: readAllNotifications
+      summary: 모두 읽음
+      description: 내 알림을 모두 읽음 처리한다(FR-BO-100).
+      responses:
+        '204':
+          description: 읽음 처리됨
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/{id}/read:
+    post:
+      tags: [Notifications]
+      operationId: readNotification
+      summary: 알림 읽음 처리
+      description: |
+        알림 하나를 읽음 처리한다(FR-BO-100). 알림을 누르면 프론트가 이 API를 부르고 대상 문의·제안 상세로 이동한다. 대상이
+        이미 해결되었거나 권한이 없어 볼 수 없으면 상세 조회가 실패하고, 프론트가 안내한 뒤 이 API로 읽음 처리한다.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 알림 ID
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 읽음 처리된 알림
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: 알림을 찾을 수 없다(`NOTIFICATION_NOT_FOUND`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationNotFoundError'
+
+  /service-admin/overview:
+    get:
+      tags: [ServiceAdmin]
+      operationId: getServiceOverview
+      summary: 서비스 현황 개요(홈 대시보드)
+      description: |
+        기존 어드민의 대시보드와 같은 지표를 서비스 DB 읽기 전용 조회로 만든다(FR-BO-111). 모든 역할이 조회할 수 있다.
+        지표 정의: `guardians`는 활성 반려견을 1마리 이상 가진 활성 회원, `activeOwners`는 해지되지 않은 원장 역할을 가진 활성
+        회원, `managedSchools`는 활성 원장 역할이 연결된 유치원이다. 가입 추이의 날짜는 KST 기준이다.
+      parameters:
+        - name: days
+          in: query
+          description: 가입 추이 기간(일). 7~90, 기본 30
+          schema:
+            type: integer
+            minimum: 7
+            maximum: 90
+            default: 30
+      responses:
+        '200':
+          description: 개요
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceOverview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /service-admin/members:
+    get:
+      tags: [ServiceAdmin]
+      operationId: listServiceMembers
+      summary: 서비스 회원 목록
+      description: |
+        기존 어드민의 회원 화면과 같다(FR-BO-111). 최신 가입순이다. 이메일·전화번호는 마스킹해서 내려준다. 검색은 아이디·이름·
+        이메일·전화번호 부분 일치이다. 모든 역할이 조회할 수 있다.
+      parameters:
+        - name: type
+          in: query
+          description: 회원 구분. 생략하면 전체
+          schema:
+            $ref: '#/components/schemas/ServiceMemberType'
+        - $ref: '#/components/parameters/Keyword'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 회원 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceMemberPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /service-admin/schools:
+    get:
+      tags: [ServiceAdmin]
+      operationId: listServiceSchools
+      summary: 서비스 유치원 목록
+      description: |
+        기존 어드민의 유치원 화면과 같다(FR-BO-111). 최신 등록순이다. 전화번호는 마스킹한다. 검색은 이름·주소·원장 이름 부분
+        일치이다. 모든 역할이 조회할 수 있다.
+      parameters:
+        - name: status
+          in: query
+          description: 유치원 상태. 생략하면 전체
+          schema:
+            $ref: '#/components/schemas/SchoolStatus'
+        - $ref: '#/components/parameters/Keyword'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 유치원 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceSchoolPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /service-admin/verifications:
+    get:
+      tags: [ServiceAdmin]
+      operationId: listServiceVerifications
+      summary: 원장 인증 현황 목록
+      description: |
+        기존 어드민의 원장 인증 현황 화면과 같다(FR-BO-111). 제출 시각 최신순이다. 전화번호·사업자등록번호는 마스킹한다.
+        검색은 유치원 이름·대표자 이름·회원 아이디 부분 일치이다. 모든 역할이 조회할 수 있다.
+      parameters:
+        - name: status
+          in: query
+          description: 인증 상태. 생략하면 전체
+          schema:
+            $ref: '#/components/schemas/VerificationStatus'
+        - $ref: '#/components/parameters/Keyword'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: 인증 현황 목록
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceVerificationPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
 components:
   securitySchemes:
@@ -668,20 +1444,46 @@ components:
       schema:
         type: integer
 
+    NoticeId:
+      name: id
+      in: path
+      required: true
+      description: 공지 ID
+      schema:
+        type: integer
+
+    TermsKind:
+      name: kind
+      in: path
+      required: true
+      description: 약관 종류
+      schema:
+        $ref: '#/components/schemas/TermsKind'
+
+    TermsVersionId:
+      name: id
+      in: path
+      required: true
+      description: 약관 버전 ID
+      schema:
+        type: integer
+
   responses:
     Unauthorized:
       description: |
         로그인 뒤 어느 API에서든 같은 코드로 내려간다. 화면 안내가 달라서 상황마다 코드를 구분한다.
 
         - `UNAUTHENTICATED`: 세션이 없다(로그인한 적이 없거나 로그아웃했다). 프론트는 안내 없이 로그인 화면으로 보낸다.
-        - `SESSION_EXPIRED`: 마지막 요청 뒤 24시간 동안 요청이 없어 서버가 세션을 끝냈다. "로그인이 만료되었습니다"를 안내한다.
+        - `SESSION_EXPIRED`: 마지막 요청 뒤 24시간 동안 요청이 없어 서버가 세션을 끝냈다(FR-BO-012). "로그인이 만료되었습니다"를 안내한다.
         - `ACCOUNT_DEACTIVATED`: 쓰는 도중 관리자가 계정을 비활성화해 서버가 세션을 지웠다. "접근 권한 없음"을 안내한다.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/UnauthorizedError'
     Forbidden:
-      description: 이 역할에는 허용되지 않는다(`FORBIDDEN`). 권한 없는 접근 시도는 접속 기록에 남는다.
+      description:
+        이 역할에는 허용되지 않는다(`FORBIDDEN`). 주소를 직접 입력해도 서버가 역할을 검사해 막고(FR-BO-001), 권한 없는
+        접근 시도는 접속 기록에 남는다.
       content:
         application/json:
           schema:
@@ -715,11 +1517,39 @@ components:
     InquiryConflict:
       description: |
         문의 상태 충돌. 화면을 본 뒤 담당자가 바뀌었으면 `INQUIRY_ASSIGNEE_CHANGED`, 해결 완료 문의면
-        `INQUIRY_RESOLVED`다. 프론트는 최신 문의를 다시 읽는다.
+        `INQUIRY_RESOLVED`다(해결 완료 문의는 읽기 전용이다, FR-BO-059). 프론트는 최신 문의를 다시 읽는다.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/InquiryConflictError'
+    NoticeNotFound:
+      description: 공지를 찾을 수 없다(`NOTICE_NOT_FOUND`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NoticeNotFoundError'
+    NoticeVersionConflict:
+      description: |
+        화면을 연 뒤 다른 사람이 먼저 저장해 저장하지 않았다(`NOTICE_VERSION_CONFLICT`). 프론트는 입력을 유지한 채 최신 내용을
+        다시 불러오도록 안내한다.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/NoticeVersionConflictError'
+    TermsVersionNotFound:
+      description: 약관 버전을 찾을 수 없다(`TERMS_VERSION_NOT_FOUND`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TermsVersionNotFoundError'
+    TermsVersionConflict:
+      description: |
+        화면을 연 뒤 다른 사람이 먼저 저장했거나(`TERMS_VERSION_CONFLICT`), 초안이 아니라서 수정·공개할 수 없다
+        (`TERMS_VERSION_NOT_DRAFT`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TermsVersionConflictError'
 
   schemas:
     Error:
@@ -1172,3 +2002,937 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Idea'
+
+    InquiryImageNotFoundError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [INQUIRY_NOT_FOUND, INQUIRY_IMAGE_NOT_FOUND]
+
+    NoticeContentError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [VALIDATION_FAILED, NOTICE_CONTENT_REQUIRED]
+
+    NoticeContentRequiredError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [NOTICE_CONTENT_REQUIRED]
+
+    NoticeNotDraftError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [NOTICE_NOT_DRAFT]
+
+    NoticeNotPublishedError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [NOTICE_NOT_PUBLISHED]
+
+    NoticePublishConflictError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [NOTICE_ALREADY_PUBLISHED, NOTICE_VERSION_CONFLICT]
+
+    NoticeNotFoundError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [NOTICE_NOT_FOUND]
+
+    NoticeVersionConflictError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [NOTICE_VERSION_CONFLICT]
+
+    NoticeImageInvalidError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [NOTICE_IMAGE_INVALID]
+
+    TermsVersionNotDraftError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [TERMS_VERSION_NOT_DRAFT]
+
+    TermsEffectiveDateError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum:
+                [
+                  TERMS_EFFECTIVE_DATE_TOO_SOON,
+                  TERMS_EFFECTIVE_DATE_IN_PAST,
+                  TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST,
+                  TERMS_EFFECTIVE_DATE_INVALID_FORMAT,
+                ]
+
+    TermsVersionNotFoundError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [TERMS_VERSION_NOT_FOUND]
+
+    TermsVersionConflictError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [TERMS_VERSION_CONFLICT, TERMS_VERSION_NOT_DRAFT]
+
+    TermsWithdrawNotAllowedError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [TERMS_WITHDRAW_NOT_ALLOWED]
+
+    NotificationNotFoundError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            code:
+              type: string
+              enum: [NOTIFICATION_NOT_FOUND]
+
+    ChangeLogTargetType:
+      type: string
+      description: 변경 이력의 대상 종류. `INQUIRY` 문의, `NOTICE` 공지, `TERMS_VERSION` 약관 버전, `ACCOUNT` 팀원 계정
+      enum: [INQUIRY, NOTICE, TERMS_VERSION, ACCOUNT]
+
+    ChangeLogAction:
+      type: string
+      description: |
+        기록하는 쓰기 행동(PRD 4.3). 초안의 수정·삭제, 표시명·직무 변경, 로그인·로그아웃, 조회는 기록하지 않는다.
+        `INQUIRY_ASSIGNED` 미배정 문의를 맡음, `INQUIRY_ASSIGNEE_CHANGED` 다른 담당자의 문의를 가져옴,
+        `INQUIRY_ASSIGNEE_RELEASED` 담당 해제, `INQUIRY_REPLIED` 답변 저장, `NOTICE_CREATED` 공지 작성(첫 게시 시점에
+        기록하며 초안 저장은 기록하지 않는다), `NOTICE_EDITED` 게시된 공지 수정, `NOTICE_UNPUBLISHED` 게시 해제,
+        `NOTICE_REPUBLISHED` 재게시, `TERMS_VERSION_CREATED` 약관 새 버전 등록, `TERMS_VERSION_PUBLISHED` 공개,
+        `TERMS_VERSION_WITHDRAWN` 공개 철회, `ACCOUNT_REGISTERED` 계정 등록, `ACCOUNT_ROLE_CHANGED` 역할 변경,
+        `ACCOUNT_DEACTIVATED` 비활성화, `ACCOUNT_REGISTRATION_CANCELLED` 등록 취소, `ACCOUNT_REACTIVATED` 재활성화.
+      enum:
+        - INQUIRY_ASSIGNED
+        - INQUIRY_ASSIGNEE_CHANGED
+        - INQUIRY_ASSIGNEE_RELEASED
+        - INQUIRY_REPLIED
+        - NOTICE_CREATED
+        - NOTICE_EDITED
+        - NOTICE_UNPUBLISHED
+        - NOTICE_REPUBLISHED
+        - TERMS_VERSION_CREATED
+        - TERMS_VERSION_PUBLISHED
+        - TERMS_VERSION_WITHDRAWN
+        - ACCOUNT_REGISTERED
+        - ACCOUNT_ROLE_CHANGED
+        - ACCOUNT_DEACTIVATED
+        - ACCOUNT_REGISTRATION_CANCELLED
+        - ACCOUNT_REACTIVATED
+
+    ChangeLogActor:
+      type: object
+      description: 행위자. 표시명·직무는 기록 당시 값이다.
+      required: [id, displayName, jobRole, email]
+      properties:
+        id:
+          type: integer
+        displayName:
+          type: string
+        jobRole:
+          $ref: '#/components/schemas/JobRole'
+        email:
+          type: string
+          format: email
+
+    ChangeLogTarget:
+      type: object
+      description: |
+        변경 대상. `label`은 기록 당시 값이다: 문의는 문의 제목, 공지는 공지 제목, 약관은 약관 종류와 버전, 계정은 이메일.
+      required: [id, label]
+      properties:
+        id:
+          type: integer
+          description: 문의 ID, 공지 ID, 약관 버전 ID, 팀원 ID
+        label:
+          type: string
+
+    ChangeLogChange:
+      type: object
+      description: |
+        변경 전→후 값. 역할 변경(`SUPER_ADMIN` 등 역할 값)과 담당자 변경(담당자 표시명)에서만 채운다. 값이 없던 쪽은 `null`이다.
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          nullable: true
+        to:
+          type: string
+          nullable: true
+
+    ChangeLog:
+      type: object
+      required: [id, occurredAt, actor, targetType, target, action, change]
+      properties:
+        id:
+          type: integer
+        occurredAt:
+          type: string
+          format: date-time
+        actor:
+          $ref: '#/components/schemas/ChangeLogActor'
+        targetType:
+          $ref: '#/components/schemas/ChangeLogTargetType'
+        target:
+          $ref: '#/components/schemas/ChangeLogTarget'
+        action:
+          $ref: '#/components/schemas/ChangeLogAction'
+        change:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/ChangeLogChange'
+          nullable: true
+
+    ChangeLogPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChangeLog'
+
+    NoticeStatus:
+      type: string
+      description: 공지 게시 상태. `DRAFT` 초안, `PUBLISHED` 게시, `UNPUBLISHED` 게시 해제
+      enum: [DRAFT, PUBLISHED, UNPUBLISHED]
+
+    NoticeSummary:
+      type: object
+      description: 공지 목록의 한 행
+      required: [id, title, status, publishedAt, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+          description: 초안은 빈 문자열일 수 있다.
+        status:
+          $ref: '#/components/schemas/NoticeStatus'
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 최초 게시 일시. 게시 전에는 `null`이고 수정·재게시해도 바뀌지 않는다.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Notice:
+      allOf:
+        - $ref: '#/components/schemas/NoticeSummary'
+        - type: object
+          required: [body, version]
+          properties:
+            body:
+              type: string
+              description: 마크다운 본문. 게시 시 1~5,000자, 초안은 빈 문자열일 수 있다.
+            version:
+              type: integer
+              description: 동시 수정 방지 값. 수정·게시 요청에 그대로 보낸다.
+
+    NoticePage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/NoticeSummary'
+
+    CreateNoticeRequest:
+      type: object
+      required: [title, body]
+      properties:
+        title:
+          type: string
+          maxLength: 50
+        body:
+          type: string
+          maxLength: 5000
+
+    UpdateNoticeRequest:
+      type: object
+      required: [version]
+      properties:
+        title:
+          type: string
+          maxLength: 50
+        body:
+          type: string
+          maxLength: 5000
+        version:
+          type: integer
+          minimum: 0
+          description: 화면을 열 때 받은 `version`
+
+    NoticeVersionRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          minimum: 0
+          description: 화면을 열 때 받은 `version`
+
+    NoticeImageFile:
+      type: object
+      required: [fileName, contentType, size]
+      properties:
+        fileName:
+          type: string
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png]
+        size:
+          type: integer
+          minimum: 1
+          maximum: 20971520
+          description: 바이트. 파일당 20MB 이하
+
+    NoticeImageUploadRequest:
+      type: object
+      required: [files]
+      properties:
+        noticeId:
+          type: integer
+          description: 이미 저장된 공지에 이미지를 추가할 때만 보낸다. 첫 초안 저장 전에는 생략한다.
+        files:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/NoticeImageFile'
+
+    NoticeImageUploadUrl:
+      type: object
+      required: [uploadUrl, imageUrl]
+      properties:
+        uploadUrl:
+          type: string
+          format: uri
+          description: 파일을 직접 올릴 짧은 유효시간의 주소
+        imageUrl:
+          type: string
+          format: uri
+          description: 업로드가 끝난 뒤 앱과 BO 화면에서 이미지를 불러올 최종 주소. 마크다운 본문에 이 주소를 적는다.
+
+    TermsKind:
+      type: string
+      description:
+        약관 종류. `SERVICE_TERMS` 서비스 이용약관, `PRIVACY_POLICY` 개인정보 처리방침, `LOCATION_TERMS` 위치기반서비스
+        이용약관
+      enum: [SERVICE_TERMS, PRIVACY_POLICY, LOCATION_TERMS]
+
+    TermsPublishStatus:
+      type: string
+      description: 공개 상태. `DRAFT` 초안, `PUBLISHED` 공개, `WITHDRAWN` 철회
+      enum: [DRAFT, PUBLISHED, WITHDRAWN]
+
+    TermsEffectiveStatus:
+      type: string
+      description: |
+        시행 상태. 공개된 버전만 가진다. 시행일 0시(KST)에 자동으로 바뀐다. `CURRENT` 현행, `SCHEDULED` 예정, `PAST` 과거
+      enum: [CURRENT, SCHEDULED, PAST]
+
+    TermsVersionSummary:
+      type: object
+      required: [id, kind, effectiveDate, publishStatus, effectiveStatus, publishedAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          description: 약관 버전 ID. 화면의 버전 번호로 쓴다.
+        kind:
+          $ref: '#/components/schemas/TermsKind'
+        effectiveDate:
+          type: string
+          format: date
+          description: 시행일(KST 날짜)
+        publishStatus:
+          $ref: '#/components/schemas/TermsPublishStatus'
+        effectiveStatus:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/TermsEffectiveStatus'
+          nullable: true
+          description: 공개 상태가 아니면 `null`
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 공개한 시각. 초안은 `null`
+        updatedAt:
+          type: string
+          format: date-time
+
+    TermsVersion:
+      allOf:
+        - $ref: '#/components/schemas/TermsVersionSummary'
+        - type: object
+          required: [content, announcedDate, version]
+          properties:
+            content:
+              type: string
+              description: 마크다운. 제목 없이 약관 본문으로 시작하고 맨 아래에 공고일자·시행일자가 있다.
+            announcedDate:
+              type: string
+              format: date
+              nullable: true
+              description: 공고일(공개한 KST 날짜). 공개 전에는 `null`
+            version:
+              type: integer
+              description: 동시 수정 방지 값. 수정·공개 요청에 그대로 보낸다.
+
+    TermsKindSummary:
+      type: object
+      required: [kind, currentVersion, scheduledVersion]
+      properties:
+        kind:
+          $ref: '#/components/schemas/TermsKind'
+        currentVersion:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/TermsVersionSummary'
+          nullable: true
+          description: 현행 버전. 없으면 `null`
+        scheduledVersion:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/TermsVersionSummary'
+          nullable: true
+          description: 가장 가까운 예정 버전. 없으면 `null`
+
+    CreateTermsVersionRequest:
+      type: object
+      required: [effectiveDate, content]
+      properties:
+        effectiveDate:
+          type: string
+          format: date
+        content:
+          type: string
+          description: 마크다운. 공고일·시행일은 `{{공고일}}`·`{{시행일}}`로 적어 두면 공개할 때 자동 입력된다.
+
+    UpdateTermsVersionRequest:
+      type: object
+      required: [version]
+      properties:
+        effectiveDate:
+          type: string
+          format: date
+        content:
+          type: string
+        version:
+          type: integer
+          minimum: 0
+          description: 화면을 열 때 받은 `version`
+
+    TermsVersionRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          minimum: 0
+          description: 화면을 열 때 받은 `version`
+
+    TermsDraftTemplate:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          nullable: true
+          description: 시작 본문. 공개한 버전이 없으면 `null`
+
+    NotificationKind:
+      type: string
+      description:
+        알림 종류. `NEW_INQUIRY` 새 문의, `ADDITIONAL_INQUIRY` 추가 문의, `ASSIGNEE_CHANGED` 담당자 변경, `NEW_IDEA` 새
+        제안
+      enum: [NEW_INQUIRY, ADDITIONAL_INQUIRY, ASSIGNEE_CHANGED, NEW_IDEA]
+
+    NotificationTargetType:
+      type: string
+      description: 알림 대상 종류. `INQUIRY` 문의, `IDEA` 아이디어 제안
+      enum: [INQUIRY, IDEA]
+
+    Notification:
+      type: object
+      required: [id, kind, message, targetType, targetId, createdAt, readAt]
+      properties:
+        id:
+          type: integer
+        kind:
+          $ref: '#/components/schemas/NotificationKind'
+        message:
+          type: string
+          description:
+            서버가 만든 이벤트 설명 한 줄(예, 담당자 변경은 「{표시명 · 직무}님이 문의의 담당자를 변경했습니다.」)
+        targetType:
+          $ref: '#/components/schemas/NotificationTargetType'
+        targetId:
+          type: integer
+          description: 이동할 문의 ID 또는 제안 ID
+        createdAt:
+          type: string
+          format: date-time
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: 읽은 시각. 안 읽었으면 `null`
+
+    NotificationPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Notification'
+
+    UnreadNotificationCount:
+      type: object
+      required: [count]
+      properties:
+        count:
+          type: integer
+          minimum: 0
+
+    ServiceMemberType:
+      type: string
+      description: 회원 구분. `GUARDIAN` 활성 반려견이 있는 보호자, `OWNER` 원장 역할 보유, `WITHDRAWN` 탈퇴
+      enum: [GUARDIAN, OWNER, WITHDRAWN]
+
+    ServiceUserStatus:
+      type: string
+      description: 서비스 회원 상태. `ACTIVE` 활성, `WITHDRAWN` 탈퇴
+      enum: [ACTIVE, WITHDRAWN]
+
+    SchoolStatus:
+      type: string
+      description: 유치원 상태. `ACTIVE` 운영, `CLOSED` 폐업
+      enum: [ACTIVE, CLOSED]
+
+    VerificationStatus:
+      type: string
+      description: |
+        원장 인증 상태. `KINDERGARTEN_INFO_COMPLETED` 유치원 정보 입력 완료, `BUSINESS_REGISTRATION_PENDING` 사업자등록
+        대기, `SUBMITTED` 제출, `REVOKED` 해지
+      enum: [KINDERGARTEN_INFO_COMPLETED, BUSINESS_REGISTRATION_PENDING, SUBMITTED, REVOKED]
+
+    ServiceOverviewStats:
+      type: object
+      required:
+        - totalUsers
+        - activeUsers
+        - withdrawnUsers
+        - guardians
+        - newUsers7d
+        - newUsers30d
+        - activeOwners
+        - revokedOwners
+        - newOwners7d
+        - totalSchools
+        - activeSchools
+        - closedSchools
+        - managedSchools
+        - verificationCounts
+      properties:
+        totalUsers:
+          type: integer
+        activeUsers:
+          type: integer
+        withdrawnUsers:
+          type: integer
+        guardians:
+          type: integer
+        newUsers7d:
+          type: integer
+        newUsers30d:
+          type: integer
+        activeOwners:
+          type: integer
+        revokedOwners:
+          type: integer
+        newOwners7d:
+          type: integer
+        totalSchools:
+          type: integer
+        activeSchools:
+          type: integer
+        closedSchools:
+          type: integer
+        managedSchools:
+          type: integer
+        verificationCounts:
+          type: object
+          description: 인증 상태(`VerificationStatus`)별 건수. 건수가 없는 상태는 키가 없다.
+          additionalProperties:
+            type: integer
+
+    ServiceSignupTrendPoint:
+      type: object
+      required: [date, count]
+      properties:
+        date:
+          type: string
+          format: date
+          description: 가입 날짜(KST)
+        count:
+          type: integer
+
+    ServiceRecentVerification:
+      type: object
+      required: [id, nickname, userId, kindergartenName, status, submittedAt]
+      properties:
+        id:
+          type: integer
+        nickname:
+          type: string
+          nullable: true
+        userId:
+          type: string
+        kindergartenName:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/VerificationStatus'
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ServiceOverview:
+      type: object
+      required: [stats, signupTrend, recentVerifications]
+      properties:
+        stats:
+          $ref: '#/components/schemas/ServiceOverviewStats'
+        signupTrend:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceSignupTrendPoint'
+        recentVerifications:
+          type: array
+          description: 최근 인증 6건
+          items:
+            $ref: '#/components/schemas/ServiceRecentVerification'
+
+    ServiceMember:
+      type: object
+      required:
+        - id
+        - userId
+        - name
+        - status
+        - phone
+        - email
+        - createdAt
+        - updatedAt
+        - petCount
+        - isGuardian
+        - isOwner
+        - ownerGrantedAt
+        - ownerRevokedAt
+        - ownerRevokeReason
+        - schoolId
+        - schoolName
+        - schoolStatus
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+          description: 회원 로그인 아이디
+        name:
+          type: string
+          description: 보호자 이름, 없으면 닉네임, 없으면 소셜 이름, 없으면 '이름 미등록'
+        status:
+          $ref: '#/components/schemas/ServiceUserStatus'
+        phone:
+          type: string
+          nullable: true
+          description: 마스킹된 전화번호
+        email:
+          type: string
+          nullable: true
+          description: 마스킹된 이메일
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        petCount:
+          type: integer
+        isGuardian:
+          type: boolean
+        isOwner:
+          type: boolean
+        ownerGrantedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ownerRevokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ownerRevokeReason:
+          type: string
+          nullable: true
+        schoolId:
+          type: integer
+          nullable: true
+        schoolName:
+          type: string
+          nullable: true
+        schoolStatus:
+          type: object
+          allOf:
+            - $ref: '#/components/schemas/SchoolStatus'
+          nullable: true
+
+    ServiceMemberPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServiceMember'
+
+    ServiceSchool:
+      type: object
+      required:
+        - id
+        - name
+        - address
+        - addressDetail
+        - phone
+        - status
+        - createdAt
+        - kindergartenPlaceId
+        - ownerName
+        - ownerUserId
+        - ownerGrantedAt
+        - activeMembers
+        - pendingMembers
+        - businessVerified
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        address:
+          type: string
+        addressDetail:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+          description: 마스킹된 전화번호
+        status:
+          $ref: '#/components/schemas/SchoolStatus'
+        createdAt:
+          type: string
+          format: date-time
+        kindergartenPlaceId:
+          type: string
+          nullable: true
+          description: 유치원 장소 ID(문자열, 최대 100자)
+        ownerName:
+          type: string
+          description: 원장 이름, 연결된 원장이 없으면 '원장 미연결'
+        ownerUserId:
+          type: string
+          nullable: true
+        ownerGrantedAt:
+          type: string
+          format: date-time
+          nullable: true
+        activeMembers:
+          type: integer
+        pendingMembers:
+          type: integer
+        businessVerified:
+          type: boolean
+
+    ServiceSchoolPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServiceSchool'
+
+    ServiceVerification:
+      type: object
+      required:
+        - id
+        - userId
+        - userName
+        - schoolId
+        - kindergartenPlaceId
+        - kindergartenType
+        - status
+        - kindergartenName
+        - kindergartenAddress
+        - kindergartenAddressDetail
+        - kindergartenPhone
+        - representativeName
+        - representativePhone
+        - businessRegistrationNumber
+        - submittedAt
+        - revokedAt
+        - ownerGrantedAt
+        - ownerRevokedAt
+        - ownerRevokeReason
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        userName:
+          type: string
+        schoolId:
+          type: integer
+          nullable: true
+        kindergartenPlaceId:
+          type: string
+          nullable: true
+          description: 유치원 장소 ID(문자열, 최대 100자)
+        kindergartenType:
+          type: string
+          nullable: true
+          enum: [SELECTED, MANUAL]
+          description: 유치원 입력 방식(v1 `OwnerVerificationKindergartenType`)
+        status:
+          $ref: '#/components/schemas/VerificationStatus'
+        kindergartenName:
+          type: string
+          nullable: true
+        kindergartenAddress:
+          type: string
+          nullable: true
+        kindergartenAddressDetail:
+          type: string
+          nullable: true
+        kindergartenPhone:
+          type: string
+          nullable: true
+          description: 마스킹된 전화번호
+        representativeName:
+          type: string
+          nullable: true
+        representativePhone:
+          type: string
+          nullable: true
+          description: 마스킹된 전화번호
+        businessRegistrationNumber:
+          type: string
+          nullable: true
+          description: 마스킹된 사업자등록번호
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ownerGrantedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ownerRevokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ownerRevokeReason:
+          type: string
+          nullable: true
+
+    ServiceVerificationPage:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ServiceVerification'
