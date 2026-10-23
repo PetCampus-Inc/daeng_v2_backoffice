@@ -1554,7 +1554,8 @@ components:
   schemas:
     Error:
       type: object
-      description: 에러 본문. `details`는 입력 검증 실패에서만 채운다.
+      description: |
+        에러 본문. 필드별 사유(`details`)는 입력 검증 실패 응답(`ValidationFailedError` 등)에만 있고 다른 에러에는 없다.
       required: [code, message]
       properties:
         code:
@@ -1566,18 +1567,18 @@ components:
         message:
           type: string
           example: 문의를 찾을 수 없습니다.
-        details:
-          type: array
-          items:
-            type: object
-            required: [field, reason]
-            properties:
-              field:
-                type: string
-                example: email
-              reason:
-                type: string
-                example: 이메일 형식이 아닙니다.
+
+    ValidationErrorDetail:
+      type: object
+      description: 입력 검증 실패의 필드별 사유
+      required: [field, reason]
+      properties:
+        field:
+          type: string
+          example: email
+        reason:
+          type: string
+          example: 이메일 형식이 아닙니다.
 
     InvalidIdTokenError:
       allOf:
@@ -1619,10 +1620,15 @@ components:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [details]
           properties:
             code:
               type: string
               enum: [VALIDATION_FAILED]
+            details:
+              type: array
+              items:
+                $ref: '#/components/schemas/ValidationErrorDetail'
 
     ProfileDisplayNameDuplicateError:
       allOf:
@@ -2020,6 +2026,11 @@ components:
             code:
               type: string
               enum: [VALIDATION_FAILED, NOTICE_CONTENT_REQUIRED]
+            details:
+              type: array
+              description: '`VALIDATION_FAILED`일 때만 채운다.'
+              items:
+                $ref: '#/components/schemas/ValidationErrorDetail'
 
     NoticeContentRequiredError:
       allOf:
