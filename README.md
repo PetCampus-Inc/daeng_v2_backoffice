@@ -8,14 +8,14 @@
 .
 ├── apps/
 │   ├── web/        # @daeng/web — 백오피스 프론트 (Vite + React + TypeScript)
-│   └── server/     # @daeng/server — Node.js API 서버 (프레임워크 선정 전)
+│   └── server/     # @daeng/server — NestJS API 서버
 ├── packages/
 │   └── shared/     # @daeng/shared — web·server가 함께 쓰는 타입·상수
 ├── package.json          # 루트 스크립트 (전체 dev·build·lint)
 └── pnpm-workspace.yaml   # 워크스페이스 범위 (apps/*, packages/*)
 ```
 
-- `packages/shared`는 빌드 없이 `src/index.ts`를 바로 가져다 쓴다.
+- `packages/shared`는 ESM·CommonJS로 빌드한 뒤 web·server가 가져다 쓴다.
 - 다른 패키지를 의존성으로 쓸 때는 `"@daeng/shared": "workspace:*"`처럼 `workspace:` 프로토콜로 적는다.
 - 서버 설정 방법은 [apps/server/README.md](apps/server/README.md)를 본다.
 - 네이밍 규칙은 [기여 가이드](CONTRIBUTING.md), 프론트 파일 배치는 [폴더 구조 규칙](apps/web/docs/folder-structure.md)을
@@ -23,14 +23,14 @@
 
 ## 요구 사항
 
-- Node.js 22 이상
+- Node.js 22.18 이상
 - pnpm 10 (`corepack enable`을 실행하면 `package.json`의 `packageManager` 버전이 자동으로 쓰인다)
 
 ## 실행 방법
 
 ```bash
 pnpm install   # 모든 패키지의 의존성 설치 (루트에서 한 번)
-pnpm dev       # 모든 앱 개발 서버 동시 실행 — web: http://localhost:5173
+pnpm dev       # shared를 빌드한 뒤 모든 앱 개발 서버 동시 실행 — web: http://localhost:5173, server: http://localhost:3000
 pnpm build     # 모든 패키지 빌드
 pnpm lint      # 모든 패키지 린트 (oxlint)
 ```
@@ -38,7 +38,7 @@ pnpm lint      # 모든 패키지 린트 (oxlint)
 앱 하나만 실행하려면 `--filter`로 패키지를 지정한다.
 
 ```bash
-pnpm --filter @daeng/web dev
+pnpm turbo run dev --filter=@daeng/web
 ```
 
 의존성은 쓰는 패키지에 추가한다.

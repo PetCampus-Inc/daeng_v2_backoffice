@@ -1,0 +1,34 @@
+{
+  "name": "@daeng/server",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main.js",
+    "lint": "oxlint src test",
+    "test": "pnpm test:unit && pnpm test:smoke",
+    "test:unit": "vitest run test/unit",
+    "test:smoke": "pnpm --filter @daeng/shared build && pnpm build && vitest run test/smoke"
+  },
+  "dependencies": {
+    "@daeng/shared": "workspace:*",
+    "@nestjs/common": "^12.2.0",
+    "@nestjs/core": "^12.2.0",
+    "@nestjs/platform-express": "^12.2.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.10",
+    "@types/node": "^24.19.2",
+    "oxlint": "^1.89.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.5"
+  }
+}
