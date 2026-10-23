@@ -18,8 +18,8 @@
 - `packages/shared`는 빌드 없이 `src/index.ts`를 바로 가져다 쓴다.
 - 다른 패키지를 의존성으로 쓸 때는 `"@daeng/shared": "workspace:*"`처럼 `workspace:` 프로토콜로 적는다.
 - 서버 설정 방법은 [apps/server/README.md](apps/server/README.md)를 본다.
-- 네이밍 규칙은 [기여 가이드](CONTRIBUTING.md), 프론트 파일 배치는 [폴더 구조 규칙](apps/web/docs/folder-structure.md)을
-  따른다.
+- 공통 규칙은 [모노레포 기여 가이드](CONTRIBUTING.md), 웹 전용 규칙은 [웹 기여 가이드](apps/web/CONTRIBUTING.md)를
+  따른다. 프론트 파일 배치는 [폴더 구조 규칙](apps/web/docs/folder-structure.md)을 따른다.
 
 ## 요구 사항
 
@@ -51,4 +51,4 @@ pnpm --filter @daeng/web add <패키지명>
 
 - `main`: 배포 브랜치. `dev` 또는 `hotfix/*`에서 merge commit으로만 들어온다.
 - `dev`: 개발 통합 브랜치. 작업 브랜치를 squash merge한다.
-- 작업 브랜치: `dev`에서 `feat/*`, `fix/*`, `chore/*` 등으로 만들어 PR을 연다.
+- 작업 브랜치: `dev`에서 `feat/*`, `fix/*`, `chore/*`, `docs/*` 등으로 만들어 PR을 연다.
