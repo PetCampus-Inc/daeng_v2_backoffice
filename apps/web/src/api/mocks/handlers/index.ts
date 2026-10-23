@@ -7,6 +7,7 @@ import { CHANGE_HISTORY_HANDLERS } from './change-histories';
 import { authenticateMockRequest } from '@/api/mocks/util/session';
 import { AUTH_HANDLERS } from './auth';
 import { IDEA_HANDLERS } from './ideas';
+import { NOTIFICATION_HANDLERS } from './notifications';
 import { KINDERGARTEN_HANDLERS } from './kindergartens';
 import { MEMBER_HANDLERS } from './members';
 import { INQUIRY_HANDLERS } from './inquiries';
@@ -60,6 +61,7 @@ export const handlers: AnyHandler[] = [
   ...TEAM_MEMBER_HANDLERS,
   ...INQUIRY_HANDLERS,
   ...IDEA_HANDLERS,
+  ...NOTIFICATION_HANDLERS,
   ...NOTICE_HANDLERS,
   ...TERM_HANDLERS,
   ...KINDERGARTEN_HANDLERS,

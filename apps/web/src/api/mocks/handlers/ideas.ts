@@ -2,6 +2,8 @@ import { http } from 'msw';
 import type { Idea } from '@/routes/ideas/type/idea';
 import { errorResponse, mockUrl, okResponse, pageResponse } from '../util/response';
 import { authenticateMockRequest } from '../util/session';
+import { recordMockNotification } from '../util/notification-event';
+import { getMockTeamMembers } from './team-members';
 
 const HONG: Idea['user'] = { type: 'guardian', name: '홍길동', email: 'hong@example.com' };
 const LEE: Idea['user'] = { type: 'director', name: '이원장', email: 'Director.Lee@example.com' };
@@ -38,6 +40,20 @@ const getMockIdeas = (): Idea[] => {
 const authorize = () => authenticateMockRequest().denied ?? null;
 
 export const IDEA_HANDLERS = [
+  // 앱의 새 제안 접수를 흉내 내는 개발용 주소. BO 화면은 호출하지 않는다.
+  http.post(mockUrl('/dev/ideas'), async ({ request }) => {
+    const { content } = (await request.json()) as { content: string };
+    const ideas = getMockIdeas();
+    const idea: Idea = {
+      id: Math.max(350, ...ideas.map((item) => item.id)) + 1,
+      content,
+      user: HONG,
+      submittedAt: new Date().toISOString(),
+    };
+    localStorage.setItem('daeng-bo-mock-ideas', JSON.stringify([...ideas, idea]));
+    recordMockNotification(getMockTeamMembers(), { type: 'newIdea', targetId: idea.id });
+    return okResponse(idea, 201);
+  }),
   http.get(mockUrl('/ideas'), ({ request }) => {
     const denied = authorize();
     if (denied) return denied;

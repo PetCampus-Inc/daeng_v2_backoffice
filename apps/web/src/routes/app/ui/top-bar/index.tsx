@@ -1,12 +1,12 @@
-import { BellIcon, MenuIcon } from 'lucide-react';
+import { MenuIcon } from 'lucide-react';
 import type { Ref } from 'react';
 
 import { Button } from '@/ui/atoms/button';
 import { Logo } from '@/ui/atoms/logo';
-import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/ui/atoms/popover';
 import type { CompletedSessionUser } from '@/store/auth';
 
 import { ProfilePanel } from '@/routes/app/ui/top-bar/ui/profile-panel';
+import { NotificationCenter } from '@/routes/app/ui/top-bar/ui/notification-center';
 
 type TopBarProps = {
   user?: CompletedSessionUser;
@@ -45,30 +45,11 @@ export function TopBar({ user, sidebarOpen, sidebarId, onToggleSidebar, menuButt
       <div className='ml-auto flex items-center gap-1'>
         {user && (
           <>
-            <NotificationButton />
+            <NotificationCenter key={user.email} user={user} />
             <ProfilePanel user={user} />
           </>
         )}
       </div>
     </header>
-  );
-}
-
-/** 알림 아이콘 버튼. 알림 센터(7.14)를 만들기 전까지 팝오버에 '준비 중'만 보여 준다. */
-function NotificationButton() {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant='ghost' size='icon' aria-label='알림'>
-          <BellIcon aria-hidden strokeWidth={1.8} />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent>
-        <PopoverHeader>
-          <PopoverTitle>알림</PopoverTitle>
-        </PopoverHeader>
-        <p className='px-6 py-5 text-kd-body text-kd-foreground-muted'>준비 중입니다.</p>
-      </PopoverContent>
-    </Popover>
   );
 }

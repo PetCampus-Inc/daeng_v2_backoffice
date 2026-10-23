@@ -36,6 +36,22 @@ CDP IME 이벤트는 조합 상태의 회귀를 검사한다. 실제 OS 입력�
 rtk proxy pnpm --filter @daeng/web test
 ```
 
+## 알림센터
+
+`notifications-usability.mjs`는 개인 브라우저에 연결하지 않는 headless 검사다. 서버 기본 주소는 `http://127.0.0.1:5193`,
+결과 기본 경로는 `.local/test-results/notifications/`다. 위와 같은 Playwright 모듈·실행 파일 환경변수를 사용하며 새
+브라우저를 설치하지 않는다.
+
+```sh
+rtk proxy pnpm --filter @daeng/web dev --host 127.0.0.1 --port 5193 --strictPort
+rtk proxy node --test apps/web/e2e/notifications-usability.mjs
+```
+
+목록·읽음·모두 읽음·대상 이동·권한/삭제·개인별 읽음·작성 중 이탈 취소/확인·지연/실패 복구·1440/390px·키보드·캐시
+재조회를 검사한다. 개발용 앱 이벤트를 통해 새 문의 수신→맡기→추가 문의와 담당 해제 후 알림 미생성, 새 제안·담당자 변경
+연결도 검사한다. 수신자·문구 단위 검사는 모의 서버 기준이며 실제 서버·디스코드 전달은 OQ-D12 연동 대기, 해결 완료 문의
+클릭은 OQ-P13 확정에 따라 읽음 처리 후 기존 읽기 전용 상세로 이동하는지 검사한다.
+
 ## 로그인·세션 통합 회귀
 
 `session-integration.mjs`는 `feat/login`·`feat/history`·`feat/terms` 통합으로 연결된 인증을 검사한다. 위와 같은

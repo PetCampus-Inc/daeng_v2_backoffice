@@ -2,6 +2,7 @@ import { http } from 'msw';
 import { errorResponse, mockUrl, okResponse, pageResponse } from '../util/response';
 import { authenticateMockRequest } from '../util/session';
 import { getMockTeamMembers } from './team-members';
+import { recordMockNotification } from '../util/notification-event';
 import {
   INQUIRY_ERROR_CODES,
   type InquiryAssignee,
@@ -17,7 +18,6 @@ import type { TeamMember } from '@/routes/settings/members/type/team-member';
 
 // fixtures에 맞춰 담당자 이메일을 바꿔 저장 키를 바꿨다. 이전 키(`daeng-bo-mock-inquiries`)의 값은 더 읽지 않는다.
 const STORAGE_KEY = 'daeng-bo-mock-inquiries-v2';
-const NOTIFICATION_STORAGE_KEY = 'daeng-bo-mock-notifications';
 
 /** 가짜 서버에 저장하는 문의. 담당자는 이메일로 두고 응답할 때 팀원 정보로 바꾼다. */
 type MockInquiry = {
@@ -30,9 +30,6 @@ type MockInquiry = {
   lastActivityAt: string;
   messages: InquiryMessage[];
 };
-
-/** 가짜 서버가 남기는 BO 알림. 알림 센터(7.14)를 만들면 이 기록을 읽는다. */
-type MockNotification = { recipientEmail: string; message: string; inquiryId: number; createdAt: string };
 
 // fixtures.md `문의-기본`의 담당자: 김운영 · PM(운영자), 이담당 · FE(운영자2), 정비활 · BE(비활성팀원)
 const OPERATOR_EMAIL = 'ops@knockdog.test';
@@ -210,18 +207,6 @@ const getMockInquiries = (): MockInquiry[] => {
 /** 바꾼 문의 목록을 저장한다. */
 const saveMockInquiries = (inquiries: MockInquiry[]) => localStorage.setItem(STORAGE_KEY, JSON.stringify(inquiries));
 
-/** 담당자 변경 알림을 가짜 서버에 남긴다(FR-BO-060). 실제 발송은 서버 몫이다. */
-const addMockNotification = (notification: MockNotification) => {
-  let notifications: MockNotification[] = [];
-  try {
-    const stored = JSON.parse(localStorage.getItem(NOTIFICATION_STORAGE_KEY) ?? '[]');
-    if (Array.isArray(stored)) notifications = stored;
-  } catch {
-    /* 잘못된 개발 데이터는 비우고 다시 쌓는다. */
-  }
-  localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify([...notifications, notification]));
-};
-
 /** 표시명이 있는 팀원만 담당자로 보여 줄 수 있다. */
 const toAssignee = (member: TeamMember | undefined): InquiryAssignee | null =>
   member?.displayName && member.jobRole
@@ -368,11 +353,11 @@ export const INQUIRY_HANDLERS = [
     const previousAssignee = members.find((item) => item.email === inquiry.assigneeEmail);
     // 이전 담당자가 활성 팀원일 때만 알린다(S-문의-034). 변경 이력 기록은 실제 서버가 한다.
     if (previousAssignee && previousAssignee.email !== member.email && previousAssignee.status === 'active') {
-      addMockNotification({
-        recipientEmail: previousAssignee.email,
-        message: `${member.displayName} · ${member.jobRole}님이 문의의 담당자를 변경했습니다.`,
-        inquiryId: inquiry.id,
-        createdAt: new Date().toISOString(),
+      recordMockNotification(members, {
+        type: 'assigneeChanged',
+        targetId: inquiry.id,
+        previousEmail: previousAssignee.email,
+        actorName: `${member.displayName} · ${member.jobRole}`,
       });
     }
     return okResponse(toInquiryDetail(inquiries[index], members));
@@ -406,7 +391,26 @@ export const INQUIRY_HANDLERS = [
     saveMockInquiries(inquiries);
     return okResponse(toInquiryDetail(inquiries[index], getMockTeamMembers()));
   }),
-  // 아래 두 주소는 앱 사용자 동작을 흉내 내는 개발용이다. 화면에서는 부르지 않고, 개발자 도구에서 fetch로 부른다.
+  // 아래 주소들은 앱 사용자 동작을 흉내 내는 개발용이다. 화면에서는 부르지 않고, 개발자 도구에서 fetch로 부른다.
+  http.post(mockUrl('/dev/inquiries'), async ({ request }) => {
+    const input = (await request.json()) as { title: string; body: string };
+    const inquiries = getMockInquiries();
+    const id = Math.max(1050, ...inquiries.map((item) => item.id)) + 1;
+    const createdAt = new Date().toISOString();
+    const inquiry: MockInquiry = {
+      id,
+      status: 'waiting',
+      title: input.title,
+      user: HONG,
+      assigneeEmail: null,
+      createdAt,
+      lastActivityAt: createdAt,
+      messages: [createMessage(`${id}-1`, 'user', HONG.name, input.body, createdAt)],
+    };
+    saveMockInquiries([...inquiries, inquiry]);
+    recordMockNotification(getMockTeamMembers(), { type: 'newInquiry', targetId: id });
+    return okResponse(toInquiryDetail(inquiry, getMockTeamMembers()), 201);
+  }),
   http.post(mockUrl('/dev/inquiries/:id/user-messages'), async ({ params, request }) => {
     const { body } = (await request.json()) as { body: string };
     const inquiries = getMockInquiries();
@@ -426,6 +430,11 @@ export const INQUIRY_HANDLERS = [
       ],
     };
     saveMockInquiries(inquiries);
+    recordMockNotification(getMockTeamMembers(), {
+      type: 'followUp',
+      targetId: inquiry.id,
+      assigneeEmail: inquiry.assigneeEmail,
+    });
     return okResponse(toInquiryDetail(inquiries[index], getMockTeamMembers()));
   }),
   http.post(mockUrl('/dev/inquiries/:id/close'), ({ params }) => {
