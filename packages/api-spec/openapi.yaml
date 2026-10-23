@@ -1049,7 +1049,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /terms/versions/{id}:
+  /term-versions/{id}:
     get:
       tags: [Terms]
       operationId: getTermsVersion
@@ -1124,7 +1124,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TermsVersionNotDraftError'
 
-  /terms/versions/{id}/publication:
+  /term-versions/{id}/publication:
     put:
       tags: [Terms]
       operationId: publishTermsVersion
@@ -1563,10 +1563,9 @@ components:
           description: |
             대문자 스네이크 케이스(`USER_NOT_FOUND`). 프론트는 `message`가 아니라 `code`로 분기한다.
             각 응답이 줄 수 있는 값은 응답별 에러 스키마(`*Error`)가 enum으로 제한한다.
-          example: INQUIRY_NOT_FOUND
         message:
           type: string
-          example: 문의를 찾을 수 없습니다.
+          description: 사람이 읽는 설명. 문구는 서버가 바꿀 수 있으므로 프론트는 `code`로 분기한다.
 
     ValidationErrorDetail:
       type: object
@@ -1584,43 +1583,59 @@ components:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [INVALID_ID_TOKEN]
+      example:
+        code: INVALID_ID_TOKEN
+        message: ID 토큰을 확인할 수 없습니다.
 
     LoginNotAllowedError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [LOGIN_NOT_ALLOWED]
+      example:
+        code: LOGIN_NOT_ALLOWED
+        message: 접근 권한이 없는 계정입니다. 관리자에게 문의해 주세요.
 
     UnauthorizedError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [UNAUTHENTICATED, SESSION_EXPIRED, ACCOUNT_DEACTIVATED]
+      example:
+        code: UNAUTHENTICATED
+        message: 로그인이 필요합니다.
 
     ForbiddenError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [FORBIDDEN]
+      example:
+        code: FORBIDDEN
+        message: 이 기능을 사용할 권한이 없습니다.
 
     ValidationFailedError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
-          required: [details]
+          required: [code, details]
           properties:
             code:
               type: string
@@ -1629,78 +1644,116 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/ValidationErrorDetail'
+      example:
+        code: VALIDATION_FAILED
+        message: 입력값이 올바르지 않습니다.
+        details:
+          - field: email
+            reason: 이메일 형식이 아닙니다.
 
     ProfileDisplayNameDuplicateError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [PROFILE_DISPLAY_NAME_DUPLICATE]
+      example:
+        code: PROFILE_DISPLAY_NAME_DUPLICATE
+        message: 이미 사용 중인 표시명입니다.
 
     TeamMemberEmailConflictError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [TEAM_MEMBER_EMAIL_DUPLICATE, TEAM_MEMBER_EMAIL_INACTIVE]
+      example:
+        code: TEAM_MEMBER_EMAIL_DUPLICATE
+        message: 이미 등록된 이메일입니다.
 
     TeamMemberNotFoundError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [TEAM_MEMBER_NOT_FOUND]
+      example:
+        code: TEAM_MEMBER_NOT_FOUND
+        message: 계정을 찾을 수 없습니다.
 
     TeamMemberConflictError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [TEAM_MEMBER_PROTECTED, TEAM_MEMBER_STATE_CHANGED]
+      example:
+        code: TEAM_MEMBER_PROTECTED
+        message: 마지막 최고 관리자와 본인 계정은 변경할 수 없습니다.
 
     InquiryNotFoundError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [INQUIRY_NOT_FOUND]
+      example:
+        code: INQUIRY_NOT_FOUND
+        message: 문의를 찾을 수 없습니다.
 
     InquiryConflictError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [INQUIRY_ASSIGNEE_CHANGED, INQUIRY_RESOLVED]
+      example:
+        code: INQUIRY_ASSIGNEE_CHANGED
+        message: 담당자가 바뀌었습니다. 최신 내용을 확인해 주세요.
 
     InquiryReplyInvalidError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [INQUIRY_REPLY_INVALID]
+      example:
+        code: INQUIRY_REPLY_INVALID
+        message: 답변은 1자 이상 500자 이하로 입력해 주세요.
 
     IdeaNotFoundError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [IDEA_NOT_FOUND]
+      example:
+        code: IDEA_NOT_FOUND
+        message: 제안을 찾을 수 없습니다.
 
     PageMeta:
       type: object
@@ -1718,7 +1771,7 @@ components:
 
     Role:
       type: string
-      description: 역할. 계정당 1개(FR-BO-002). `SUPER_ADMIN` 최고 관리자, `OPERATOR` 운영자, `VIEWER` 열람자
+      description: 역할. 계정당 1개(FR-BO-002). `SUPER_ADMIN` 최고 관리자, `OPERATOR` 운영자, `VIEWER` 조회자
       enum: [SUPER_ADMIN, OPERATOR, VIEWER]
 
     JobRole:
@@ -1740,7 +1793,7 @@ components:
 
     MyAccount:
       type: object
-      required: [id, email, googleName, suggestedDisplayName, displayName, jobRole, role, isProfileCompleted]
+      required: [id, email, googleName, displayName, jobRole, role, isProfileCompleted]
       properties:
         id:
           type: integer
@@ -1749,19 +1802,18 @@ components:
           format: email
         googleName:
           type: string
-          description: 연결된 구글 계정 이름(읽기 전용)
-        suggestedDisplayName:
-          type: string
-          nullable: true
-          description: 첫 로그인 설정의 표시명 초기값. 구글 이름이 1~10자 규칙을 어기거나 이미 사용 중이면 `null`
+          description: |
+            연결된 구글 계정 이름(읽기 전용). 프로필 패널에 연결된 구글 계정으로 보여 주고, 첫 로그인 설정에서는 표시명
+            입력칸의 초기값으로 쓴다. 표시명 규칙(1~10자, 중복 불가)을 맞추는 일은 저장할 때 서버가 검사한다.
         displayName:
           type: string
           nullable: true
         jobRole:
-          type: string
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/JobRole'
-          nullable: true
+            - type: string
+              nullable: true
+              enum: [null]
         role:
           $ref: '#/components/schemas/Role'
         isProfileCompleted:
@@ -1800,10 +1852,11 @@ components:
           nullable: true
           description: 등록됨 상태에서는 `null`
         jobRole:
-          type: string
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/JobRole'
-          nullable: true
+            - type: string
+              nullable: true
+              enum: [null]
         role:
           $ref: '#/components/schemas/Role'
         status:
@@ -1919,10 +1972,11 @@ components:
         user:
           $ref: '#/components/schemas/InquiryUser'
         assignee:
-          type: object
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/InquiryAssignee'
-          nullable: true
+            - type: object
+              nullable: true
+              enum: [null]
         lastActivityAt:
           type: string
           format: date-time
@@ -2013,15 +2067,20 @@ components:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [INQUIRY_NOT_FOUND, INQUIRY_IMAGE_NOT_FOUND]
+      example:
+        code: INQUIRY_NOT_FOUND
+        message: 문의를 찾을 수 없습니다.
 
     NoticeContentError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
@@ -2031,83 +2090,122 @@ components:
               description: '`VALIDATION_FAILED`일 때만 채운다.'
               items:
                 $ref: '#/components/schemas/ValidationErrorDetail'
+      example:
+        code: VALIDATION_FAILED
+        message: 입력값이 올바르지 않습니다.
+        details:
+          - field: title
+            reason: 제목은 50자 이하여야 합니다.
 
     NoticeContentRequiredError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [NOTICE_CONTENT_REQUIRED]
+      example:
+        code: NOTICE_CONTENT_REQUIRED
+        message: 제목과 본문을 입력해 주세요.
 
     NoticeNotDraftError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [NOTICE_NOT_DRAFT]
+      example:
+        code: NOTICE_NOT_DRAFT
+        message: 초안만 삭제할 수 있습니다.
 
     NoticeNotPublishedError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [NOTICE_NOT_PUBLISHED]
+      example:
+        code: NOTICE_NOT_PUBLISHED
+        message: 게시 중인 공지가 아닙니다.
 
     NoticePublishConflictError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [NOTICE_ALREADY_PUBLISHED, NOTICE_VERSION_CONFLICT]
+      example:
+        code: NOTICE_ALREADY_PUBLISHED
+        message: 이미 게시된 공지입니다.
 
     NoticeNotFoundError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [NOTICE_NOT_FOUND]
+      example:
+        code: NOTICE_NOT_FOUND
+        message: 공지를 찾을 수 없습니다.
 
     NoticeVersionConflictError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [NOTICE_VERSION_CONFLICT]
+      example:
+        code: NOTICE_VERSION_CONFLICT
+        message: 다른 사람이 먼저 저장했습니다. 최신 내용을 불러와 주세요.
 
     NoticeImageInvalidError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [NOTICE_IMAGE_INVALID]
+      example:
+        code: NOTICE_IMAGE_INVALID
+        message: 이미지 형식, 용량 또는 개수가 올바르지 않습니다.
 
     TermsVersionNotDraftError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [TERMS_VERSION_NOT_DRAFT]
+      example:
+        code: TERMS_VERSION_NOT_DRAFT
+        message: 초안이 아닌 버전은 수정하거나 삭제할 수 없습니다.
 
     TermsEffectiveDateError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
@@ -2118,42 +2216,61 @@ components:
                   TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST,
                   TERMS_EFFECTIVE_DATE_INVALID_FORMAT,
                 ]
+      example:
+        code: TERMS_EFFECTIVE_DATE_TOO_SOON
+        message: 시행일은 공개일로부터 7일 이후여야 합니다.
 
     TermsVersionNotFoundError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [TERMS_VERSION_NOT_FOUND]
+      example:
+        code: TERMS_VERSION_NOT_FOUND
+        message: 약관 버전을 찾을 수 없습니다.
 
     TermsVersionConflictError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [TERMS_VERSION_CONFLICT, TERMS_VERSION_NOT_DRAFT]
+      example:
+        code: TERMS_VERSION_CONFLICT
+        message: 다른 사람이 먼저 저장했습니다. 최신 내용을 불러와 주세요.
 
     TermsWithdrawNotAllowedError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [TERMS_WITHDRAW_NOT_ALLOWED]
+      example:
+        code: TERMS_WITHDRAW_NOT_ALLOWED
+        message: 시행 전 예정 버전만 철회할 수 있습니다.
 
     NotificationNotFoundError:
       allOf:
         - $ref: '#/components/schemas/Error'
         - type: object
+          required: [code]
           properties:
             code:
               type: string
               enum: [NOTIFICATION_NOT_FOUND]
+      example:
+        code: NOTIFICATION_NOT_FOUND
+        message: 알림을 찾을 수 없습니다.
 
     ChangeLogTargetType:
       type: string
@@ -2246,10 +2363,11 @@ components:
         action:
           $ref: '#/components/schemas/ChangeLogAction'
         change:
-          type: object
-          allOf:
+          oneOf:
             - $ref: '#/components/schemas/ChangeLogChange'
-          nullable: true
+            - type: object
+              nullable: true
+              enum: [null]
 
     ChangeLogPage:
       allOf:
@@ -2589,14 +2707,14 @@ components:
 
     SchoolStatus:
       type: string
-      description: 유치원 상태. `ACTIVE` 운영, `CLOSED` 폐업
+      description: 유치원 상태(`ACTIVE`, `CLOSED`). [확인 필요] 각 값의 의미는 기존 구현에 정의가 없다.
       enum: [ACTIVE, CLOSED]
 
     VerificationStatus:
       type: string
       description: |
-        원장 인증 상태. `KINDERGARTEN_INFO_COMPLETED` 유치원 정보 입력 완료, `BUSINESS_REGISTRATION_PENDING` 사업자등록
-        대기, `SUBMITTED` 제출, `REVOKED` 해지
+        원장 인증 상태(`KINDERGARTEN_INFO_COMPLETED`, `BUSINESS_REGISTRATION_PENDING`, `SUBMITTED`, `REVOKED`).
+        [확인 필요] 각 값의 의미는 기존 구현에 정의가 없고 이름으로만 구분한다.
       enum: [KINDERGARTEN_INFO_COMPLETED, BUSINESS_REGISTRATION_PENDING, SUBMITTED, REVOKED]
 
     ServiceOverviewStats:
