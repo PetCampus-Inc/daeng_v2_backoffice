@@ -1504,7 +1504,9 @@ components:
       properties:
         code:
           type: string
-          description: 에러 코드(대문자 스네이크 케이스)입니다. 분기는 `message`가 아니라 `code`로 합니다.
+          description: >-
+            모든 API에서 공통으로 나올 수 있는 코드는 `BAD_REQUEST`(형식이 잘못된 요청, 너무 큰 요청 포함),
+            `NOT_FOUND`(없는 주소), `INTERNAL_ERROR`(서버 오류)입니다.
         message:
           type: string
           description: 사람이 읽는 설명입니다. 문구는 바뀔 수 있습니다.
