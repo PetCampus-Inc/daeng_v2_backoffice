@@ -543,7 +543,7 @@ paths:
       operationId: downloadInquiryImageOriginal
       summary: 문의 이미지 원본 다운로드
       description: |-
-        원본 이미지를 내려받습니다. 역할을 확인한 뒤 임시 주소로 이동시킵니다(302).
+        원본 이미지를 내려받을 임시 주소를 알려 줍니다. 역할을 확인한 뒤 응답하며, 받은 주소는 일정 시간만 유효합니다.
       parameters:
         - $ref: '#/components/parameters/InquiryId'
         - name: imageId
@@ -553,14 +553,12 @@ paths:
           schema:
             type: string
       responses:
-        '302':
-          description: 원본 이미지의 임시 주소로 이동합니다.
-          headers:
-            Location:
-              description: 원본 이미지의 임시 주소
+        '200':
+          description: 원본 이미지의 임시 주소입니다.
+          content:
+            application/json:
               schema:
-                type: string
-                format: uri
+                $ref: '#/components/schemas/InquiryImageOriginalUrl'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1504,7 +1502,9 @@ components:
       properties:
         code:
           type: string
-          description: 에러 코드(대문자 스네이크 케이스)입니다. 분기는 `message`가 아니라 `code`로 합니다.
+          description: >-
+            모든 API에서 공통으로 나올 수 있는 코드는 `BAD_REQUEST`(형식이 잘못된 요청, 너무 큰 요청 포함),
+            `NOT_FOUND`(없는 주소), `INTERNAL_ERROR`(서버 오류)입니다.
         message:
           type: string
           description: 사람이 읽는 설명입니다. 문구는 바뀔 수 있습니다.
@@ -2001,6 +2001,15 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/Idea'
+
+    InquiryImageOriginalUrl:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: 원본 이미지를 내려받을 임시 주소입니다.
 
     InquiryImageNotFoundError:
       allOf:

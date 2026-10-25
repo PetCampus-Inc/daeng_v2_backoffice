@@ -119,8 +119,11 @@ PATCH /users/1
 - 프론트는 axios에 `withCredentials: true`를 설정한다. 토큰을 직접 저장하거나 헤더에 붙이지 않는다.
 - 세션이 만료되거나 계정이 비활성화되면 서버가 세션을 바로 무효화한다.
 - 프론트와 서버의 주소는 `/api` 프록시로 같은 출처처럼 맞춘다. 세부 설정은 서버 세팅 때 확정한다.
+- 로그인은 웹이 구글 로그인으로 받은 ID 토큰을 `POST /auth/login`에 보내는 방식이다.
+- 세션은 요청이 없는 채로 24시간이 지나면 만료되고, 요청할 때마다 연장된다.
+- 쓰기 요청(POST·PUT·PATCH·DELETE)은 `Origin`이 허용된 웹 주소가 아니면 403이다.
 
-근거: [ADR 0008](adr/0008-session-cookie-auth.md)
+근거: [ADR 0008](adr/0008-session-cookie-auth.md), [ADR 0014](adr/0014-auth-details.md)
 
 ## 8. API 계약 방식
 
@@ -137,4 +140,3 @@ PATCH /users/1
 ## 9. 아직 정하지 않은 것
 
 - 첫 로그인 프로필 설정 완료 전 다른 API를 서버가 어떻게 제한할지: 인증·권한 구현 전에 결정한다(PRD FR-BO-033).
-- 세션 쿠키의 CSRF 방어 방식: 배포 주소와 쿠키 설정을 확정할 때 결정한다([ADR 0008](adr/0008-session-cookie-auth.md)).
