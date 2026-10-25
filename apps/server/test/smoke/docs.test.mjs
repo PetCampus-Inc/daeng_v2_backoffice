@@ -17,6 +17,9 @@ Object.assign(process.env, {
   DB_USER: 'smoke',
   DB_PASSWORD: 'smoke',
   INITIAL_SUPER_ADMIN_EMAIL: '',
+  GOOGLE_CLIENT_ID: 'smoke.apps.googleusercontent.com',
+  ALLOWED_ORIGINS: 'http://localhost:5173',
+  COOKIE_SECURE: 'false',
 });
 
 const MAIN = resolve(fileURLToPath(new URL('../../dist/main.js', import.meta.url)));

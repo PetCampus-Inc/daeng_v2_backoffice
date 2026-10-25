@@ -23,7 +23,10 @@
         "DB_NAME",
         "DB_USER",
         "DB_PASSWORD",
-        "INITIAL_SUPER_ADMIN_EMAIL"
+        "INITIAL_SUPER_ADMIN_EMAIL",
+        "GOOGLE_CLIENT_ID",
+        "ALLOWED_ORIGINS",
+        "COOKIE_SECURE"
       ],
       "cache": false,
       "persistent": true
