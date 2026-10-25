@@ -42,6 +42,12 @@ export class AuthService {
     return this.startSession(member, { googleSubject: identity.subject, googleName: identity.name ?? identity.email });
   }
 
+  /** 개발용: 구글 검증 없이 등록된 이메일로 세션을 만든다. 켜는 조건은 `readDevLoginEnabled`가 막는다. */
+  async devLogin(email: string): Promise<{ member: MemberRow; sessionId: string }> {
+    const member = await this.findAllowedMember(email.toLowerCase());
+    return this.startSession(member, {});
+  }
+
   /** 세션을 확인하고 사용 시각을 연장한다. 만료됐거나 비활성 계정이면 세션을 지우고 401이다. */
   async authenticate(sessionId: string): Promise<AuthenticatedSession> {
     const { db } = this.database;

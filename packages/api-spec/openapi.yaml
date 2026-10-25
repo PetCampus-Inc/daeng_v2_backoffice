@@ -28,6 +28,8 @@ tags:
     description: 알림 센터 (내 알림)
   - name: '홈·고객 관리'
     description: 기존 어드민 조회 화면(대시보드·회원·유치원·원장 인증 현황), 서비스 DB 읽기 전용
+  - name: '개발용'
+    description: 개발 환경에서만 켜지는 기능. 운영에서는 404입니다.
 security:
   - sessionCookie: []
 
@@ -75,6 +77,49 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/LoginNotAllowedError'
                   - $ref: '#/components/schemas/ForbiddenError'
+
+  /auth/dev-login:
+    post:
+      tags: ['개발용']
+      operationId: devLogin
+      summary: 개발용 로그인
+      description: |-
+        구글 검증 없이 등록된 이메일로 로그인하고 세션을 만듭니다. 로컬 개발과 Swagger 시험용입니다.
+        - 개발 환경에서만 켜집니다(`DEV_LOGIN_ENABLED=true`). 꺼져 있으면 운영을 포함해 `404`입니다.
+        - 등록되지 않았거나 비활성·등록 취소된 이메일은 `/auth/login`과 똑같이 거부합니다.
+        - 세션 쿠키와 응답은 `/auth/login`과 같습니다.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevLoginRequest'
+      responses:
+        '200':
+          description: 로그인 성공. 내 계정을 반환합니다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyAccount'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
+        '403':
+          description: |-
+            권한 없음. 등록되지 않았거나 비활성·등록 취소된 계정이면 `LOGIN_NOT_ALLOWED`, 허용되지 않은 출처의 요청이면
+            `FORBIDDEN`입니다.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/LoginNotAllowedError'
+                  - $ref: '#/components/schemas/ForbiddenError'
+        '404':
+          description: 개발용 로그인이 꺼진 환경입니다.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /auth/logout:
     post:
@@ -1777,6 +1822,15 @@ components:
         idToken:
           type: string
           description: 구글 ID 토큰(JWT)
+
+    DevLoginRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+          description: 등록된 팀원의 이메일(대소문자 구분 없음)
 
     UpdateMyAccountRequest:
       type: object

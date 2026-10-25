@@ -26,7 +26,8 @@
         "INITIAL_SUPER_ADMIN_EMAIL",
         "GOOGLE_CLIENT_ID",
         "ALLOWED_ORIGINS",
-        "COOKIE_SECURE"
+        "COOKIE_SECURE",
+        "DEV_LOGIN_ENABLED"
       ],
       "cache": false,
       "persistent": true

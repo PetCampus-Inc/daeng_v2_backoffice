@@ -4,6 +4,7 @@ import type { MemberRow } from '../database/schema.js';
 export interface AuthRequest {
   method: string;
   headers: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string };
   member?: MemberRow;
 }
 

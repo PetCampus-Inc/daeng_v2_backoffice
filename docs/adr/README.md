@@ -28,3 +28,4 @@ updated: 2026-10-26
 | [0013](0013-api-docs-served-from-yaml.md)      | API 문서는 서버가 YAML을 Swagger UI로 제공   | 확정 |
 | [0014](0014-auth-details.md)                   | 인증 세부 결정                               | 확정 |
 | [0015](0015-spec-contract-tests.md)            | 서버 응답은 테스트에서 명세로 검증           | 확정 |
+| [0016](0016-dev-login.md)                      | 개발용 로그인                                | 확정 |

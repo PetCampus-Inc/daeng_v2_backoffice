@@ -41,7 +41,12 @@ API_DOCS_ENABLED=true pnpm turbo run dev --filter=@daeng/server
 - 기본은 꺼짐이다. 꺼져 있으면 `/docs`·`/docs-json`은 404이고, 값은 `true`·`false`만 받는다.
 - YAML을 그대로 읽는다([ADR 0003](../../docs/adr/0003-api-spec-first.md)). 명세를 고치면 서버를 다시 켠다.
 - `/docs-json`은 열고 `/docs-yaml`은 열지 않는다. 파일이 없거나 OpenAPI 3 문서가 아니면 시작하지 않는다.
-- `Try it out`은 꺼져 있다. 구현된 API는 `GET /health`뿐이다.
+- `Try it out`을 쓸 수 있다. 로그인이 필요한 API는 먼저 `개발용` 태그의 `POST /auth/dev-login`에 등록된 팀원 이메일을
+  넣어 실행한다. 서버가 세션 쿠키를 내려 주고, 그 뒤로는 `Try it out`만 누르면 쿠키가 자동으로 붙는다. 프론트 로그인
+  화면이 없어도 시험할 수 있다. 쓰려면 아래 두 가지가 필요하다.
+  - `ALLOWED_ORIGINS`에 문서 주소를 넣는다(예: `http://localhost:5173,http://localhost:3000`). Swagger 요청의 `Origin`이
+    서버 자신의 주소이기 때문이다. 운영에는 넣지 않는다.
+  - `DEV_LOGIN_ENABLED=true`(아래 "로그인" 참고).
 - 운영·스테이징 공개 여부는 정하지 않았으니 켜지 않는다.
 - `@scarf/scarf`(사용 통계 설치 스크립트)는 pnpm 10이 막고 있다. `pnpm approve-builds`로 허용하지 않는다.
 
@@ -80,7 +85,8 @@ infisical run --env=dev -- pnpm --filter @daeng/server db:migrate
 - API는 `/api/v0/admin` 아래에 있고 `/health`와 `/docs`는 접두어 밖이다. 새 기능 모듈은 `src/api.module.ts`의
   `FEATURE_MODULES`에 추가한다. 전역 접두어(`setGlobalPrefix`)를 쓰면 접두어 밖의 없는 주소가 공통 에러 형식이 아닌 기본
   404로 응답해서 모듈에 접두어를 붙인다.
-- 선택 환경변수(`PORT`, `API_DOCS_ENABLED`, `COOKIE_SECURE`)는 값을 비워 두면 설정하지 않은 것과 같다.
+- 선택 환경변수(`PORT`, `API_DOCS_ENABLED`, `COOKIE_SECURE`, `DEV_LOGIN_ENABLED`)는 값을 비워 두면 설정하지 않은 것과
+  같다.
 - 쓰기 요청(POST·PUT·PATCH·DELETE)은 `Origin`이 `ALLOWED_ORIGINS`에 없거나 없으면 403이다. http·https와 상관없이 항상
   적용된다.
 - 계정은 자동으로 만들어지지 않는다. 등록된 이메일만 로그인할 수 있고, 처음 로그인하면 구글 계정 고유 ID를 저장해서 이후
@@ -88,11 +94,23 @@ infisical run --env=dev -- pnpm --filter @daeng/server db:migrate
   연장된다.
 - 로그인 성공·실패, 로그아웃, 세션 만료는 `access_log` 테이블에 남는다(추가만 한다).
 
-| 환경변수           | 설명                                                                                             |
-| ------------------ | ------------------------------------------------------------------------------------------------ |
-| `GOOGLE_CLIENT_ID` | 구글 OAuth 웹 클라이언트 ID(`...apps.googleusercontent.com`). 보안 비밀이 아니다.                |
-| `ALLOWED_ORIGINS`  | 쓰기 요청을 허용할 웹 주소. 쉼표로 구분하고 경로·끝 슬래시 없이(`http://localhost:5173`) 적는다. |
-| `COOKIE_SECURE`    | 쿠키 `Secure` 여부. HTTPS가 아닌 로컬은 `false`, 운영은 `true`. 비우면 `true`다.                 |
+| 환경변수            | 설명                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `GOOGLE_CLIENT_ID`  | 구글 OAuth 웹 클라이언트 ID(`...apps.googleusercontent.com`). 보안 비밀이 아니다.                            |
+| `ALLOWED_ORIGINS`   | 쓰기 요청을 허용할 웹 주소. 쉼표로 구분하고 경로·끝 슬래시 없이(`http://localhost:5173`) 적는다.             |
+| `DEV_LOGIN_ENABLED` | 개발용 로그인을 켠다(`true`·`false`, 기본 꺼짐). 로컬에서만 `true`, `COOKIE_SECURE=false`일 때만 켤 수 있다. |
+| `COOKIE_SECURE`     | 쿠키 `Secure` 여부. HTTPS가 아닌 로컬은 `false`, 운영은 `true`. 비우면 `true`다.                             |
+
+**개발용 로그인(`POST /auth/dev-login`)**: 구글 검증 없이 등록된 이메일로 세션을 만든다. 로컬 개발과 Swagger 시험용이다.
+
+- `DEV_LOGIN_ENABLED=true`일 때만 켜지고 기본은 꺼짐이다. 꺼져 있으면 입력과 상관없이 `404`다(이 경로가 있는지도
+  드러나지 않는다).
+- 운영에서 실수로 켜지지 않게, 쿠키 `Secure`가 켜진 설정에서 `DEV_LOGIN_ENABLED=true`이면 서버가 시작하지 않는다.
+  로컬에서는 `COOKIE_SECURE=false`와 함께 쓴다.
+- 서버와 같은 컴퓨터에서 온 요청만 받는다(다른 컴퓨터나 Docker 컨테이너에서 오면 `404`). 구글 토큰 같은 열쇠가 없는
+  기능이라 `Origin` 검사에 기대지 않는다.
+- 등록 여부와 상태 확인, 세션 발급, 접속 기록은 구글 로그인과 같다. 구글 계정 연결(`googleSubject`)만 하지 않는다.
+- 자세한 이유와 대안은 [ADR 0016](../../docs/adr/0016-dev-login.md).
 
 ## 명세 일치 검사
 

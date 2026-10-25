@@ -10,7 +10,9 @@ import { AuthGuard } from '../../src/auth/auth.guard.js';
 import type { AuthService } from '../../src/auth/auth.service.js';
 import { clearSessionCookie, readCookie, readSessionId, setSessionCookie } from '../../src/auth/cookies.js';
 import { ALLOW_INCOMPLETE_PROFILE, IS_PUBLIC } from '../../src/auth/decorators.js';
+import { AuthController } from '../../src/auth/auth.controller.js';
 import { GoogleIdTokenVerifier } from '../../src/auth/google-id-token-verifier.js';
+import { isLoopbackAddress } from '../../src/auth/loopback.js';
 import { isProfileCompleted, toMyAccount } from '../../src/auth/my-account.js';
 import { OriginGuard } from '../../src/auth/origin.guard.js';
 import { generateSessionId, hashSessionId } from '../../src/auth/session-id.js';
@@ -89,6 +91,40 @@ describe('session cookie options', () => {
       expect(call.options).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/', secure });
     }
     expect(calls[0].options.maxAge).toBe(24 * 60 * 60 * 1000);
+  });
+});
+
+describe('dev login is limited to the same computer', () => {
+  test('recognizes loopback addresses only', () => {
+    for (const address of ['127.0.0.1', '127.1.2.3', '::1', '::ffff:127.0.0.1'])
+      expect(isLoopbackAddress(address)).toBe(true);
+    for (const address of [
+      undefined,
+      '',
+      '192.168.0.5',
+      '10.0.0.1',
+      '::ffff:192.168.0.5',
+      '2001:db8::1',
+      '128.0.0.1',
+      '127.0.0.1.evil',
+    ]) {
+      expect(isLoopbackAddress(address)).toBe(false);
+    }
+  });
+
+  test('answers 404 to requests from another computer even when dev login is on', async () => {
+    const auth = { devLogin: async () => ({ member: member(), sessionId: 'x' }) } as unknown as AuthService;
+    const controller = new AuthController(auth, config);
+    const call = (remoteAddress: string) =>
+      controller.devLogin(
+        { email: 'a@example.com' },
+        { method: 'POST', headers: {}, socket: { remoteAddress } },
+        response
+      );
+
+    const refused = await call('192.168.0.5').catch((e: unknown) => e);
+    expect(toErrorResponse(refused)).toMatchObject({ status: 404, body: { code: 'NOT_FOUND' } });
+    await expect(call('127.0.0.1')).resolves.toMatchObject({ email: 'a@example.com' });
   });
 });
 

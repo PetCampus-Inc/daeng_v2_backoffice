@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { ORIGIN, startAuthApp, UNUSED_DATABASE, type AuthTestApp } from '../support/auth-app.js';
+import { AUTH_CONFIG_FOR_TEST, ORIGIN, startAuthApp, UNUSED_DATABASE, type AuthTestApp } from '../support/auth-app.js';
 import { expectMatchesSpec, OpenApiContract } from '../support/openapi-contract.js';
 
 // DB 없이 돌아가는 명세 일치 검사: 인증·검증·Origin 오류 응답이 명세에 적힌 모양과 맞는지 확인한다.
@@ -65,5 +65,39 @@ describe('auth error responses match the OpenAPI spec (no database needed)', () 
     const response = await fetch(`${server.baseUrl}/no-such-path`);
     expect(response.status).toBe(404);
     expect(contract.checkSchema('Error', await response.json())).toEqual([]);
+  });
+
+  test('dev login validates its body and matches the spec', async () => {
+    const response = await send('/auth/dev-login', { headers: { origin: ORIGIN }, body: { email: 'not-an-email' } });
+    expect(response.status).toBe(400);
+    await expectMatchesSpec(contract, response, { method: 'post', path: '/auth/dev-login' });
+    expect(await response.json()).toMatchObject({ code: 'VALIDATION_FAILED', details: [{ field: 'email' }] });
+  });
+
+  test('dev login without a valid Origin is 403 FORBIDDEN', async () => {
+    const response = await send('/auth/dev-login', { body: { email: 'a@example.com' } });
+    expect(response.status).toBe(403);
+    await expectMatchesSpec(contract, response, { method: 'post', path: '/auth/dev-login' });
+  });
+
+  test('dev login is a plain 404 when it is switched off, even for invalid bodies', async () => {
+    const off = await startAuthApp(UNUSED_DATABASE, (name) => `${name}@example.com`, {
+      ...AUTH_CONFIG_FOR_TEST,
+      devLoginEnabled: false,
+    });
+    try {
+      for (const body of [{ email: 'a@example.com' }, {}]) {
+        const response = await fetch(`${off.baseUrl}/api/v0/admin/auth/dev-login`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', origin: ORIGIN },
+          body: JSON.stringify(body),
+        });
+        expect(response.status).toBe(404);
+        await expectMatchesSpec(contract, response, { method: 'post', path: '/auth/dev-login' });
+        expect((await response.json()).code).toBe('NOT_FOUND');
+      }
+    } finally {
+      await off.app.close();
+    }
   });
 });

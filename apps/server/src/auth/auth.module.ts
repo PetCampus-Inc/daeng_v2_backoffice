@@ -1,6 +1,6 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { readAllowedOrigins, readCookieSecure, readGoogleClientId } from './auth.config.js';
+import { readAllowedOrigins, readCookieSecure, readDevLoginEnabled, readGoogleClientId } from './auth.config.js';
 import { AccessLogService } from './access-log.service.js';
 import { AUTH_CONFIG, ID_TOKEN_VERIFIER, type AuthConfig } from './auth.constants.js';
 import { AuthController } from './auth.controller.js';
@@ -14,11 +14,18 @@ import { OriginGuard } from './origin.guard.js';
   providers: [
     {
       provide: AUTH_CONFIG,
-      useFactory: (): AuthConfig => ({
-        googleClientId: readGoogleClientId(process.env.GOOGLE_CLIENT_ID),
-        allowedOrigins: readAllowedOrigins(process.env.ALLOWED_ORIGINS),
-        cookieSecure: readCookieSecure(process.env.COOKIE_SECURE),
-      }),
+      useFactory: (): AuthConfig => {
+        const cookieSecure = readCookieSecure(process.env.COOKIE_SECURE);
+        const devLoginEnabled = readDevLoginEnabled(process.env.DEV_LOGIN_ENABLED, cookieSecure);
+        if (devLoginEnabled)
+          new Logger('Auth').warn('개발용 로그인이 켜져 있습니다. 구글 검증 없이 이메일로 로그인할 수 있습니다.');
+        return {
+          googleClientId: readGoogleClientId(process.env.GOOGLE_CLIENT_ID),
+          allowedOrigins: readAllowedOrigins(process.env.ALLOWED_ORIGINS),
+          cookieSecure,
+          devLoginEnabled,
+        };
+      },
     },
     {
       provide: ID_TOKEN_VERIFIER,

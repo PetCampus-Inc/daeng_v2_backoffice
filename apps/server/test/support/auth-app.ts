@@ -18,6 +18,7 @@ export const AUTH_CONFIG_FOR_TEST: AuthConfig = {
   googleClientId: 'test-client-id.apps.googleusercontent.com',
   allowedOrigins: ['http://localhost:5173'],
   cookieSecure: false,
+  devLoginEnabled: true,
 };
 
 /** DB에 연결하지 않는 테스트용 설정. 풀은 처음 쿼리할 때 연결하므로 값이 가짜여도 앱은 뜬다. */

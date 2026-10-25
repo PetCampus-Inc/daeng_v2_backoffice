@@ -94,6 +94,16 @@ test('write requests from an unknown Origin are rejected before authentication',
   }
 });
 
+test('dev login is off unless it is switched on', async () => {
+  const response = await fetch(`${baseUrl}/api/v0/admin/auth/dev-login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', origin: 'http://localhost:5173' },
+    body: JSON.stringify({ email: 'admin@example.com' }),
+  });
+  assert.equal(response.status, 404);
+  assert.equal((await response.json()).code, 'NOT_FOUND');
+});
+
 test('invalid PORT prevents the server from starting', () => {
   const result = spawnSync(process.execPath, ['dist/main.js'], {
     env: { ...process.env, PORT: 'invalid' },
