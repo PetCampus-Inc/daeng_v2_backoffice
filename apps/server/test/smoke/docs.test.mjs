@@ -95,10 +95,10 @@ test('API docs are served from the spec YAML when enabled', async () => {
   assert.equal((await fetch(`${baseUrl}/docs-yaml`)).status, 404);
 });
 
-test('API docs disable "Try it out" and do not call external addresses', async () => {
+test('API docs allow "Try it out" and do not call external addresses', async () => {
   const { baseUrl } = await startServer({ API_DOCS_ENABLED: 'true' });
   const init = await (await fetch(`${baseUrl}/docs/swagger-ui-init.js`)).text();
-  assert.match(init, /supportedSubmitMethods[^[]*\[\s*\]/);
+  assert.doesNotMatch(init, /supportedSubmitMethods[^[]*\[\s*\]/);
   assert.deepEqual(init.match(/https?:\/\/[^"'\s)]+/g) ?? [], []);
 });
 
