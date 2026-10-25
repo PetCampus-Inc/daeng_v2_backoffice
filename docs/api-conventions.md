@@ -2,7 +2,7 @@
 title: API 공통 규약
 version: 0.1.1
 created: 2026-10-22
-updated: 2026-10-23
+updated: 2026-10-26
 ---
 
 # API 공통 규약
@@ -134,8 +134,10 @@ PATCH /users/1
 - 상태를 바꾸는 동작은 현재 웹이 쓰는 방식을 따라 하위 리소스로 호출한다(예: 맡기 `POST /inquiries/:id/assignee`, 담당
   해제 `DELETE /inquiries/:id/assignee`). 새 화면도 같은 방식으로 맞춘다.
 - 프론트는 BO 서버만 호출한다. 기존 Java 기능은 BO 서버가 호출해 이 규약의 형식으로 변환한다.
+- 서버 응답이 명세와 같은지는 서버 테스트가 확인한다. 새 API는 성공·오류 응답을 명세와 대조하는 테스트를 같이 쓴다.
 
-근거: [ADR 0003](adr/0003-api-spec-first.md), [ADR 0009](adr/0009-bff-keep-java-features.md)
+근거: [ADR 0003](adr/0003-api-spec-first.md), [ADR 0009](adr/0009-bff-keep-java-features.md),
+[ADR 0015](adr/0015-spec-contract-tests.md)
 
 ## 9. 아직 정하지 않은 것
 

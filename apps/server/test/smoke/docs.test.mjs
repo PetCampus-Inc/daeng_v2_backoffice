@@ -20,7 +20,7 @@ Object.assign(process.env, {
 });
 
 const MAIN = resolve(fileURLToPath(new URL('../../dist/main.js', import.meta.url)));
-const SPEC = fileURLToPath(new URL('../../../../packages/api-spec/openapi.yaml', import.meta.url));
+const SPEC = fileURLToPath(import.meta.resolve('@daeng/api-spec/openapi.yaml'));
 const children = new Set();
 let emptyDir;
 

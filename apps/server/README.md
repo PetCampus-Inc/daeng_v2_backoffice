@@ -69,11 +69,31 @@ infisical run --env=dev -- pnpm --filter @daeng/server db:migrate
 - DB 연결 테스트(`initial-super-admin.test.ts`)는 DB 값이 있을 때만 돈다:
   `infisical run --env=dev -- pnpm --filter @daeng/server test:unit`
 
+## 명세 일치 검사
+
+새 API를 만들 때는 응답이 `packages/api-spec/openapi.yaml`과 맞는지 테스트로
+확인한다([ADR 0015](../../docs/adr/0015-spec-contract-tests.md)).
+
+```ts
+const contract = await OpenApiContract.load();
+const response = await fetch(`${baseUrl}/api/v0/admin/auth/login`, { ... });
+await expectMatchesSpec(contract, response, { method: 'post', path: '/auth/login' }); // 경로는 명세의 템플릿
+```
+
+- 명세에 없는 상태 코드, 필드 누락·타입·enum 값 오류, 최상위의 정의에 없는 필드가 있으면 이유와 함께 실패한다.
+- 공통 오류처럼 개별 API 응답으로 적히지 않은 본문은 `contract.checkSchema('Error', body)`로 공통 형식만 확인한다.
+- 앱을 띄우거나 DB를 쓰는 테스트는 `test/integration/`에 둔다. DB 값(`DB_*`)이 없으면 DB가 필요한 것만 건너뛴다. CI의
+  `server-db-test` 작업(MySQL 서비스 컨테이너)은 `REQUIRE_DATABASE=true`를 켜서, DB 값이 빠지면 조용히 건너뛰지 않고
+  실패한다.
+- 로컬에서 DB 테스트를 돌리려면 `infisical run --env=dev -- pnpm --filter @daeng/server test:integration`.
+
 ## 검증
 
 ```bash
 pnpm build && pnpm lint && pnpm test && pnpm format:check
 ```
 
-- `test:unit`: `src`를 직접 import하는 단위 테스트. 빌드가 필요 없다.
+- `test:unit`: `src`를 직접 import하는 단위 테스트. DB도 Nest 앱도 없이 순수 로직만 확인하고 빌드가 필요 없다.
+- `test:integration`: Nest 앱을 띄우거나 실제 DB를 쓰는 테스트(최초 관리자 등록 등). DB 값(`DB_*`)이 없으면 DB가 필요한
+  것만 건너뛴다.
 - `test:smoke`: 빌드 결과(`dist`)를 실행해 헬스, 잘못된 `PORT`, `SIGTERM` 종료, `/docs`를 검사한다.

@@ -11,8 +11,9 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "lint": "oxlint src test",
-    "test": "pnpm test:unit && pnpm test:smoke",
+    "test": "pnpm test:unit && pnpm test:integration && pnpm test:smoke",
     "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
     "test:smoke": "pnpm --filter @daeng/shared build && pnpm build && vitest run test/smoke",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
@@ -34,6 +35,8 @@
   "devDependencies": {
     "@nestjs/cli": "^12.0.10",
     "@types/node": "^24.19.2",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "drizzle-kit": "0.31.11",
     "oxlint": "^1.89.0",
     "typescript": "~6.0.3",

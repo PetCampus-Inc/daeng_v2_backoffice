@@ -39,3 +39,54 @@ jobs:
 
       - name: Run ${{ matrix.command }}
         run: pnpm ${{ matrix.command }}
+
+  server-db-test:
+    name: server-db-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: knockdog_backoffice_ci
+          MYSQL_USER: ci
+          MYSQL_PASSWORD: ci-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci-root-password" --health-interval=5s --health-timeout=5s
+          --health-retries=20
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_NAME: knockdog_backoffice_ci
+      DB_USER: ci
+      DB_PASSWORD: ci-password
+      # DB 값이 빠지면 DB 테스트가 조용히 건너뛰어지는 대신 실패하게 한다
+      REQUIRE_DATABASE: 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm --filter @daeng/server db:migrate
+
+      - name: Run server integration tests with the database
+        run: pnpm --filter @daeng/server test:integration

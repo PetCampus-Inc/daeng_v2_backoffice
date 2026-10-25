@@ -5,7 +5,7 @@ import { DatabaseService } from '../../src/database/database.service.js';
 import { ensureInitialSuperAdmin } from '../../src/database/initial-super-admin.js';
 import { members } from '../../src/database/schema.js';
 
-// 로컬 DB에 마이그레이션이 적용돼 있을 때만 돈다: infisical run --env=dev -- pnpm test:unit
+// 로컬 DB에 마이그레이션이 적용돼 있을 때만 돈다: infisical run --env=dev -- pnpm --filter @daeng/server test:integration
 const hasDatabase = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'].every((name) => process.env[name]);
 const EMAIL = `vitest-${Date.now()}@example.com`;
 

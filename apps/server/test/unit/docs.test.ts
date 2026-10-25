@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { loadOpenApiDocument } from '../../src/docs.js';
+import { SPEC_PATH as REAL_SPEC } from '../support/paths.js';
 
-const REAL_SPEC = new URL('../../../../packages/api-spec/openapi.yaml', import.meta.url).pathname;
 let dir: string;
 
 beforeAll(async () => {

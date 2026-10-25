@@ -2,7 +2,7 @@
 title: 결정 기록(ADR)
 version: 0.2.0
 created: 2026-10-22
-updated: 2026-10-23
+updated: 2026-10-26
 ---
 
 # 결정 기록(ADR)
@@ -27,3 +27,4 @@ updated: 2026-10-23
 | [0012](0012-enum-value-upper-snake-case.md)    | enum 값은 UPPER_SNAKE_CASE 영어              | 확정 |
 | [0013](0013-api-docs-served-from-yaml.md)      | API 문서는 서버가 YAML을 Swagger UI로 제공   | 확정 |
 | [0014](0014-auth-details.md)                   | 인증 세부 결정                               | 확정 |
+| [0015](0015-spec-contract-tests.md)            | 서버 응답은 테스트에서 명세로 검증           | 확정 |
