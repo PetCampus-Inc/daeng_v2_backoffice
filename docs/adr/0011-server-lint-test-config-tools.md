@@ -44,7 +44,9 @@ ESLint). 서버 세팅에서 테스트 도구와 환경변수 검증 방식도 �
   주입이 필요한 서비스가 생길 때 SWC 도입과 함께 판단한다.
 - 타입 정보 기반 린트(`no-floating-promises` 등)는 서버에 비동기 로직이 생기면 oxlint `--type-aware`가 이 저장소에서
   동작하는지 확인한 뒤 도입 여부를 정한다. 부족하면 ADR 0001대로 서버만 ESLint를 쓴다.
-- 환경변수가 늘면 `src/config.ts`를 변수별 읽기 함수가 아닌 스키마 하나로 모은다.
+- 환경변수가 늘면 기능 폴더마다 `<기능>.config.ts`에 읽기 함수를 둔다(예: `auth/auth.config.ts`). 앱 전체 설정(포트,
+  문서)만 `src/config.ts`에 남긴다. 시작할 때 오류를 하나씩만 발견하는 점이 불편해지면 전체를 한꺼번에 검증하는 단계를
+  둔다.
 - 테스트 파일이 `.ts`가 되면 타입 검사가 필요한지(테스트용 `tsconfig` 또는 `tsc --noEmit`) 판단한다.
 
 참고: [NestJS 12 릴리스 노트](https://newreleases.io/project/github/nestjs/nest/release/v12.0.0)(공식 마이그레이션

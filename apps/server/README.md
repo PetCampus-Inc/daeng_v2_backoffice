@@ -67,7 +67,32 @@ infisical run --env=dev -- pnpm --filter @daeng/server db:migrate
 - 이미 적용한 마이그레이션 파일은 고치지 않는다. 바꿀 일이 있으면 새 파일을 만든다.
 - 서버를 켤 때 자동으로 마이그레이션하지 않는다. 운영은 배포 단계에서 `db:migrate`를 실행한다.
 - DB 연결 테스트(`initial-super-admin.test.ts`)는 DB 값이 있을 때만 돈다:
-  `infisical run --env=dev -- pnpm --filter @daeng/server test:unit`
+  `infisical run --env=dev -- pnpm --filter @daeng/server test:integration`
+
+## 로그인
+
+[ADR 0014](../../docs/adr/0014-auth-details.md)를 따른다. 웹이 구글 로그인으로 받은 ID 토큰을
+`POST /api/v0/admin/auth/login`에 보내면, 서버가 토큰을 검증하고 등록된 팀원이면 세션 쿠키(`session`)를 내려 준다.
+`POST /api/v0/admin/auth/logout`은 세션을 지운다.
+
+- 모든 API는 기본이 로그인 필수다. 로그인하지 않아도 되는 곳에는 `@Public()`을 붙인다(현재 `/health`, 로그인). 첫 로그인
+  프로필을 완료하기 전에도 부를 수 있어야 하는 곳에는 `@AllowIncompleteProfile()`을 붙인다(현재 로그아웃).
+- API는 `/api/v0/admin` 아래에 있고 `/health`와 `/docs`는 접두어 밖이다. 새 기능 모듈은 `src/api.module.ts`의
+  `FEATURE_MODULES`에 추가한다. 전역 접두어(`setGlobalPrefix`)를 쓰면 접두어 밖의 없는 주소가 공통 에러 형식이 아닌 기본
+  404로 응답해서 모듈에 접두어를 붙인다.
+- 선택 환경변수(`PORT`, `API_DOCS_ENABLED`, `COOKIE_SECURE`)는 값을 비워 두면 설정하지 않은 것과 같다.
+- 쓰기 요청(POST·PUT·PATCH·DELETE)은 `Origin`이 `ALLOWED_ORIGINS`에 없거나 없으면 403이다. http·https와 상관없이 항상
+  적용된다.
+- 계정은 자동으로 만들어지지 않는다. 등록된 이메일만 로그인할 수 있고, 처음 로그인하면 구글 계정 고유 ID를 저장해서 이후
+  다른 구글 계정이 같은 이메일로 들어오는 것을 막는다. 세션은 마지막 사용에서 24시간이 지나면 만료되고 요청마다
+  연장된다.
+- 로그인 성공·실패, 로그아웃, 세션 만료는 `access_log` 테이블에 남는다(추가만 한다).
+
+| 환경변수           | 설명                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| `GOOGLE_CLIENT_ID` | 구글 OAuth 웹 클라이언트 ID(`...apps.googleusercontent.com`). 보안 비밀이 아니다.                |
+| `ALLOWED_ORIGINS`  | 쓰기 요청을 허용할 웹 주소. 쉼표로 구분하고 경로·끝 슬래시 없이(`http://localhost:5173`) 적는다. |
+| `COOKIE_SECURE`    | 쿠키 `Secure` 여부. HTTPS가 아닌 로컬은 `false`, 운영은 `true`. 비우면 `true`다.                 |
 
 ## 명세 일치 검사
 
@@ -80,11 +105,13 @@ const response = await fetch(`${baseUrl}/api/v0/admin/auth/login`, { ... });
 await expectMatchesSpec(contract, response, { method: 'post', path: '/auth/login' }); // 경로는 명세의 템플릿
 ```
 
-- 명세에 없는 상태 코드, 필드 누락·타입·enum 값 오류, 최상위의 정의에 없는 필드가 있으면 이유와 함께 실패한다.
+- 명세에 없는 상태 코드, 필드 누락·타입·enum 값 오류, 최상위의 정의에 없는 필드가 있으면 이유와 함께 실패한다. 쓰기 요청
+  API는 `Origin` 검사 때문에 403이 나올 수 있으니 명세에 403을 적는다.
 - 공통 오류처럼 개별 API 응답으로 적히지 않은 본문은 `contract.checkSchema('Error', body)`로 공통 형식만 확인한다.
-- 앱을 띄우거나 DB를 쓰는 테스트는 `test/integration/`에 둔다. DB 값(`DB_*`)이 없으면 DB가 필요한 것만 건너뛴다. CI의
-  `server-db-test` 작업(MySQL 서비스 컨테이너)은 `REQUIRE_DATABASE=true`를 켜서, DB 값이 빠지면 조용히 건너뛰지 않고
-  실패한다.
+- DB가 필요 없는 응답은 `test/integration/auth-contract.test.ts`처럼 `test/support/auth-app.ts`로 앱을 띄워 기본
+  테스트에서 확인하고, DB가 필요한 응답은 `auth-flow.test.ts`처럼 실제 DB로 확인한다. 후자는 CI의 `server-db-test`
+  작업(MySQL 서비스 컨테이너)에서 돈다.
+- CI의 DB 작업은 `REQUIRE_DATABASE=true`를 켜서, DB 값이 빠지면 DB 테스트가 조용히 건너뛰어지지 않고 실패한다.
 - 로컬에서 DB 테스트를 돌리려면 `infisical run --env=dev -- pnpm --filter @daeng/server test:integration`.
 
 ## 검증
@@ -94,6 +121,6 @@ pnpm build && pnpm lint && pnpm test && pnpm format:check
 ```
 
 - `test:unit`: `src`를 직접 import하는 단위 테스트. DB도 Nest 앱도 없이 순수 로직만 확인하고 빌드가 필요 없다.
-- `test:integration`: Nest 앱을 띄우거나 실제 DB를 쓰는 테스트(최초 관리자 등록 등). DB 값(`DB_*`)이 없으면 DB가 필요한
-  것만 건너뛴다.
+- `test:integration`: Nest 앱을 띄우거나 실제 DB를 쓰는 테스트(로그인 흐름, 명세 일치, 최초 관리자 등록). DB
+  값(`DB_*`)이 없으면 DB가 필요한 것만 건너뛴다.
 - `test:smoke`: 빌드 결과(`dist`)를 실행해 헬스, 잘못된 `PORT`, `SIGTERM` 종료, `/docs`를 검사한다.

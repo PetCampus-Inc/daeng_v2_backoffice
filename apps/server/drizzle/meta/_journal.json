@@ -8,6 +8,13 @@
       "when": 1792853579597,
       "tag": "0000_init_member_session",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1792917926949,
+      "tag": "0001_add_access_log",
+      "breakpoints": true
     }
   ]
 }

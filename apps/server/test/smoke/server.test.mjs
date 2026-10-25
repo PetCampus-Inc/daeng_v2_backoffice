@@ -16,6 +16,9 @@ Object.assign(process.env, {
   DB_USER: 'smoke',
   DB_PASSWORD: 'smoke',
   INITIAL_SUPER_ADMIN_EMAIL: '',
+  GOOGLE_CLIENT_ID: 'smoke.apps.googleusercontent.com',
+  ALLOWED_ORIGINS: 'http://localhost:5173',
+  COOKIE_SECURE: 'false',
 });
 
 let app;
@@ -52,6 +55,43 @@ test('oversized request body is a client error, not a server error', async () =>
   });
   assert.equal(response.status, 413);
   assert.equal((await response.json()).code, 'BAD_REQUEST');
+});
+
+test('API routes live under /api/v0/admin while health stays unprefixed', async () => {
+  const prefixed = await fetch(`${baseUrl}/api/v0/admin/auth/logout`, {
+    method: 'POST',
+    headers: { origin: 'http://localhost:5173' },
+  });
+  assert.equal(prefixed.status, 401);
+  assert.equal((await prefixed.json()).code, 'UNAUTHENTICATED');
+
+  const unprefixed = await fetch(`${baseUrl}/auth/logout`, {
+    method: 'POST',
+    headers: { origin: 'http://localhost:5173' },
+  });
+  assert.equal(unprefixed.status, 404);
+});
+
+test('the Origin check runs before the login check on protected routes', async () => {
+  // 쿠키가 없으니 가드 순서가 반대라면 401이 나온다
+  const response = await fetch(`${baseUrl}/api/v0/admin/auth/logout`, {
+    method: 'POST',
+    headers: { origin: 'https://evil.example' },
+  });
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).code, 'FORBIDDEN');
+});
+
+test('write requests from an unknown Origin are rejected before authentication', async () => {
+  for (const headers of [{}, { origin: 'https://evil.example' }]) {
+    const response = await fetch(`${baseUrl}/api/v0/admin/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify({ idToken: 'x' }),
+    });
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).code, 'FORBIDDEN');
+  }
 });
 
 test('invalid PORT prevents the server from starting', () => {

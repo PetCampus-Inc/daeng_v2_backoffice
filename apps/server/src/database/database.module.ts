@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { readDatabaseConfig } from '../config.js';
+import { readDatabaseConfig } from './database.config.js';
 import { DATABASE_CONFIG, DatabaseService } from './database.service.js';
 
 @Global()

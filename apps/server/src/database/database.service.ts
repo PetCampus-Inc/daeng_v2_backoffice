@@ -1,7 +1,7 @@
 import { Inject, Injectable, type OnApplicationShutdown } from '@nestjs/common';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { createPool } from 'mysql2/promise';
-import type { DatabaseConfig } from '../config.js';
+import type { DatabaseConfig } from './database.config.js';
 import * as schema from './schema.js';
 
 export const DATABASE_CONFIG = Symbol('DATABASE_CONFIG');

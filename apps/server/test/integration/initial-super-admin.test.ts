@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { readDatabaseConfig } from '../../src/config.js';
+import { readDatabaseConfig } from '../../src/database/database.config.js';
 import { DatabaseService } from '../../src/database/database.service.js';
 import { ensureInitialSuperAdmin } from '../../src/database/initial-super-admin.js';
 import { members } from '../../src/database/schema.js';

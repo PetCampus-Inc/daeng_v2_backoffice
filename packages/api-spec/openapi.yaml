@@ -30,6 +30,7 @@ tags:
     description: 기존 어드민 조회 화면(대시보드·회원·유치원·원장 인증 현황), 서비스 DB 읽기 전용
 security:
   - sessionCookie: []
+
 paths:
   /auth/login:
     post:
@@ -56,6 +57,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MyAccount'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           description: '인증 실패'
           content:
@@ -63,11 +66,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/InvalidIdTokenError'
         '403':
-          description: '권한 없음'
+          description: |-
+            권한 없음. 등록되지 않았거나 비활성·등록 취소된 계정이면 `LOGIN_NOT_ALLOWED`, 허용되지 않은 출처의 요청이면
+            `FORBIDDEN`입니다.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginNotAllowedError'
+                oneOf:
+                  - $ref: '#/components/schemas/LoginNotAllowedError'
+                  - $ref: '#/components/schemas/ForbiddenError'
 
   /auth/logout:
     post:
@@ -81,6 +88,8 @@ paths:
           description: 로그아웃됨
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /me:
     get:
@@ -1568,7 +1577,10 @@ components:
           properties:
             code:
               type: string
-              enum: [FORBIDDEN]
+              description: >-
+                `FORBIDDEN` 권한이 없거나 허용되지 않은 요청입니다. `PROFILE_INCOMPLETE` 첫 로그인 프로필(표시명·직무)을
+                설정하기 전에는 내 계정과 로그아웃 외의 기능을 쓸 수 없습니다.
+              enum: [FORBIDDEN, PROFILE_INCOMPLETE]
       example:
         code: FORBIDDEN
         message: 이 기능을 사용할 권한이 없습니다.

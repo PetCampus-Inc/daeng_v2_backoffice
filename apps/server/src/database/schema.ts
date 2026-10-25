@@ -1,4 +1,14 @@
-import { char, datetime, index, int, mysqlEnum, mysqlTable, uniqueIndex, varchar } from 'drizzle-orm/mysql-core';
+import {
+  bigint,
+  char,
+  datetime,
+  index,
+  int,
+  mysqlEnum,
+  mysqlTable,
+  uniqueIndex,
+  varchar,
+} from 'drizzle-orm/mysql-core';
 
 export const MEMBER_ROLES = ['SUPER_ADMIN', 'OPERATOR', 'VIEWER'] as const;
 export const MEMBER_JOB_ROLES = ['PM', 'UX_UI', 'FE', 'BE', 'FULL_STACK'] as const;
@@ -54,3 +64,34 @@ export const sessions = mysqlTable(
   },
   (table) => [index('idx_session_member').on(table.memberId), index('idx_session_last_used').on(table.lastUsedAt)]
 );
+
+export const ACCESS_EVENTS = ['LOGIN_SUCCESS', 'LOGIN_FAILURE', 'LOGOUT', 'SESSION_EXPIRED', 'ACCESS_DENIED'] as const;
+export const ACCESS_RESULTS = [
+  'SUCCESS',
+  'UNREGISTERED',
+  'INACTIVE',
+  'CANCELLED',
+  'SUBJECT_MISMATCH',
+  'INVALID_TOKEN',
+  'FORBIDDEN',
+] as const;
+
+export type AccessEvent = (typeof ACCESS_EVENTS)[number];
+export type AccessResult = (typeof ACCESS_RESULTS)[number];
+
+// 접속 기록(FR-BO-042). 추가만 하고 고치거나 지우지 않는다. 이메일을 얻지 못한 실패는 email이 null이다.
+export const accessLogs = mysqlTable(
+  'access_log',
+  {
+    id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+    occurredAt: datetime('occurred_at', { fsp: 3 })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    email: varchar('email', { length: 320 }),
+    event: mysqlEnum('event', ACCESS_EVENTS).notNull(),
+    result: mysqlEnum('result', ACCESS_RESULTS).notNull(),
+  },
+  (table) => [index('idx_access_log_occurred_at').on(table.occurredAt)]
+);
+
+export type MemberRow = typeof members.$inferSelect;
