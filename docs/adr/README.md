@@ -21,7 +21,9 @@ updated: 2026-10-23
 | [0006](0006-date-and-time.md)                  | 날짜와 시간은 UTC, 검색은 KST                | 확정 |
 | [0007](0007-field-naming-and-null.md)          | 필드 이름과 null 처리                        | 확정 |
 | [0008](0008-session-cookie-auth.md)            | 인증은 세션 쿠키                             | 확정 |
-| [0009](0009-bff-keep-java-features.md)         | 기존 Java 기능은 이전하지 않고 호출          | 제안 |
+| [0009](0009-bff-keep-java-features.md)         | 기존 Java 기능은 이전하지 않고 호출          | 확정 |
 | [0010](0010-server-module-and-shared-build.md) | 서버는 ESM으로, shared는 ESM·CommonJS로 빌드 | 확정 |
 | [0011](0011-server-lint-test-config-tools.md)  | 서버 린트·테스트·설정 검증 도구              | 확정 |
 | [0012](0012-enum-value-upper-snake-case.md)    | enum 값은 UPPER_SNAKE_CASE 영어              | 확정 |
+| [0013](0013-api-docs-served-from-yaml.md)      | API 문서는 서버가 YAML을 Swagger UI로 제공   | 확정 |
+| [0014](0014-auth-details.md)                   | 인증 세부 결정                               | 확정 |

@@ -17,6 +17,7 @@
       "dependsOn": ["^build"],
       "passThroughEnv": [
         "PORT",
+        "API_DOCS_ENABLED",
         "DB_HOST",
         "DB_PORT",
         "DB_NAME",
