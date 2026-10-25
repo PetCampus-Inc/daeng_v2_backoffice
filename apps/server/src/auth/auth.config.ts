@@ -33,3 +33,16 @@ export function readCookieSecure(value: string | undefined): boolean {
   if (value !== 'true' && value !== 'false') throw new Error('COOKIE_SECURE must be "true" or "false"');
   return value === 'true';
 }
+
+/**
+ * 개발용 로그인(구글 검증 없이 이메일로 로그인)을 켤지 정한다. 기본은 꺼짐이다.
+ * 운영에서 실수로 켜져 인증이 뚫리는 것을 막으려고, 쿠키 `Secure`가 켜진 설정(운영)에서는 켜면 서버가 시작하지 않는다.
+ */
+export function readDevLoginEnabled(value: string | undefined, cookieSecure: boolean): boolean {
+  if (value === undefined || value === '') return false;
+  if (value !== 'true' && value !== 'false') throw new Error('DEV_LOGIN_ENABLED must be "true" or "false"');
+  if (value === 'true' && cookieSecure) {
+    throw new Error('DEV_LOGIN_ENABLED=true is only allowed with COOKIE_SECURE=false (local development)');
+  }
+  return value === 'true';
+}

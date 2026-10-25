@@ -11,4 +11,5 @@ export interface AuthConfig {
   googleClientId: string;
   allowedOrigins: string[];
   cookieSecure: boolean;
+  devLoginEnabled: boolean;
 }

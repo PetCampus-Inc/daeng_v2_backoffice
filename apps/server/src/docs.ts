@@ -40,7 +40,7 @@ export async function setupApiDocs(app: INestApplication, document: OpenAPIObjec
   SwaggerModule.setup(DOCS_PATH, app, document, {
     customSiteTitle: 'BO API 명세',
     raw: ['json'],
-    // Try it out 끔
-    swaggerOptions: { supportedSubmitMethods: [], validatorUrl: null },
+    // 명세 검증 서비스(validator.swagger.io)로 요청을 보내지 않는다.
+    swaggerOptions: { validatorUrl: null },
   });
 }

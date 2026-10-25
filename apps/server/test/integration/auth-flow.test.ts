@@ -203,6 +203,41 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
     }
   });
 
+  test('dev login signs in a registered member without Google and the session works', async () => {
+    await addMember('dev', { displayName: '길동', jobRole: 'BE' });
+    const response = await post('/auth/dev-login', { email: email('dev').toUpperCase() });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ email: email('dev'), role: 'OPERATOR', isProfileCompleted: true });
+
+    const cookie = sessionCookie(response)!;
+    expect(cookie).toBeDefined();
+    expect((await probe(cookie)).status).toBe(200);
+
+    const [member] = await database.db
+      .select()
+      .from(members)
+      .where(eq(members.email, email('dev')));
+    expect(member).toMatchObject({ status: 'ACTIVE', googleSubject: null });
+    expect((await post('/auth/logout', undefined, { cookie })).status).toBe(204);
+  });
+
+  test('dev login follows the same rules: unregistered, inactive and cancelled members are refused', async () => {
+    await addMember('dev-inactive', { status: 'INACTIVE' });
+    await addMember('dev-cancelled', { status: 'CANCELLED' });
+    for (const name of ['dev-stranger', 'dev-inactive', 'dev-cancelled']) {
+      const response = await post('/auth/dev-login', { email: email(name) });
+      expect(response.status).toBe(403);
+      expect((await response.json()).code).toBe('LOGIN_NOT_ALLOWED');
+      expect(sessionCookie(response)).toBeUndefined();
+    }
+    expect(
+      await database.db
+        .select()
+        .from(members)
+        .where(eq(members.email, email('dev-stranger')))
+    ).toHaveLength(0);
+  });
+
   test('logout needs a session, deletes it and clears the cookie', async () => {
     await addMember('leaver');
     const anonymous = await post('/auth/logout');
@@ -288,7 +323,7 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
       service as unknown as { findAllowedMember: () => Promise<unknown> },
       'findAllowedMember'
     ).mockResolvedValueOnce(allowedBefore);
-    const error = await service.login('race').catch((e: unknown) => e);
+    const error = await service.devLogin(email('race')).catch((e: unknown) => e);
 
     expect(toErrorResponse(error)).toMatchObject({ status: 403, body: { code: 'LOGIN_NOT_ALLOWED' } });
     const [after] = await database.db

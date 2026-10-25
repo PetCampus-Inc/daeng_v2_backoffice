@@ -1,5 +1,10 @@
 import { expect, test } from 'vitest';
-import { readAllowedOrigins, readCookieSecure, readGoogleClientId } from '../../src/auth/auth.config.js';
+import {
+  readAllowedOrigins,
+  readCookieSecure,
+  readDevLoginEnabled,
+  readGoogleClientId,
+} from '../../src/auth/auth.config.js';
 
 test('GOOGLE_CLIENT_ID is required', () => {
   expect(readGoogleClientId(' abc.apps.googleusercontent.com ')).toBe('abc.apps.googleusercontent.com');
@@ -34,5 +39,16 @@ test('COOKIE_SECURE defaults to the safe value', () => {
   expect(readCookieSecure('false')).toBe(false);
   for (const value of ['1', 'TRUE', 'yes']) {
     expect(() => readCookieSecure(value)).toThrow(/COOKIE_SECURE/);
+  }
+});
+
+test('dev login is off by default and only allowed without Secure cookies (local development)', () => {
+  expect(readDevLoginEnabled(undefined, true)).toBe(false);
+  expect(readDevLoginEnabled('', true)).toBe(false);
+  expect(readDevLoginEnabled('false', true)).toBe(false);
+  expect(readDevLoginEnabled('true', false)).toBe(true);
+  expect(() => readDevLoginEnabled('true', true)).toThrow(/COOKIE_SECURE=false/);
+  for (const value of ['1', 'TRUE', 'yes']) {
+    expect(() => readDevLoginEnabled(value, false)).toThrow(/DEV_LOGIN_ENABLED/);
   }
 });
