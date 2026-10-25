@@ -8,6 +8,16 @@ import { NestFactory } from '@nestjs/core';
 import { JOB_ROLES } from '@daeng/shared';
 import { AppModule } from '../../dist/app.module.js';
 
+// 서버는 시작할 때 DB 설정을 요구한다. 연결은 처음 쿼리할 때 하므로 가짜 값이면 충분하다.
+Object.assign(process.env, {
+  DB_HOST: '127.0.0.1',
+  DB_PORT: '3306',
+  DB_NAME: 'smoke',
+  DB_USER: 'smoke',
+  DB_PASSWORD: 'smoke',
+  INITIAL_SUPER_ADMIN_EMAIL: '',
+});
+
 let app;
 let baseUrl;
 

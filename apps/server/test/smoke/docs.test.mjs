@@ -9,6 +9,16 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { afterAll, afterEach, beforeAll, test } from 'vitest';
 
+// 서버는 시작할 때 DB 설정을 요구한다. 연결은 처음 쿼리할 때 하므로 가짜 값이면 충분하다.
+Object.assign(process.env, {
+  DB_HOST: '127.0.0.1',
+  DB_PORT: '3306',
+  DB_NAME: 'smoke',
+  DB_USER: 'smoke',
+  DB_PASSWORD: 'smoke',
+  INITIAL_SUPER_ADMIN_EMAIL: '',
+});
+
 const MAIN = resolve(fileURLToPath(new URL('../../dist/main.js', import.meta.url)));
 const SPEC = fileURLToPath(new URL('../../../../packages/api-spec/openapi.yaml', import.meta.url));
 const children = new Set();

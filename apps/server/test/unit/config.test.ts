@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { readApiDocsEnabled, readPort } from '../../src/config.js';
+import { readApiDocsEnabled, readDatabaseConfig, readInitialSuperAdminEmail, readPort } from '../../src/config.js';
 
 test('PORT validation rejects invalid values', () => {
   for (const value of ['', '0', '65536', '-1', '1.5', 'abc']) {
@@ -19,4 +19,25 @@ test('API docs are disabled by default and only accept "true" or "false"', () =>
   for (const value of ['', '1', '0', 'TRUE', 'yes', 'maybe']) {
     expect(() => readApiDocsEnabled(value)).toThrow(/API_DOCS_ENABLED must be/);
   }
+});
+
+const VALID_DATABASE = { host: '127.0.0.1', port: '3308', database: 'daeng_bo', user: 'bo', password: 'secret-value' };
+
+test('database settings are parsed', () => {
+  expect(readDatabaseConfig(VALID_DATABASE)).toEqual({ ...VALID_DATABASE, port: 3308 });
+});
+
+test('database settings name every missing or invalid variable without echoing values', () => {
+  expect(() => readDatabaseConfig({ ...VALID_DATABASE, host: undefined, password: '' })).toThrow(
+    /DB_HOST, DB_PASSWORD/
+  );
+  expect(() => readDatabaseConfig({ ...VALID_DATABASE, port: 'abc' })).toThrow(/DB_PORT/);
+  expect(() => readDatabaseConfig({ ...VALID_DATABASE, port: 'abc', password: '' })).not.toThrow(/secret-value/);
+});
+
+test('initial super admin email is optional, normalized and validated', () => {
+  expect(readInitialSuperAdminEmail(undefined)).toBeUndefined();
+  expect(readInitialSuperAdminEmail('')).toBeUndefined();
+  expect(readInitialSuperAdminEmail('Admin@Example.COM')).toBe('admin@example.com');
+  expect(() => readInitialSuperAdminEmail('not-an-email')).toThrow(/INITIAL_SUPER_ADMIN_EMAIL/);
 });

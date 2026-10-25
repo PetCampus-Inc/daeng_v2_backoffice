@@ -13,7 +13,9 @@
     "lint": "oxlint src test",
     "test": "pnpm test:unit && pnpm test:smoke",
     "test:unit": "vitest run test/unit",
-    "test:smoke": "pnpm --filter @daeng/shared build && pnpm build && vitest run test/smoke"
+    "test:smoke": "pnpm --filter @daeng/shared build && pnpm build && vitest run test/smoke",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
     "@daeng/api-spec": "workspace:*",
@@ -22,6 +24,8 @@
     "@nestjs/core": "^12.2.0",
     "@nestjs/platform-express": "^12.2.0",
     "@nestjs/swagger": "^12.0.3",
+    "drizzle-orm": "0.45.4",
+    "mysql2": "3.24.6",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "yaml": "^2.9.1",
@@ -30,6 +34,7 @@
   "devDependencies": {
     "@nestjs/cli": "^12.0.10",
     "@types/node": "^24.19.2",
+    "drizzle-kit": "0.31.11",
     "oxlint": "^1.89.0",
     "typescript": "~6.0.3",
     "vitest": "^5.0.5"
