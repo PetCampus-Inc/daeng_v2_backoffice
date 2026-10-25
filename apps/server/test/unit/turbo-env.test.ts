@@ -1,8 +1,8 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
+import { TURBO_JSON_PATH } from '../support/paths.js';
 
 const SRC = new URL('../../src/', import.meta.url);
-const TURBO = new URL('../../../../turbo.json', import.meta.url);
 
 function readEnvNames(): string[] {
   const names = new Set<string>();
@@ -17,7 +17,7 @@ function readEnvNames(): string[] {
 
 // Turbo는 선언하지 않은 환경 변수를 서버에 넘기지 않아서, 빠지면 설정을 줘도 기본값으로 시작한다.
 test('every environment variable the server reads is passed through the turbo dev task', () => {
-  const turbo = JSON.parse(readFileSync(TURBO, 'utf8')) as { tasks: { dev: { passThroughEnv?: string[] } } };
+  const turbo = JSON.parse(readFileSync(TURBO_JSON_PATH, 'utf8')) as { tasks: { dev: { passThroughEnv?: string[] } } };
   const passed = turbo.tasks.dev.passThroughEnv ?? [];
   const names = readEnvNames();
   expect(names).toContain('PORT');
