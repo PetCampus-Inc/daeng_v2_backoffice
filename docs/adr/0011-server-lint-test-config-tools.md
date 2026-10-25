@@ -17,9 +17,11 @@ ESLint). 서버 세팅에서 테스트 도구와 환경변수 검증 방식도 �
 
 - 린트: 서버도 oxlint를 쓴다. 기본 규칙에 더해 `no-unused-vars`·`no-debugger`는 에러, `no-console`은 경고(`warn`·`error`
   호출 허용)로 둔다. 웹의 설정은 복사하지 않고 서버에 필요한 규칙만 고른다.
-- 테스트: Vitest를 쓴다. 단위 테스트(`test:unit`)는 `src`를 직접 import하고, 스모크 테스트(`test:smoke`)는 shared와
-  서버를 빌드한 뒤 빌드 결과(`dist`)의 시작·종료·헬스를 검사한다.
-- 설정 검증: Zod 스키마로 환경변수를 시작 시 검사하고, 잘못된 값이면 서버를 띄우지 않는다. 현재 대상은 `PORT` 하나다.
+- 테스트: Vitest를 쓴다. 단위 테스트(`test:unit`)는 `src`를 직접 import하고, 통합 테스트(`test:integration`)는 Nest
+  앱이나 실제 DB를 쓰며([ADR 0015](0015-spec-contract-tests.md)), 스모크 테스트(`test:smoke`)는 shared와 서버를 빌드한
+  뒤 빌드 결과(`dist`)의 시작·종료·헬스를 검사한다.
+- 설정 검증: Zod 스키마로 환경변수를 시작 시 검사하고, 잘못된 값이면 서버를 띄우지 않는다. 읽기 함수는 기능 폴더마다
+  둔다(`src/config.ts`, `database/database.config.ts`, `auth/auth.config.ts`).
 
 ## 근거
 
