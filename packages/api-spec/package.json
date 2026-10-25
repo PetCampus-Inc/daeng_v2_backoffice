@@ -1,0 +1,13 @@
+{
+  "name": "@daeng/api-spec",
+  "private": true,
+  "version": "0.0.0",
+  "description": "BO API의 OpenAPI 명세 원본",
+  "files": [
+    "openapi.yaml"
+  ],
+  "exports": {
+    "./openapi.yaml": "./openapi.yaml",
+    "./package.json": "./package.json"
+  }
+}

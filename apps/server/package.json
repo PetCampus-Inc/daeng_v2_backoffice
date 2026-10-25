@@ -16,12 +16,15 @@
     "test:smoke": "pnpm --filter @daeng/shared build && pnpm build && vitest run test/smoke"
   },
   "dependencies": {
+    "@daeng/api-spec": "workspace:*",
     "@daeng/shared": "workspace:*",
     "@nestjs/common": "^12.2.0",
     "@nestjs/core": "^12.2.0",
     "@nestjs/platform-express": "^12.2.0",
+    "@nestjs/swagger": "^12.0.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
