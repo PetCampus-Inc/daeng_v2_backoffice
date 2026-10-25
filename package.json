@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "infisical run --env=dev turbo run dev",
     "dev:server": "infisical run --env=dev -- turbo run dev --filter=@daeng/server",
+    "db:generate": "infisical run --env=dev -- pnpm --filter @daeng/server db:generate",
+    "db:migrate": "infisical run --env=dev -- pnpm --filter @daeng/server db:migrate",
     "build": "turbo run build",
     "lint": "turbo run lint && pnpm api:lint",
     "api:lint": "redocly lint --extends minimal packages/api-spec/openapi.yaml",
