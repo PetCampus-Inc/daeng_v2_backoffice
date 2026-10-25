@@ -28,6 +28,22 @@ test('health endpoint responds', async () => {
   assert.deepEqual(await response.json(), { status: 'ok' });
 });
 
+test('unknown route returns the common error shape', async () => {
+  const response = await fetch(`${baseUrl}/no-such-path`);
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { code: 'NOT_FOUND', message: '요청한 대상을 찾을 수 없습니다.' });
+});
+
+test('oversized request body is a client error, not a server error', async () => {
+  const response = await fetch(`${baseUrl}/health`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text: 'x'.repeat(200_000) }),
+  });
+  assert.equal(response.status, 413);
+  assert.equal((await response.json()).code, 'BAD_REQUEST');
+});
+
 test('invalid PORT prevents the server from starting', () => {
   const result = spawnSync(process.execPath, ['dist/main.js'], {
     env: { ...process.env, PORT: 'invalid' },
