@@ -15,6 +15,21 @@ rtk proxy pnpm --filter @daeng/web test:e2e:typecheck
 검증할 파일과 테스트 이름을 선택해 실행한다. `pnpm --filter @daeng/web test:e2e`는 타입 검사 후 전체 E2E를 실행하므로,
 전체 검증이 필요한 작업에서만 사용한다.
 
+## 부분 실행 단위
+
+각 `test()`는 독립 컨텍스트와 준비 데이터를 만들고, 테스트 이름 하나로 따로 실행할 수 있어야 한다. 초기 로딩과 지연
+전환, 검색과 페이지 이동처럼 준비·행동·판정이 다른 흐름은 각각 등록한다. 오류 발생 뒤 같은 입력으로 재시도하는 것처럼 앞
+단계가 복구 조건인 경우에는 하나의 테스트로 유지한다. 화면 크기·역할·오류 코드만 달라지는 동일한 흐름은 반복 등록할 수
+있다.
+
+파일 안의 테스트 이름은 아래 명령으로 확인하고, 필요한 이름만 선택한다.
+
+```sh
+rtk proxy node --test --test-name-pattern='검색할 테스트 이름' apps/web/e2e/<파일>.ts
+```
+
+부분 실행은 선택한 테스트만 새 컨텍스트에서 준비하므로, 같은 파일의 앞 테스트를 먼저 실행하지 않아도 된다.
+
 ## 문의·제안 사용성 회귀 검사
 
 `support-usability.ts`는 개인 브라우저에 연결하지 않고 headless Chromium과 시나리오별 독립 컨텍스트를 만든다. 개발용
@@ -85,6 +100,13 @@ rtk proxy node --test apps/web/e2e/session-integration.ts
 
 ```sh
 rtk proxy node --test apps/web/e2e/notices-usability.ts
+```
+
+각 공지 검사는 독립 컨텍스트와 준비 데이터를 사용한다. 필요한 항목만 다시 실행할 때는 정확한 테스트 이름을 지정하고,
+부분 실행 결과는 별도 결과 폴더에 보관한다.
+
+```sh
+rtk proxy node --test --test-name-pattern='S-공지-069 저장 실패 복구' apps/web/e2e/notices-usability.ts
 ```
 
 공지 스크립트의 기존 환경변수 `NOTICE_TEST_BASE_URL`, `NOTICE_TEST_OUTPUT_DIR`, `PLAYWRIGHT_MODULE`,

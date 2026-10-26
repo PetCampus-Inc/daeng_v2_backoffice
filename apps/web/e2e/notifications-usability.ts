@@ -100,8 +100,8 @@ async function intercept(
   );
 }
 
-test('기본 목록·KST·읽음 이동·재개방·모두 읽음', async () =>
-  scenario('basic', async (page) => {
+test('기본 알림 목록과 KST 시각을 표시한다', async () =>
+  scenario('basic-list', async (page) => {
     await login(page);
     await open(page);
     await page.screenshot({ path: path.join(OUTPUT, 'popover-default.png') });
@@ -113,11 +113,23 @@ test('기본 목록·KST·읽음 이동·재개방·모두 읽음', async () =>
         .evaluate((e) => Math.round(e.getBoundingClientRect().width)),
       380
     );
+  }));
+
+test('알림을 읽고 대상으로 이동한 뒤 읽음 상태로 다시 연다', async () =>
+  scenario('read-one-navigation', async (page) => {
+    await login(page);
+    await open(page);
     await item(page, '새 1:1 문의').click();
     await page.waitForURL('**/inquiries/1041');
     await page.getByRole('button', { name: '알림 2건 안 읽음' }).waitFor();
     await open(page);
     await item(page, '^읽음: 새 1:1 문의').waitFor();
+  }));
+
+test('모두 읽음 뒤 초점과 새로고침 상태를 유지한다', async () =>
+  scenario('read-all-persistence', async (page) => {
+    await login(page);
+    await open(page);
     await page.getByRole('button', { name: '모두 읽음', exact: true }).click();
     await page.getByRole('button', { name: '알림', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: '모두 읽음', exact: true }).count(), 0);
@@ -186,8 +198,8 @@ for (const action of ['one', 'all']) {
     }));
 }
 
-test('조회 실패·재시도·빈 상태·계정별 읽음 분리', async () =>
-  scenario('query-account', async (page) => {
+test('알림 조회 실패 후 다시 시도한다', async () =>
+  scenario('query-retry', async (page) => {
     await page.goto(`${BASE}/login`);
     await page.getByRole('radio', { name: '운영자', exact: true }).check();
     await intercept(page, 'get', '/notifications', { delay: 1500, fail: true });
@@ -201,6 +213,12 @@ test('조회 실패·재시도·빈 상태·계정별 읽음 분리', async () =
     });
     await page.getByRole('button', { name: '다시 시도', exact: true }).click();
     await page.getByRole('button', { name: '알림 3건 안 읽음', exact: true }).waitFor();
+  }));
+
+test('계정별 읽음 상태를 분리하고 빈 알림 상태를 표시한다', async () =>
+  scenario('account-empty', async (page) => {
+    await login(page);
+    await open(page);
     await page.getByRole('button', { name: '모두 읽음', exact: true }).click();
     await page.getByRole('button', { name: '알림', exact: true }).waitFor();
     await page.keyboard.press('Escape');
@@ -346,8 +364,8 @@ test('새 문의 수신→맡기→추가 문의→해제 후 추가 문의는 �
     assert.equal(await list(page).getByRole('button').count(), 1);
   }));
 
-test('담당자 변경 기록 연결·새 제안은 조회자도 수신', async () =>
-  scenario('events', async (page) => {
+test('담당자 변경 알림을 변경된 문의에 연결한다', async () =>
+  scenario('assignee-event', async (page) => {
     await login(page, '운영자');
     await post(page, '/inquiries/1045/assignee', { expectedAssigneeEmail: 'ops2@knockdog.test' });
     await switchAccount(page, '김운영', '운영자2');
@@ -360,8 +378,13 @@ test('담당자 변경 기록 연결·새 제안은 조회자도 수신', async 
     assert.equal(await list(page).getByRole('button').count(), 5);
     await list(page).getByRole('button').first().click();
     await page.waitForURL('**/inquiries/1045');
+  }));
+
+test('새 제안 알림을 조회자도 수신한다', async () =>
+  scenario('idea-event', async (page) => {
+    await login(page, '운영자');
     await post(page, '/dev/ideas', { content: '새 제안 흐름' });
-    await switchAccount(page, '이담당', '조회자');
+    await switchAccount(page, '김운영', '조회자');
     await page.getByRole('button', { name: '알림 4건 안 읽음' }).waitFor();
     await open(page);
     await item(page, '새 아이디어 제안이 등록되었습니다. 제안 #351').click();
@@ -386,14 +409,16 @@ test('캐시 재조회 지연 중 기존 목록·스크롤·상단바 유지', a
     assert.deepEqual(await list(page).boundingBox(), baseline);
   }));
 
-test('알림 API의 비로그인·다른 수신자 읽음 거부', async () =>
-  scenario('authorization', async (page) => {
+test('비로그인 알림 API 요청을 거부한다', async () =>
+  scenario('authorization-guest', async (page) => {
     await page.goto(`${BASE}/login`);
     await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).waitFor();
     assert.equal(await page.evaluate(async () => (await fetch('/api/v0/platform-admin/notifications')).status), 401);
-    await page.getByRole('radio', { name: '운영자', exact: true }).check();
-    await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
-    await page.getByRole('button', { name: '알림 3건 안 읽음' }).waitFor();
+  }));
+
+test('다른 수신자의 알림 읽음 요청을 거부한다', async () =>
+  scenario('authorization-recipient', async (page) => {
+    await login(page);
     await page.evaluate(() =>
       localStorage.setItem(
         'daeng-bo-mock-notifications',

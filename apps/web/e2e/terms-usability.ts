@@ -88,6 +88,18 @@ async function openDraft(page: Page) {
 async function validDate(page: Page) {
   await page.getByLabel('시행일 *', { exact: true }).fill('2026. 11. 10.');
 }
+async function openSavedPrivacyDraft(page: Page) {
+  await page.getByRole('tab', { name: '개인정보 처리방침', exact: true }).click();
+  await text(page, '철회');
+  await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
+  await page.getByLabel('시행일 *', { exact: true }).fill('2026. 10. 01.');
+  await page.getByRole('button', { name: '초안 저장', exact: true }).click();
+  await page.getByRole('heading', { name: '개인정보 처리방침 버전 #3 초안 수정', exact: true }).waitFor();
+  await page.goBack();
+  await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
+  await page.getByRole('button', { name: '#3', exact: true }).click();
+  await page.getByLabel('시행일 *', { exact: true }).waitFor();
+}
 async function confirm(page: Page, label: string) {
   await page.getByRole('alertdialog').getByRole('button', { name: label, exact: true }).click();
 }
@@ -108,7 +120,7 @@ async function api(page: Page, method: string, url: string, body?: unknown) {
   );
 }
 
-test('목록·종류·상태·최초 로딩', async () =>
+test('최초 로딩 뒤 서비스 약관 목록과 상태를 표시한다', async () =>
   scenario(
     'list',
     async (page) => {
@@ -120,17 +132,21 @@ test('목록·종류·상태·최초 로딩', async () =>
         '#2현행2026. 09. 01.2026. 08. 20.',
         '#1과거2026. 03. 01.2026. 02. 20.',
       ]);
-      await page.getByRole('tab', { name: '개인정보 처리방침', exact: true }).click();
-      await text(page, '철회');
-      await page.getByRole('tab', { name: '위치기반서비스 이용약관', exact: true }).click();
-      await text(page, '등록된 항목이 없습니다.');
-      assert.equal(await page.getByRole('button', { name: '새 버전 작성', exact: true }).count(), 0);
     },
     { initialDelay: 1500 }
   ));
 
-test('종류 전환 지연·역순 응답·실패 복구·복귀', async () =>
-  scenario('kinds', async (page) => {
+test('약관 종류별 상태와 빈 목록을 표시한다', async () =>
+  scenario('kind-lists', async (page) => {
+    await page.getByRole('tab', { name: '개인정보 처리방침', exact: true }).click();
+    await text(page, '철회');
+    await page.getByRole('tab', { name: '위치기반서비스 이용약관', exact: true }).click();
+    await text(page, '등록된 항목이 없습니다.');
+    assert.equal(await page.getByRole('button', { name: '새 버전 작성', exact: true }).count(), 0);
+  }));
+
+test('약관 종류 전환의 역순 응답에서 마지막 선택을 유지한다', async () =>
+  scenario('kind-race', async (page) => {
     const tab = page.getByRole('tab', { name: '개인정보 처리방침', exact: true });
     const before = await tab.boundingBox();
     assert.ok(before, '검사 대상 요소가 표시되어야 한다');
@@ -145,6 +161,11 @@ test('종류 전환 지연·역순 응답·실패 복구·복귀', async () =>
     const after = await tab.boundingBox();
     assert.ok(after, '검사 대상 요소가 표시되어야 한다');
     assert.deepEqual(after, before);
+  }));
+
+test('약관 종류 조회 실패 후 초점을 유지해 다시 시도한다', async () =>
+  scenario('kind-retry', async (page) => {
+    const tab = page.getByRole('tab', { name: '개인정보 처리방침', exact: true });
     await qa(page, { failGet: true, delays: {} });
     await tab.click();
     await text(page, '데이터를 불러오지 못했습니다.');
@@ -152,6 +173,12 @@ test('종류 전환 지연·역순 응답·실패 복구·복귀', async () =>
     await page.getByRole('button', { name: '다시 시도', exact: true }).click();
     await text(page, '철회');
     assert.equal(await tab.evaluate((el) => el === document.activeElement), true);
+  }));
+
+test('약관 상세에서 목록으로 돌아오면 종류와 초점을 유지한다', async () =>
+  scenario('kind-return', async (page) => {
+    await page.getByRole('tab', { name: '개인정보 처리방침', exact: true }).click();
+    await text(page, '철회');
     await page.getByRole('button', { name: '#1', exact: true }).click();
     await page.getByRole('heading', { name: '개인정보 처리방침 버전 #1', exact: true }).waitFor();
     await page.getByRole('link', { name: '이용약관', exact: true }).last().click();
@@ -163,8 +190,8 @@ test('종류 전환 지연·역순 응답·실패 복구·복귀', async () =>
     );
   }));
 
-test('새 버전·저장·주소 교체·공개·날짜 채움', async () =>
-  scenario('publish-flow', async (page) => {
+test('새 버전을 초안 저장하고 생성된 주소로 교체한다', async () =>
+  scenario('draft-create', async (page) => {
     await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
     assert.match(await page.getByLabel('본문 *', { exact: true }).inputValue(), /공고일자: \{\{공고일\}\}/);
     await page
@@ -174,6 +201,11 @@ test('새 버전·저장·주소 교체·공개·날짜 채움', async () =>
     await page.getByRole('heading', { name: '서비스 이용약관 버전 #5 초안 수정', exact: true }).waitFor();
     assert.match(page.url(), /service\/5$/);
     assert.equal(await page.getByRole('button', { name: '초안 저장', exact: true }).isDisabled(), true);
+  }));
+
+test('새 버전 공개에서 날짜를 검증하고 치환된 본문을 표시한다', async () =>
+  scenario('publish-flow', async (page) => {
+    await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
     await page.getByLabel('시행일 *', { exact: true }).fill('2026. 10. 15.');
     await page.getByRole('button', { name: '공개하기', exact: true }).click();
     await text(page, '시행일은 같은 약관의 가장 최근 시행일보다 이후여야 합니다.');
@@ -193,16 +225,30 @@ test('새 버전·저장·주소 교체·공개·날짜 채움', async () =>
     assert.doesNotMatch(await page.locator('main').innerText(), /\{\{/);
   }));
 
-test('새 버전 직접 공개·빈 종류·빈 본문', async () =>
-  scenario('direct-publish', async (page) => {
+test('빈 약관 종류에서 새 버전 작성을 시작한다', async () =>
+  scenario('empty-kind-create', async (page) => {
     await page.getByRole('tab', { name: '위치기반서비스 이용약관', exact: true }).click();
     await text(page, '등록된 항목이 없습니다.');
+    await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
+    await page.getByLabel('본문 *', { exact: true }).waitFor();
+  }));
+
+test('빈 본문은 직접 공개하지 못한다', async () =>
+  scenario('empty-body-validation', async (page) => {
+    await page.getByRole('tab', { name: '위치기반서비스 이용약관', exact: true }).click();
     await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
     await page.getByLabel('본문 *', { exact: true }).fill('');
     await page.getByLabel('시행일 *', { exact: true }).fill('2026. 10. 14.');
     await page.getByRole('button', { name: '공개하기', exact: true }).click();
     await text(page, '본문을 입력해 주세요.');
+  }));
+
+test('새 버전을 초안 저장 없이 직접 공개한다', async () =>
+  scenario('direct-publish', async (page) => {
+    await page.getByRole('tab', { name: '위치기반서비스 이용약관', exact: true }).click();
+    await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
     await page.getByLabel('본문 *', { exact: true }).fill('공고일자: {{공고일}}\n시행일자: {{시행일}}');
+    await page.getByLabel('시행일 *', { exact: true }).fill('2026. 10. 14.');
     await page.getByRole('button', { name: '공개하기', exact: true }).click();
     await confirm(page, '공개하기');
     await page.getByRole('button', { name: '#1', exact: true }).waitFor();
@@ -210,8 +256,8 @@ test('새 버전 직접 공개·빈 종류·빈 본문', async () =>
     assert.match(page.url(), /kind=location/);
   }));
 
-test('확인 취소·Esc·포커스·초안 삭제·이탈', async () =>
-  scenario('dialogs', async (page) => {
+test('공개와 삭제 확인창을 Esc와 취소로 닫으면 초점을 복원한다', async () =>
+  scenario('dialog-cancel-focus', async (page) => {
     await openDraft(page);
     await validDate(page);
     for (const label of ['공개하기', '초안 삭제'] as const) {
@@ -227,18 +273,29 @@ test('확인 취소·Esc·포커스·초안 삭제·이탈', async () =>
       await confirm(page, '취소');
       await page.waitForFunction((label) => document.activeElement?.textContent === label, await trigger.textContent());
     }
+  }));
+
+test('수정 중 목록 이동을 취소하면 입력을 보존한다', async () =>
+  scenario('leave-cancel', async (page) => {
+    await openDraft(page);
+    await validDate(page);
     await page.getByRole('link', { name: '이용약관', exact: true }).last().click();
     await page.getByRole('alertdialog').waitFor();
     await confirm(page, '취소');
     assert.equal(await page.getByLabel('시행일 *', { exact: true }).inputValue(), '2026. 11. 10.');
+  }));
+
+test('초안 삭제 확인 뒤 목록에서 삭제된 버전을 제거한다', async () =>
+  scenario('draft-delete', async (page) => {
+    await openDraft(page);
     await page.getByRole('button', { name: '초안 삭제', exact: true }).click();
     await confirm(page, '초안 삭제');
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
     await page.getByRole('button', { name: '#4', exact: true }).waitFor({ state: 'hidden' });
   }));
 
-test('저장 지연·중복 방지·500 복구·경합·삭제됨', async () =>
-  scenario('save-errors', async (page) => {
+test('초안 저장 지연 중 중복 실행을 막고 500 오류에서 입력을 보존한다', async () =>
+  scenario('save-pending-500', async (page) => {
     await openDraft(page);
     await validDate(page);
     await qa(page, { mutationDelay: 1500, mutationStatus: 500 });
@@ -249,29 +306,34 @@ test('저장 지연·중복 방지·500 복구·경합·삭제됨', async () =>
     assert.equal(await page.getByRole('button', { name: '공개하기', exact: true }).isDisabled(), true);
     await text(page, '일시적 오류로 요청을 완료하지 못했습니다.');
     assert.equal(await page.getByLabel('시행일 *', { exact: true }).inputValue(), '2026. 11. 10.');
-    await qa(page, { mutationDelay: 0, mutationStatus: 409 });
+  }));
+
+test('초안 저장 경합에서 입력을 보존한다', async () =>
+  scenario('save-conflict', async (page) => {
+    await openDraft(page);
+    await validDate(page);
+    await qa(page, { mutationStatus: 409 });
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
     await text(page, '저장하지 못했습니다.');
+    assert.equal(await page.getByLabel('시행일 *', { exact: true }).inputValue(), '2026. 11. 10.');
+  }));
+
+test('삭제된 초안 저장 실패 뒤 목록 이동을 취소할 수 있다', async () =>
+  scenario('save-missing', async (page) => {
+    await openDraft(page);
+    await validDate(page);
     await qa(page, { mutationStatus: 404 });
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
     await page.getByRole('button', { name: '목록으로', exact: true }).click();
     await page.getByRole('alertdialog').waitFor();
     await confirm(page, '취소');
-    await qa(page, { mutationStatus: 0 });
-    await page.getByRole('button', { name: '초안 저장', exact: true }).click();
-    await text(page, '초안을 저장했습니다.');
-    assert.equal(await page.getByRole('button', { name: '초안 저장', exact: true }).isDisabled(), true);
-    const requestCount = await page.evaluate(
-      () => window.__termsQA.requests.filter((item) => item.method === 'PATCH').length
-    );
-    assert.equal(requestCount, 4);
   }));
 
-test('공개 실패와 복구', async () =>
-  scenario('publish-errors', async (page) => {
-    await openDraft(page);
-    await validDate(page);
-    for (const status of [500, 409, 404, 400] as const) {
+for (const status of [500, 409, 404, 400] as const) {
+  test(`공개 실패 ${status}에서 입력을 보존한다`, async () =>
+    scenario(`publish-error-${status}`, async (page) => {
+      await openDraft(page);
+      await validDate(page);
       await qa(page, { mutationStatus: status, mutationDelay: 100 });
       await page.getByRole('button', { name: '공개하기', exact: true }).click();
       await confirm(page, '공개하기');
@@ -279,15 +341,21 @@ test('공개 실패와 복구', async () =>
       if (status === 500) await text(page, '일시적 오류로 요청을 완료하지 못했습니다.');
       else await text(page, '약관을 공개하지 못했습니다.');
       assert.equal(await page.getByLabel('시행일 *', { exact: true }).inputValue(), '2026. 11. 10.');
-    }
+    }));
+}
+
+test('공개 실패를 수정한 뒤 다시 공개한다', async () =>
+  scenario('publish-recovery', async (page) => {
+    await openDraft(page);
+    await validDate(page);
     await qa(page, { mutationStatus: 0 });
     await page.getByRole('button', { name: '공개하기', exact: true }).click();
     await confirm(page, '공개하기');
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
   }));
 
-test('예정 철회·실패 복구·복제 기준', async () =>
-  scenario('withdraw', async (page) => {
+test('예정 버전 철회 취소와 실패 뒤 다시 철회한다', async () =>
+  scenario('withdraw-recovery', async (page) => {
     await page.getByRole('button', { name: '#3', exact: true }).click();
     const trigger = page.getByRole('button', { name: '공개 철회', exact: true });
     await trigger.click();
@@ -306,13 +374,21 @@ test('예정 철회·실패 복구·복제 기준', async () =>
     await confirm(page, '공개 철회');
     await text(page, '앱에 보이지 않는 버전입니다.');
     assert.equal(await trigger.count(), 0);
+  }));
+
+test('새 버전 작성은 최근 공개 버전을 복제한다', async () =>
+  scenario('clone-source', async (page) => {
+    await page.getByRole('button', { name: '#3', exact: true }).click();
+    await page.getByRole('button', { name: '공개 철회', exact: true }).click();
+    await confirm(page, '공개 철회');
+    await text(page, '앱에 보이지 않는 버전입니다.');
     await page.getByRole('link', { name: '이용약관', exact: true }).last().click();
     await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
     assert.match(await page.getByLabel('본문 *', { exact: true }).inputValue(), /서비스 이용약관 2판/);
   }));
 
-test('저장됨·미변경·주소 교체·beforeunload', async () =>
-  scenario('leave-history', async (page) => {
+test('입력을 원래 값으로 되돌리면 확인 없이 목록으로 이동한다', async () =>
+  scenario('unchanged-leave', async (page) => {
     await page.getByRole('tab', { name: '개인정보 처리방침', exact: true }).click();
     await text(page, '철회');
     await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
@@ -322,13 +398,23 @@ test('저장됨·미변경·주소 교체·beforeunload', async () =>
     await body.fill(initial);
     await page.getByRole('link', { name: '이용약관', exact: true }).last().click();
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
+  }));
+
+test('초안 저장 뒤 교체된 주소에서 뒤로 이동한다', async () =>
+  scenario('saved-history', async (page) => {
+    await page.getByRole('tab', { name: '개인정보 처리방침', exact: true }).click();
+    await text(page, '철회');
     await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
     await page.getByLabel('시행일 *', { exact: true }).fill('2026. 10. 01.');
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
     await page.getByRole('heading', { name: '개인정보 처리방침 버전 #3 초안 수정', exact: true }).waitFor();
     await page.goBack();
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
-    await page.getByRole('button', { name: '#3', exact: true }).click();
+  }));
+
+test('수정 중 새로고침에 beforeunload 경고를 표시한다', async () =>
+  scenario('beforeunload', async (page) => {
+    await openSavedPrivacyDraft(page);
     await validDate(page);
     const dialog = page.waitForEvent('dialog');
     const reload = page.reload();
@@ -336,6 +422,12 @@ test('저장됨·미변경·주소 교체·beforeunload', async () =>
     assert.equal(warning.type(), 'beforeunload');
     await warning.dismiss();
     await reload.catch(() => {});
+  }));
+
+test('수정 중 목록 이동 확인 뒤 나간다', async () =>
+  scenario('leave-confirm', async (page) => {
+    await openSavedPrivacyDraft(page);
+    await validDate(page);
     await page.getByLabel('시행일 *', { exact: true }).fill('2026. 12. 10.');
     await page.getByRole('link', { name: '이용약관', exact: true }).last().click();
     await confirm(page, '나가기');
@@ -343,14 +435,21 @@ test('저장됨·미변경·주소 교체·beforeunload', async () =>
   }));
 
 for (const role of ['운영자', '조회자'] as const) {
-  test(`${role} 읽기 권한과 API 거부`, async () =>
+  test(`${role}는 약관을 읽기 전용으로 조회한다`, async () =>
     scenario(
-      `role-${role}`,
+      `role-read-${role}`,
       async (page) => {
         assert.equal(await page.getByRole('link', { name: '새 버전 작성', exact: true }).count(), 0);
         await page.getByRole('button', { name: '#4', exact: true }).click();
         await page.getByRole('heading', { name: '서비스 이용약관 버전 #4', exact: true }).waitFor();
         assert.equal(await page.getByRole('button', { name: '초안 삭제', exact: true }).count(), 0);
+      },
+      { role }
+    ));
+  test(`${role}의 약관 변경 API와 작성 주소 접근을 거부한다`, async () =>
+    scenario(
+      `role-write-denied-${role}`,
+      async (page) => {
         for (const [method, url, body] of [
           ['POST', '/terms/service', { action: 'save', body: 'a', effectiveDate: '' }],
           ['PATCH', '/terms/service/4', { action: 'publish', revision: 1, body: 'a', effectiveDate: '2026-11-10' }],
@@ -367,30 +466,39 @@ for (const role of ['운영자', '조회자'] as const) {
     ));
 }
 
-test('API 상태 전환·경합·삭제·번호 유지', async () =>
-  scenario('api-rules', async (page) => {
-    assert.equal((await api(page, 'PATCH', '/terms/service/2', { action: 'withdraw', revision: 1 })).status, 409);
-    assert.equal(
-      (
-        await api(page, 'PATCH', '/terms/privacy/2', {
-          action: 'publish',
-          revision: 1,
-          body: 'x',
-          effectiveDate: '2026-12-10',
-        })
-      ).status,
-      409
-    );
-    assert.equal(
-      (await api(page, 'PATCH', '/terms/service/4', { action: 'save', revision: 0, body: 'x', effectiveDate: '' }))
-        .status,
-      409
-    );
-    assert.equal((await api(page, 'DELETE', '/terms/service/2', { revision: 1 })).status, 409);
-    assert.equal(
-      (await api(page, 'POST', '/terms/privacy', { action: 'publish', body: 'x', effectiveDate: '2026-10-13' })).status,
-      400
-    );
+for (const [name, method, url, body, status] of [
+  ['현행 버전 철회', 'PATCH', '/terms/service/2', { action: 'withdraw', revision: 1 }, 409],
+  [
+    '예정 버전이 있는 종류의 공개',
+    'PATCH',
+    '/terms/privacy/2',
+    { action: 'publish', revision: 1, body: 'x', effectiveDate: '2026-12-10' },
+    409,
+  ],
+  [
+    '낡은 revision 저장',
+    'PATCH',
+    '/terms/service/4',
+    { action: 'save', revision: 0, body: 'x', effectiveDate: '' },
+    409,
+  ],
+  ['공개 버전 삭제', 'DELETE', '/terms/service/2', { revision: 1 }, 409],
+  [
+    '과거 시행일 직접 공개',
+    'POST',
+    '/terms/privacy',
+    { action: 'publish', body: 'x', effectiveDate: '2026-10-13' },
+    400,
+  ],
+] as const) {
+  test(`약관 API는 ${name} 요청을 거부한다`, async () =>
+    scenario(`api-rule-${status}-${url.replaceAll('/', '-')}-${name}`, async (page) => {
+      assert.equal((await api(page, method, url, body)).status, status);
+    }));
+}
+
+test('삭제한 초안 번호를 다음 버전에서 재사용하지 않는다', async () =>
+  scenario('api-version-sequence', async (page) => {
     const saved = await api(page, 'POST', '/terms/location', { action: 'save', body: '', effectiveDate: 'abc' });
     assert.equal(saved.status, 201);
     assert.equal((await api(page, 'DELETE', '/terms/location/1', { revision: 1 })).status, 200);
@@ -400,8 +508,8 @@ test('API 상태 전환·경합·삭제·번호 유지', async () =>
     );
   }));
 
-test('KST 경계 현행 판정·철회 경합·404', async () =>
-  scenario('boundary', async (page) => {
+test('KST 날짜 경계의 철회 경합에서 최신 현행 상태를 표시한다', async () =>
+  scenario('boundary-conflict', async (page) => {
     await page.getByRole('button', { name: '#3', exact: true }).click();
     await page.getByRole('button', { name: '공개 철회', exact: true }).click();
     await page.clock.setFixedTime(new Date('2026-10-20T00:00:00+09:00'));
@@ -416,6 +524,10 @@ test('KST 경계 현행 판정·철회 경합·404', async () =>
     await text(page, '약관 상태가 변경되어 요청을 완료하지 못했습니다. 최신 상태를 확인해 주세요.');
     await text(page, '현행');
     assert.equal(await page.getByRole('button', { name: '공개 철회', exact: true }).count(), 0);
+  }));
+
+test('없는 약관에서 목록으로 돌아간다', async () =>
+  scenario('missing-return', async (page) => {
     await page.goto(BASE + '/terms/service/99');
     await text(page, '페이지를 찾을 수 없습니다.');
     await page.getByRole('link', { name: '목록으로', exact: true }).click();
@@ -423,7 +535,7 @@ test('KST 경계 현행 판정·철회 경합·404', async () =>
   }));
 
 for (const width of [1440, 1200, 1199, 390] as const) {
-  test(`${width}px 입력 연속성·키보드·미리보기`, async () =>
+  test(`${width}px 미리보기 전환에서 입력 위치를 유지한다`, async () =>
     scenario(
       `width-${width}`,
       async (page) => {
@@ -458,6 +570,14 @@ for (const width of [1440, 1200, 1199, 390] as const) {
           await page.getByRole('complementary', { name: '약관 앱 미리보기' }).waitFor();
           assert.equal(await page.getByRole('tab', { name: '작성', exact: true }).isVisible(), false);
         }
+      },
+      { width }
+    ));
+  test(`${width}px 날짜 오류 초점과 화면 너비를 유지한다`, async () =>
+    scenario(
+      `width-validation-${width}`,
+      async (page) => {
+        await openDraft(page);
         await page.getByLabel('시행일 *', { exact: true }).fill('abc');
         await page.getByRole('button', { name: '공개하기', exact: true }).click();
         await text(page, '날짜 형식을 확인해 주세요. 예: 2026. 10. 20.');
@@ -473,13 +593,13 @@ for (const width of [1440, 1200, 1199, 390] as const) {
     ));
 }
 
-test('초안 삭제 지연·실패·경합 뒤 입력과 이탈 경고 보존', async () =>
-  scenario('delete-errors', async (page) => {
-    await openDraft(page);
-    await validDate(page);
-    const body = page.getByLabel('본문 *', { exact: true });
-    await body.fill('복사할 미저장 내용');
-    for (const status of [500, 409, 404] as const) {
+for (const status of [500, 409, 404] as const) {
+  test(`초안 삭제 실패 ${status}에서 입력을 보존한다`, async () =>
+    scenario(`delete-error-${status}`, async (page) => {
+      await openDraft(page);
+      await validDate(page);
+      const body = page.getByLabel('본문 *', { exact: true });
+      await body.fill('복사할 미저장 내용');
       await qa(page, { mutationDelay: 1500, mutationStatus: status });
       await page.getByRole('button', { name: '초안 삭제', exact: true }).click();
       await confirm(page, '초안 삭제');
@@ -489,7 +609,19 @@ test('초안 삭제 지연·실패·경합 뒤 입력과 이탈 경고 보존', 
       if (status === 500) await text(page, '일시적 오류로 요청을 완료하지 못했습니다.');
       else await text(page, '삭제하지 못했습니다.');
       assert.equal(await body.inputValue(), '복사할 미저장 내용');
-    }
+    }));
+}
+
+test('초안 삭제 실패 뒤 이탈을 취소하고 다시 삭제한다', async () =>
+  scenario('delete-recovery', async (page) => {
+    await openDraft(page);
+    await validDate(page);
+    await page.getByLabel('본문 *', { exact: true }).fill('복사할 미저장 내용');
+    await qa(page, { mutationStatus: 404 });
+    await page.getByRole('button', { name: '초안 삭제', exact: true }).click();
+    await confirm(page, '초안 삭제');
+    await page.getByRole('alertdialog').waitFor({ state: 'hidden' });
+    await text(page, '삭제하지 못했습니다.');
     await page.getByRole('button', { name: '목록으로', exact: true }).click();
     await page.getByRole('alertdialog').waitFor();
     await confirm(page, '취소');
@@ -500,8 +632,8 @@ test('초안 삭제 지연·실패·경합 뒤 입력과 이탈 경고 보존', 
     await page.getByRole('button', { name: '#4', exact: true }).waitFor({ state: 'hidden' });
   }));
 
-test('네트워크 전송 실패 복구와 CDP 한글 조합 입력', async () =>
-  scenario('network-ime', async (page) => {
+test('CDP 한글 조합 입력을 본문에 반영한다', async () =>
+  scenario('ime-input', async (page) => {
     await openDraft(page);
     await validDate(page);
     const body = page.getByLabel('본문 *', { exact: true });
@@ -512,6 +644,14 @@ test('네트워크 전송 실패 복구와 CDP 한글 조합 입력', async () =
     await cdp.send('Input.insertText', { text: '한' });
     await cdp.detach();
     assert.equal(await body.inputValue(), '한');
+  }));
+
+test('네트워크 전송 실패 뒤 입력을 보존해 다시 저장한다', async () =>
+  scenario('network-recovery', async (page) => {
+    await openDraft(page);
+    await validDate(page);
+    const body = page.getByLabel('본문 *', { exact: true });
+    await body.fill('한');
     await qa(page, { mutationStatus: -1 });
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
     await text(page, '일시적 오류로 요청을 완료하지 못했습니다.');
@@ -521,8 +661,8 @@ test('네트워크 전송 실패 복구와 CDP 한글 조합 입력', async () =
     await text(page, '초안을 저장했습니다.');
   }));
 
-test('화면 밖 이동·알림·메뉴·프로필·로그아웃 이탈 확인', async () =>
-  scenario('leave-destinations', async (page) => {
+test('다른 화면 이동과 뒤로 가기의 이탈을 취소한다', async () =>
+  scenario('leave-navigation', async (page) => {
     await openDraft(page);
     await validDate(page);
     await page.getByRole('link', { name: '앱 공지', exact: true }).click();
@@ -533,8 +673,14 @@ test('화면 밖 이동·알림·메뉴·프로필·로그아웃 이탈 확인',
     await page.goBack();
     await page.getByRole('alertdialog').waitFor();
     await confirm(page, '취소');
-    await page.getByRole('button', { name: '알림', exact: true }).click();
-    await text(page, '준비 중입니다.');
+  }));
+
+test('알림과 메뉴와 프로필 조작에는 이탈 확인을 표시하지 않는다', async () =>
+  scenario('leave-shell-controls', async (page) => {
+    await openDraft(page);
+    await validDate(page);
+    await page.getByRole('button', { name: /^알림/ }).click();
+    await page.getByRole('dialog', { name: '알림 센터' }).waitFor();
     assert.equal(await page.getByRole('alertdialog').count(), 0);
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: '메뉴 닫기', exact: true }).click();
@@ -543,6 +689,13 @@ test('화면 밖 이동·알림·메뉴·프로필·로그아웃 이탈 확인',
     await page.getByRole('button', { name: /김관리/ }).click();
     await page.getByRole('button', { name: '로그아웃', exact: true }).waitFor();
     assert.equal(await page.getByRole('alertdialog').count(), 0);
+  }));
+
+test('수정 중 로그아웃을 취소하거나 확인할 수 있다', async () =>
+  scenario('leave-logout', async (page) => {
+    await openDraft(page);
+    await validDate(page);
+    await page.getByRole('button', { name: /김관리/ }).click();
     await page.getByRole('button', { name: '로그아웃', exact: true }).click();
     await page.getByRole('alertdialog').waitFor();
     await confirm(page, '취소');

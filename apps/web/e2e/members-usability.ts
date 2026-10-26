@@ -162,32 +162,44 @@ async function assertStable(page: Page) {
   );
 }
 
-test('S001/002/009/010 회원 칸·개인정보 가림·조회 전용', async () => {
-  await scenario('render', async (page) => {
+test('S001 회원 목록의 기본 칸과 값을 표시한다', async () => {
+  await scenario('render-columns', async (page) => {
     assert.deepEqual(await names(page), ['김견주', '이원장', '박원장', '최해지', '정탈퇴', '이름 미등록']);
     const text = await page.locator('tbody').innerText();
-    for (const value of [
-      'do*******@example.com · U001',
-      '010-****-5432 · U003',
-      '연락처 미등록 · U006',
-      '원장 · 견주',
-      '2026. 10. 06.',
-      '1마리 · 햇살유치원',
-    ] as const) {
+    for (const value of ['원장 · 견주', '2026. 10. 06.', '1마리 · 햇살유치원'] as const) {
+      assert.ok(text.includes(value), value);
+    }
+    assert.equal(await page.locator('thead th').count(), 6);
+  });
+});
+
+test('S002 회원 개인정보를 가려 표시한다', async () => {
+  await scenario('render-masking', async (page) => {
+    const text = await page.locator('tbody').innerText();
+    for (const value of ['do*******@example.com · U001', '010-****-5432 · U003', '연락처 미등록 · U006'] as const) {
       assert.ok(text.includes(value), value);
     }
     for (const raw of ['dog.owner@example.com', 'director@example.com', '01098765432'] as const) {
       assert.ok(!text.includes(raw));
     }
+  });
+});
+
+test('S009 회원 목록은 조회 전용으로 동작한다', async () => {
+  await scenario('render-readonly', async (page) => {
     await page.getByText('운영 DB · 읽기 전용', { exact: true }).waitFor();
     assert.equal(await page.getByRole('combobox', { name: '가입일' }).isDisabled(), false);
     assert.equal(await page.getByRole('button', { name: /추가 메뉴/ }).count(), 0);
-    assert.equal(await page.locator('thead th').count(), 6);
     assert.equal(await page.getByRole('button', { name: /내보내기/ }).count(), 0);
     const url = page.url();
     await page.locator('tbody tr').nth(1).locator('td').nth(4).click();
     assert.equal(page.url(), url);
     assert.equal(await page.title(), '회원 관리 · 똑독 BO');
+  });
+});
+
+test('S010 회원 API 응답에서 개인정보를 가린다', async () => {
+  await scenario('render-api-masking', async (page) => {
     // 가림은 DOM 치환이 아니라 응답 계약에서 수행되어야 한다.
     const payload = await page.evaluate(async () => {
       const response = await fetch('/api/v0/platform-admin/members');
@@ -202,8 +214,8 @@ test('S001/002/009/010 회원 칸·개인정보 가림·조회 전용', async ()
   });
 });
 
-test('S004/005 탭·검색 결과와 건수', async () => {
-  await scenario('filters-search', async (page) => {
+test('S004 회원 유형 탭의 결과와 건수를 표시한다', async () => {
+  await scenario('filters', async (page) => {
     for (const [label, expected] of [
       ['견주', ['김견주', '이원장', '정탈퇴']],
       ['원장', ['이원장', '박원장']],
@@ -216,6 +228,11 @@ test('S004/005 탭·검색 결과와 건수', async () => {
     }
     await tab(page, '전체').click();
     await total(page, 6);
+  });
+});
+
+test('S005 회원 검색 결과와 건수를 표시한다', async () => {
+  await scenario('search', async (page) => {
     for (const [term, expected] of [
       ['DIRECTOR', '이원장'],
       ['5432', '박원장'],
@@ -255,8 +272,8 @@ for (const label of ['견주', '원장', '탈퇴'] as const) {
   });
 }
 
-test('S020 마지막 검색·탭·커서 및 역순 응답', async () => {
-  await scenario('rapid-search', async (page) => {
+test('S020 빠른 탭 전환에서 마지막 선택을 유지한다', async () => {
+  await scenario('rapid-tab', async (page) => {
     await configure(page, { delays: { owner: 2000, guardian: 1000 } });
     await tab(page, '원장').click();
     await page.waitForTimeout(100);
@@ -264,7 +281,12 @@ test('S020 마지막 검색·탭·커서 및 역순 응답', async () => {
     await total(page, 3);
     await page.waitForTimeout(1100);
     assert.deepEqual(await names(page), ['김견주', '이원장', '정탈퇴']);
-    await configure(page, { delay: 1200, delays: {} });
+  });
+});
+
+test('S020 검색 중 편집한 값과 커서를 유지한다', async () => {
+  await scenario('search-cursor', async (page) => {
+    await configure(page, { delay: 1200 });
     await search(page).fill('이x원장');
     await search(page).press('ArrowLeft');
     await search(page).press('ArrowLeft');
@@ -273,8 +295,15 @@ test('S020 마지막 검색·탭·커서 및 역순 응답', async () => {
     await total(page, 1);
     assert.equal(await search(page).evaluate((el) => document.activeElement === el), true);
     assert.deepEqual(await names(page), ['이원장']);
+  });
+});
+
+test('S020 한글 조합 입력을 검색 결과에 반영한다', async () => {
+  await scenario('search-ime', async (page) => {
     // CDP 조합 상태만 검사한다. 실제 OS IME 체감은 별도 미확인.
-    await search(page).fill('');
+    await tab(page, '견주').click();
+    await total(page, 3);
+    await search(page).focus();
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Input.imeSetComposition', { text: '원', selectionStart: 1, selectionEnd: 1 });
     await page.waitForTimeout(400);
@@ -286,8 +315,8 @@ test('S020 마지막 검색·탭·커서 및 역순 응답', async () => {
   });
 });
 
-test('S021 실패·재시도·빈 결과·초기화 초점', async () => {
-  await scenario('recovery', async (page) => {
+test('S021 조회 실패 후 조건과 초점을 유지해 재시도한다', async () => {
+  await scenario('failure-retry', async (page) => {
     await configure(page, { fail: true });
     await tab(page, '원장').click();
     await search(page).fill('이');
@@ -301,6 +330,11 @@ test('S021 실패·재시도·빈 결과·초기화 초점', async () => {
     await total(page, 1);
     assert.deepEqual(await names(page), ['이원장']);
     assert.equal(await search(page).evaluate((el) => document.activeElement === el), true);
+  });
+});
+
+test('S021 빈 결과에서 조건을 초기화하고 검색 초점을 돌려준다', async () => {
+  await scenario('empty-reset', async (page) => {
     await configure(page, { delay: 0 });
     await search(page).fill('없는말');
     await total(page, 0);
@@ -308,7 +342,6 @@ test('S021 실패·재시도·빈 결과·초기화 초점', async () => {
     const reset = page.getByRole('button', { name: '필터 초기화', exact: true });
     await reset.focus();
     await reset.press('Enter');
-    await page.getByText('조건에 맞는 회원을 조회하고 있습니다.', { exact: true }).waitFor();
     await total(page, 6);
     assert.equal(await search(page).inputValue(), '');
     assert.equal(await search(page).evaluate((el) => document.activeElement === el), true);
@@ -326,9 +359,9 @@ test('S011 등록 회원 없음', async () => {
   );
 });
 
-test('S015/018/019 페이지·중복 이동 방지·초점·조건 초기화', async () => {
+test('S015/018 페이지 이동 중 중복 실행을 막고 초점을 유지한다', async () => {
   await scenario(
-    'pagination',
+    'pagination-pending',
     async (page) => {
       assert.equal((await names(page))[0], '회원 25');
       assert.equal((await names(page)).length, 20);
@@ -347,6 +380,17 @@ test('S015/018/019 페이지·중복 이동 방지·초점·조건 초기화', a
       await page.waitForFunction(() => document.querySelector('tbody tr td p')?.textContent === '회원 05');
       assert.equal(await next.evaluate((el) => document.activeElement === el), true);
       assert.equal((await names(page)).length, 5);
+    },
+    { fixtures: FIXTURES_25 }
+  );
+});
+
+test('S019 조건 변경과 새로고침에서 1페이지 조건을 유지한다', async () => {
+  await scenario(
+    'pagination-conditions',
+    async (page) => {
+      await page.getByRole('button', { name: '2', exact: true }).click();
+      await page.waitForFunction(() => document.querySelector('tbody tr td p')?.textContent === '회원 05');
       await configure(page, { delay: 0 });
       await search(page).fill('회원');
       await total(page, 25);
@@ -446,8 +490,8 @@ test('S019 다른 메뉴에서 뒤로 복귀할 때 조건·읽던 스크롤 유
   );
 });
 
-test('가입일 7일·30일: 중간 상태·조건 결합·빈 결과·초기화', async () => {
-  await scenario('joined-period', async (page) => {
+test('가입일 7일 전환의 중간 상태와 초점을 유지한다', async () => {
+  await scenario('joined-period-transition', async (page) => {
     const period = page.getByRole('combobox', { name: '가입일' });
     await configure(page, { delay: 1200 });
     await period.focus();
@@ -463,6 +507,11 @@ test('가입일 7일·30일: 중간 상태·조건 결합·빈 결과·초기화
     await assertStable(page);
     assert.deepEqual(await names(page), ['김견주', '이원장']);
     assert.equal(await period.evaluate((el) => document.activeElement === el), true);
+  });
+});
+
+test('가입일을 다른 조건과 결합하고 새로고침해도 유지한다', async () => {
+  await scenario('joined-period-combined', async (page) => {
     await configure(page, { delay: 0 });
     await choosePeriod(page, '30d');
     await total(page, 4);
@@ -476,6 +525,12 @@ test('가입일 7일·30일: 중간 상태·조건 결합·빈 결과·초기화
     await total(page, 1);
     assert.equal(await selectedPeriod(page), '7d');
     assert.equal(await search(page).inputValue(), '이');
+  });
+});
+
+test('가입일 조건의 빈 결과를 초기화한다', async () => {
+  await scenario('joined-period-empty-reset', async (page) => {
+    await choosePeriod(page, '7d');
     await tab(page, '탈퇴').click();
     await total(page, 0);
     await page.getByRole('button', { name: '필터 초기화', exact: true }).click();
@@ -485,8 +540,8 @@ test('가입일 7일·30일: 중간 상태·조건 결합·빈 결과·초기화
   });
 });
 
-test('가입일 빠른 전환·실패 복구는 마지막 선택 유지', async () => {
-  await scenario('joined-race-recovery', async (page) => {
+test('가입일을 빠르게 전환하면 마지막 선택을 유지한다', async () => {
+  await scenario('joined-race', async (page) => {
     await configure(page, { delays: { '7d': 2000, '30d': 1000 } });
     await choosePeriod(page, '7d');
     await page.waitForTimeout(100);
@@ -495,6 +550,11 @@ test('가입일 빠른 전환·실패 복구는 마지막 선택 유지', async 
     await page.waitForTimeout(1100);
     assert.equal(await selectedPeriod(page), '30d');
     assert.equal((await names(page)).length, 4);
+  });
+});
+
+test('가입일 조회 실패 후 마지막 선택으로 복구한다', async () => {
+  await scenario('joined-recovery', async (page) => {
     await configure(page, { fail: true, delays: {} });
     await choosePeriod(page, '7d');
     await page.getByRole('button', { name: '다시 시도', exact: true }).waitFor();

@@ -62,12 +62,18 @@ async function select(page: Page, label: string, option: string) {
 }
 
 test('세션 없는 요청은 개발용 관리자 헤더로 우회하지 못한다', async () =>
-  scenario('guest', async (page) => {
+  scenario('guest-api', async (page) => {
     await page.goto(`${BASE}/history`);
     await loginButton(page).waitFor();
     for (const url of ['/terms/service', '/members', '/change-histories'] as const) {
       assert.equal((await request(page, 'GET', url)).status, 401);
     }
+  }));
+
+test('로그인 세션을 새로고침 뒤 복원한다', async () =>
+  scenario('session-reload', async (page) => {
+    await page.goto(`${BASE}/history`);
+    await loginButton(page).waitFor();
     await login(page);
     await page.getByRole('heading', { name: '변경 이력', exact: true }).waitFor();
     await page.locator('tbody tr').first().waitFor();
@@ -76,8 +82,8 @@ test('세션 없는 요청은 개발용 관리자 헤더로 우회하지 못한�
     await page.locator('tbody tr').first().waitFor();
   }));
 
-test('변경 이력 필터·지연 전환·실패 복구와 주소 보존', async () =>
-  scenario('history', async (page) => {
+test('변경 이력 필터의 지연 전환과 주소를 보존한다', async () =>
+  scenario('history-filter', async (page) => {
     await page.goto(`${BASE}/history`);
     await loginButton(page).waitFor();
     await login(page);
@@ -121,6 +127,14 @@ test('변경 이력 필터·지연 전환·실패 복구와 주소 보존', asyn
       await page.getByRole('combobox', { name: '기간', exact: true }).evaluate((e) => e === document.activeElement),
       true
     );
+  }));
+
+test('변경 이력 조회 실패 후 다시 시도한다', async () =>
+  scenario('history-retry', async (page) => {
+    await page.goto(`${BASE}/history`);
+    await loginButton(page).waitFor();
+    await login(page);
+    await page.locator('tbody tr').first().waitFor();
     await page.evaluate(async () => {
       const { network } = await import('/@id/__x00__virtual:msw');
       const { http } = await import('/node_modules/.vite/deps/msw.js');
@@ -145,8 +159,8 @@ test('변경 이력 필터·지연 전환·실패 복구와 주소 보존', asyn
     await page.getByText('총 2건', { exact: true }).waitFor();
   }));
 
-test('운영자 세션은 관리자 헤더가 있어도 이력 조회·약관 수정을 거부한다', async () =>
-  scenario('role', async (page) => {
+test('운영자 세션은 관리자 헤더가 있어도 변경 API를 거부한다', async () =>
+  scenario('role-api', async (page) => {
     await page.goto(`${BASE}/terms`);
     await loginButton(page).waitFor();
     await login(page, '운영자');
@@ -157,6 +171,13 @@ test('운영자 세션은 관리자 헤더가 있어도 이력 조회·약관 �
       403
     );
     assert.equal((await request(page, 'GET', '/members')).status, 200);
+  }));
+
+test('운영자 세션은 변경 이력 화면 접근을 거부한다', async () =>
+  scenario('role-route', async (page) => {
+    await page.goto(`${BASE}/terms`);
+    await loginButton(page).waitFor();
+    await login(page, '운영자');
     await page.goto(`${BASE}/history`);
     await page.getByText('접근 권한이 없습니다.', { exact: true }).waitFor();
   }));

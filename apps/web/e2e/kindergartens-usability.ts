@@ -46,7 +46,7 @@ async function scenario(
   page.setDefaultTimeout(15000);
   try {
     await page.goto(`${BASE_URL}/kindergartens`);
-    await page.getByRole('button', { name: '로그인', exact: true }).waitFor();
+    await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).waitFor();
     if (fixtures) {
       await page.evaluate(
         (items) => localStorage.setItem('daeng-bo-mock-kindergartens', JSON.stringify(items)),
@@ -79,7 +79,7 @@ async function scenario(
       );
     }, initialDelay);
     await page.getByRole('radio', { name: '조회자', exact: true }).click();
-    await page.getByRole('button', { name: '로그인', exact: true }).click();
+    await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).click();
     await page.getByRole('heading', { name: '유치원 관리', exact: true }).waitFor();
     if (!initialDelay) await total(page, fixtures?.length ?? 4);
     await run(page, context);
@@ -262,9 +262,9 @@ test('S-021 실패·재시도: 조건과 초점 유지', async () => {
   });
 });
 
-test('S-017/022 페이지: 키보드 순서·지연·중복 실행・초점', async () => {
+test('S-017 필터와 목록의 키보드 이동 순서를 제공한다', async () => {
   await scenario(
-    '022',
+    '017-keyboard-order',
     async (page) => {
       await tab(page, '전체').focus();
       for (const label of ['운영 중', '폐업'] as const) {
@@ -296,16 +296,27 @@ test('S-017/022 페이지: 키보드 순서·지연·중복 실행・초점', as
       await page.keyboard.press('Tab');
       await page.keyboard.press('Tab');
       assert.equal(await tab(page, '2').evaluate((element) => element === document.activeElement), true);
+    },
+    { fixtures: FIXTURES_25 }
+  );
+});
+
+test('S-022 페이지 이동 중 중복 실행을 막고 초점을 유지한다', async () => {
+  await scenario(
+    '022-pagination-pending',
+    async (page) => {
+      const pageTwo = tab(page, '2');
+      await pageTwo.focus();
       await configure(page, { delay: 1200 });
       await watchTransition(page);
       await page.keyboard.press('Enter');
       await page.getByText('조회 중…', { exact: true }).waitFor();
-      assert.equal(await tab(page, '2').isDisabled(), true);
+      assert.equal(await pageTwo.isDisabled(), true);
       await page.waitForFunction(() => window.__schoolFrames.length >= 15);
       await assertStable(page);
       await page.getByText('유치원 05', { exact: true }).waitFor();
       assert.equal(await page.locator('[data-slot=pagination-button][aria-current=page]').textContent(), '2');
-      assert.equal(await tab(page, '2').evaluate((element) => element === document.activeElement), true);
+      assert.equal(await pageTwo.evaluate((element) => element === document.activeElement), true);
       assert.deepEqual(await names(page), ['유치원 05', '유치원 04', '유치원 03', '유치원 02', '유치원 01']);
       // 갱신 중 사용자가 검색창으로 이동했다면 완료 시 초점을 빼앗지 않는다.
       await tab(page, '1').click();
@@ -362,8 +373,8 @@ for (const width of [390, 768, 1440] as const) {
   });
 }
 
-test('S-024 새로고침·뒤로 가기: 조건과 결과 일치', async () => {
-  await scenario('024', async (page) => {
+test('S-024 새로고침 후 조건과 결과가 일치한다', async () => {
+  await scenario('024-reload', async (page) => {
     await tab(page, '운영 중').click();
     await search(page).fill('서울');
     await total(page, 2);
@@ -371,6 +382,14 @@ test('S-024 새로고침·뒤로 가기: 조건과 결과 일치', async () => {
     await total(page, 2);
     assert.equal(await search(page).inputValue(), '서울');
     assert.equal(await tab(page, '운영 중').getAttribute('aria-pressed'), 'true');
+  });
+});
+
+test('S-024 다른 화면에서 뒤로 오면 조건과 결과가 일치한다', async () => {
+  await scenario('024-back', async (page) => {
+    await tab(page, '운영 중').click();
+    await search(page).fill('서울');
+    await total(page, 2);
     await page.getByRole('link', { name: '홈', exact: true }).click();
     await page.goBack();
     await total(page, 2);

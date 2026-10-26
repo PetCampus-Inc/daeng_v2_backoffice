@@ -141,9 +141,9 @@ for (const [resource, first, filtered, total] of [
   ],
   ['ideas', ['#350', '#349', '#348', '#347', '#346'], ['#349', '#347'], 5],
 ] as const) {
-  test(`${resource}: initial and delayed list continuity`, () =>
+  test(`${resource}: initial list loading`, () =>
     scenario(
-      `${resource}-continuity`,
+      `${resource}-initial-loading`,
       `/${resource}`,
       async (page) => {
         await page.locator('[data-slot=list-state][role=status]').waitFor();
@@ -166,6 +166,15 @@ for (const [resource, first, filtered, total] of [
             '내용 길이 때문에 번호·사용자·제출일시 열이 겹치면 안 된다'
           );
         }
+      },
+      { delay: 1500 }
+    ));
+  test(`${resource}: delayed list continuity`, () =>
+    scenario(
+      `${resource}-continuity`,
+      `/${resource}`,
+      async (page) => {
+        await ids(page, first);
         await observe(page);
         const before = await page.locator('table').boundingBox();
         assert.ok(before, '검사 대상 요소가 표시되어야 한다');
@@ -234,8 +243,8 @@ for (const [resource, firstTerm, lastTerm, lastIds, total] of [
   ['inquiries', '산책', '정산', ['#1042'], 10],
   ['ideas', '산책', 'Daily', ['#349'], 5],
 ] as const) {
-  test(`${resource}: IME, cursor and out of order search`, () =>
-    scenario(`${resource}-search`, `/${resource}`, async (page, context) => {
+  test(`${resource}: IME search`, () =>
+    scenario(`${resource}-search-ime`, `/${resource}`, async (page, context) => {
       await page.getByText(`총 ${total}건`, { exact: true }).waitFor();
       const search = page.getByRole('searchbox', { name: '검색', exact: true });
       await search.focus();
@@ -244,6 +253,12 @@ for (const [resource, firstTerm, lastTerm, lastIds, total] of [
       assert.equal(await search.inputValue(), '산책');
       assert.equal(await search.evaluate((el) => el === document.activeElement), true);
       await cdp.send('Input.insertText', { text: '산책' });
+      await cdp.detach();
+    }));
+  test(`${resource}: out of order search keeps last result`, () =>
+    scenario(`${resource}-search-race`, `/${resource}`, async (page) => {
+      await page.getByText(`총 ${total}건`, { exact: true }).waitFor();
+      const search = page.getByRole('searchbox', { name: '검색', exact: true });
       await configure(page, {
         rules: [
           { path: `/${resource}`, keyword: firstTerm, delay: 2000 },
@@ -270,14 +285,21 @@ for (const [resource, firstTerm, lastTerm, lastIds, total] of [
       await ids(page, lastIds);
       assert.equal(await search.inputValue(), lastTerm);
       assert.equal(await search.evaluate((el) => el === document.activeElement), true);
+      return { finalIds: lastIds, lateResponseDidNotOverwrite: true };
+    }));
+  test(`${resource}: search cursor stays at edited position`, () =>
+    scenario(`${resource}-search-cursor`, `/${resource}`, async (page) => {
+      const search = page.getByRole('searchbox', { name: '검색', exact: true });
+      await search.fill(lastTerm);
+      await ids(page, lastIds);
       await search.evaluate((el) => (el as HTMLInputElement).setSelectionRange(1, 1));
       await page.keyboard.insertText('x');
       assert.equal(await search.inputValue(), lastTerm.slice(0, 1) + 'x' + lastTerm.slice(1));
       assert.equal(await search.evaluate((el) => (el as HTMLInputElement).selectionStart), 2);
-      return { imeComposition: 'CDP', finalIds: lastIds, lateResponseDidNotOverwrite: true };
+      return { cursorPreserved: true };
     }));
-  test(`${resource}: list failure and empty recovery focus`, () =>
-    scenario(`${resource}-recovery`, `/${resource}`, async (page) => {
+  test(`${resource}: list failure retries with the same search`, () =>
+    scenario(`${resource}-failure-retry`, `/${resource}`, async (page) => {
       await page.getByText(`총 ${total}건`, { exact: true }).waitFor();
       await configure(page, { rules: [{ path: `/${resource}`, fail: true }] });
       const search = page.getByRole('searchbox', { name: '검색', exact: true });
@@ -289,6 +311,11 @@ for (const [resource, firstTerm, lastTerm, lastIds, total] of [
       await page.keyboard.press('Enter');
       await ids(page, lastIds);
       assert.equal(await search.evaluate((el) => el === document.activeElement), true);
+      return { retryPreservedTerm: true };
+    }));
+  test(`${resource}: empty list reset returns search focus`, () =>
+    scenario(`${resource}-empty-reset`, `/${resource}`, async (page) => {
+      const search = page.getByRole('searchbox', { name: '검색', exact: true });
       await search.fill('없는말');
       await page.getByText('검색 결과가 없습니다.', { exact: true }).waitFor();
       await page.locator('[data-slot=list-state]').getByRole('button', { name: '필터 초기화', exact: true }).focus();
@@ -296,7 +323,7 @@ for (const [resource, firstTerm, lastTerm, lastIds, total] of [
       await page.getByText(`총 ${total}건`, { exact: true }).waitFor();
       assert.equal(await search.inputValue(), '');
       assert.equal(await search.evaluate((el) => el === document.activeElement), true);
-      return { retryPreservedTerm: true, resetFocusedSearch: true };
+      return { resetFocusedSearch: true };
     }));
 }
 const INQUIRIES_25 = Array.from({ length: 25 }, (_, i) => ({
@@ -328,9 +355,9 @@ for (const [resource, fixtures, firstId, secondId, label, title] of [
   ['inquiries', { key: 'daeng-bo-mock-inquiries-v2', items: INQUIRIES_25 }, '#1025', '#1005', '1:1 문의', '문의 15'],
   ['ideas', { key: 'daeng-bo-mock-ideas', items: IDEAS_25 }, '#325', '#305', '아이디어 제안', '제안 15'],
 ] as const) {
-  test(`${resource}: pagination progress and return focus/scroll`, () =>
+  test(`${resource}: pagination progress and duplicate prevention`, () =>
     scenario(
-      `${resource}-navigation`,
+      `${resource}-pagination`,
       `/${resource}`,
       async (page) => {
         await page.getByText('총 25건', { exact: true }).waitFor();
@@ -344,7 +371,14 @@ for (const [resource, fixtures, firstId, secondId, label, title] of [
         await page.getByRole('cell', { name: secondId, exact: true }).waitFor();
         assert.equal(await next.evaluate((el) => el === document.activeElement), true);
         assert.equal(await page.getByRole('button', { name: '2', exact: true }).getAttribute('aria-current'), 'page');
-        await page.getByRole('button', { name: '1', exact: true }).click();
+      },
+      { fixtures }
+    ));
+  test(`${resource}: detail return restores focus and scroll`, () =>
+    scenario(
+      `${resource}-return`,
+      `/${resource}`,
+      async (page) => {
         await page.getByRole('cell', { name: firstId, exact: true }).waitFor();
         const row = page.getByRole('button', { name: title, exact: true });
         await row.focus();
@@ -390,8 +424,8 @@ test('assignee options failure and retry', () =>
     },
     { rules: [{ path: '/inquiries/assignees', fail: true }] }
   ));
-test('inquiry reply failure and release failure preserve draft', () =>
-  scenario('inquiry-failures', '/inquiries/1043', async (page) => {
+test('inquiry reply failure preserves draft', () =>
+  scenario('inquiry-reply-failure', '/inquiries/1043', async (page) => {
     const reply = page.getByRole('textbox', { name: '답변', exact: true });
     await reply.fill('보존할 답변');
     await configure(page, { rules: [{ path: '/inquiries/1043/replies', method: 'POST', delay: 1500, fail: true }] });
@@ -400,12 +434,22 @@ test('inquiry reply failure and release failure preserve draft', () =>
     await page.getByText('일시적 오류로 요청을 완료하지 못했습니다.', { exact: true }).waitFor();
     assert.equal(await reply.inputValue(), '보존할 답변');
     assert.equal(await reply.isEditable(), true);
+  }));
+test('inquiry release failure preserves draft', () =>
+  scenario('inquiry-release-failure', '/inquiries/1043', async (page) => {
+    const reply = page.getByRole('textbox', { name: '답변', exact: true });
+    await reply.fill('보존할 답변');
     await configure(page, { rules: [{ path: '/inquiries/1043/assignee', method: 'DELETE', delay: 1500, fail: true }] });
     await page.getByRole('button', { name: '담당 해제', exact: true }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: '담당 해제', exact: true }).click();
     await page.getByText('문의 처리 중…', { exact: true }).waitFor();
     await page.getByText('문의 처리 중…', { exact: true }).waitFor({ state: 'hidden' });
     assert.equal(await reply.inputValue(), '보존할 답변');
+  }));
+test('inquiry leave cancellation preserves draft', () =>
+  scenario('inquiry-leave-cancel', '/inquiries/1043', async (page) => {
+    const reply = page.getByRole('textbox', { name: '답변', exact: true });
+    await reply.fill('보존할 답변');
     await page.getByRole('button', { name: '다음 문의 ›', exact: true }).click();
     await page.getByRole('alertdialog').waitFor();
     await page.getByRole('button', { name: '취소', exact: true }).click();
@@ -625,8 +669,8 @@ test('inquiry attachment loading and failure do not shift reply', () =>
     return { before, after };
   }));
 
-test('inquiry leave and assignment dialog keyboard cancellation', () =>
-  scenario('inquiry-dialogs', '/inquiries/1043', async (page) => {
+test('inquiry leave dialog keyboard cancellation restores draft focus', () =>
+  scenario('inquiry-leave-dialog', '/inquiries/1043', async (page) => {
     const reply = page.getByRole('textbox', { name: '답변', exact: true });
     await reply.fill('확인해 보겠습니다');
     await reply.evaluate((el) => (el as HTMLInputElement).setSelectionRange(3, 3));
@@ -640,8 +684,10 @@ test('inquiry leave and assignment dialog keyboard cancellation', () =>
     await page.getByRole('alertdialog').waitFor({ state: 'hidden' });
     assert.equal(await reply.inputValue(), '확인해 보겠습니다');
     await page.waitForFunction(() => document.activeElement?.textContent === '다음 문의 ›');
-    await reply.fill('');
-    await next.click();
+  }));
+
+test('inquiry assignment dialog keyboard cancellation restores trigger focus', () =>
+  scenario('inquiry-assignment-dialog', '/inquiries/1045', async (page) => {
     await page.getByRole('heading', { name: '원생 등록 오류', exact: true }).waitFor();
     const assign = page.getByRole('button', { name: '내가 맡기', exact: true });
     await assign.click();
