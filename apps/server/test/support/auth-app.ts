@@ -10,11 +10,14 @@ import { AuthGuard } from '../../src/auth/auth.guard.js';
 import { AuthService } from '../../src/auth/auth.service.js';
 import type { GoogleIdentity, IdTokenVerifier } from '../../src/auth/google-id-token-verifier.js';
 import { OriginGuard } from '../../src/auth/origin.guard.js';
+import { RoleGuard } from '../../src/auth/role.guard.js';
 import { API_PREFIX } from '../../src/api.module.js';
 import { ApiException } from '../../src/common/api-error.js';
 import { ApiExceptionFilter } from '../../src/common/api-exception.filter.js';
 import type { DatabaseConfig } from '../../src/database/database.config.js';
 import { DATABASE_CONFIG, DatabaseService } from '../../src/database/database.service.js';
+import { TeamMembersController } from '../../src/team-members/team-members.controller.js';
+import { TeamMembersService } from '../../src/team-members/team-members.service.js';
 
 export const AUTH_CONFIG_FOR_TEST: AuthConfig = {
   googleClientId: 'test-client-id.apps.googleusercontent.com',
@@ -68,7 +71,7 @@ export async function startAuthApp(
 ): Promise<AuthTestApp> {
   class TestApiModule {}
   Module({
-    controllers: [AuthController, MeController, ProbeController],
+    controllers: [AuthController, MeController, TeamMembersController, ProbeController],
     providers: [
       { provide: DATABASE_CONFIG, useValue: database },
       DatabaseService,
@@ -77,8 +80,10 @@ export async function startAuthApp(
       AccessLogService,
       AuthService,
       AccountService,
+      TeamMembersService,
       { provide: APP_GUARD, useClass: OriginGuard },
       { provide: APP_GUARD, useClass: AuthGuard },
+      { provide: APP_GUARD, useClass: RoleGuard },
       { provide: APP_FILTER, useClass: ApiExceptionFilter },
     ],
   })(TestApiModule);
