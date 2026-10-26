@@ -267,10 +267,12 @@ describe.skipIf(!hasDatabase)('team member management (real database, fake Googl
     for (const [method, path, specPath, body] of routes) {
       const response = await call(method, path, specPath, actorCookie, body);
       expect(response.status).toBe(400);
-      expect(await response.json()).toMatchObject({
+      const error = await response.json();
+      expect(error).toMatchObject({
         code: 'VALIDATION_FAILED',
         details: [expect.objectContaining({ field: 'memberId' })],
       });
+      expect(error.details[0].reason).toMatch(/[가-힣]/);
     }
   });
 
@@ -280,9 +282,11 @@ describe.skipIf(!hasDatabase)('team member management (real database, fake Googl
       role: 'ADMIN',
     });
     expect(invalid.status).toBe(400);
-    expect((await invalid.json()).details.map((detail: { field: string }) => detail.field)).toEqual(
+    const invalidBody = await invalid.json();
+    expect(invalidBody.details.map((detail: { field: string }) => detail.field)).toEqual(
       expect.arrayContaining(['email', 'role'])
     );
+    expect(invalidBody.details).toContainEqual({ field: 'email', reason: '잘못된 이메일 주소' });
 
     const forbidden = await call(
       'post',

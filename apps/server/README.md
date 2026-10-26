@@ -33,6 +33,9 @@ pnpm db:migrate  # 대상 DB에 새 마이그레이션 적용
 이미 적용한 마이그레이션은 수정하지 않고 후속 파일을 만든다. `INITIAL_SUPER_ADMIN_EMAIL`은 없는 이메일을 최고 관리자
 계정으로 최초 등록할 때만 사용한다.
 
+새 API의 인증·권한 규칙은 [ADR 0014](../../docs/adr/0014-auth-details.md)와 `src/auth/decorators.ts`, 명세 일치 검사는
+[ADR 0015](../../docs/adr/0015-spec-contract-tests.md)를 참고한다.
+
 ## 검사
 
 저장소 루트에서 `pnpm build && pnpm lint && pnpm test && pnpm format:check`를 실행한다.

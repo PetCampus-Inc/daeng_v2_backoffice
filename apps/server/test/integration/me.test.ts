@@ -127,7 +127,9 @@ describe.skipIf(!hasDatabase)('/me (real database, fake Google)', () => {
     for (const body of bodies) {
       const response = await call('patch', cookie, body);
       expect(response.status, JSON.stringify(body)).toBe(400);
-      expect((await response.json()).code).toBe('VALIDATION_FAILED');
+      const error = await response.json();
+      expect(error.code).toBe('VALIDATION_FAILED');
+      expect(error.details[0].reason).toMatch(/[가-힣]/);
     }
   });
 

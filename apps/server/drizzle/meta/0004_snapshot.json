@@ -112,18 +112,18 @@
           "notNull": true,
           "autoincrement": false
         },
-        "target_identifier": {
-          "name": "target_identifier",
-          "type": "varchar(320)",
+        "target_id": {
+          "name": "target_id",
+          "type": "int",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "target_title": {
-          "name": "target_title",
-          "type": "varchar(255)",
+        "target_label": {
+          "name": "target_label",
+          "type": "varchar(320)",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "action": {

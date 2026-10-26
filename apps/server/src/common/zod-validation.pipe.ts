@@ -1,5 +1,5 @@
 import { type PipeTransform } from '@nestjs/common';
-import type { ZodType } from 'zod';
+import { z, type ZodType } from 'zod';
 import { ValidationFailedException } from './api-error.js';
 
 export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
@@ -9,7 +9,7 @@ export class ZodValidationPipe<T> implements PipeTransform<unknown, T> {
   ) {}
 
   transform(value: unknown): T {
-    const result = this.schema.safeParse(value);
+    const result = this.schema.safeParse(value, { error: z.locales.ko().localeError });
     if (result.success) return result.data;
     throw new ValidationFailedException(
       result.error.issues.map((issue) => ({

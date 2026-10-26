@@ -1581,7 +1581,7 @@ components:
           example: email
         reason:
           type: string
-          example: 이메일 형식이 아닙니다.
+          example: 잘못된 이메일 주소
 
     InvalidIdTokenError:
       allOf:
@@ -1656,7 +1656,7 @@ components:
         message: 입력값이 올바르지 않습니다.
         details:
           - field: email
-            reason: 이메일 형식이 아닙니다.
+            reason: 잘못된 이메일 주소
 
     ProfileDisplayNameDuplicateError:
       allOf:
