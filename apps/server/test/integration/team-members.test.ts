@@ -87,7 +87,7 @@ describe.skipIf(!hasDatabase)('team member management (real database, fake Googl
   afterAll(async () => {
     await database?.db
       .delete(changeLogs)
-      .where(or(like(changeLogs.actorEmail, `${RUN}%`), like(changeLogs.targetIdentifier, `${RUN}%`)));
+      .where(or(like(changeLogs.actorEmail, `${RUN}%`), like(changeLogs.targetLabel, `${RUN}%`)));
     if (database) await deleteTestRun(database, RUN);
     await app?.close();
   });
@@ -122,7 +122,8 @@ describe.skipIf(!hasDatabase)('team member management (real database, fake Googl
       role: 'VIEWER',
     });
     expect(created.status).toBe(201);
-    expect(await created.json()).toMatchObject({
+    const createdMember = await created.json();
+    expect(createdMember).toMatchObject({
       email: email('new'),
       role: 'VIEWER',
       status: 'REGISTERED',
@@ -139,9 +140,14 @@ describe.skipIf(!hasDatabase)('team member management (real database, fake Googl
     const logs = await database.db
       .select()
       .from(changeLogs)
-      .where(eq(changeLogs.targetIdentifier, email('new')));
+      .where(eq(changeLogs.targetLabel, email('new')));
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatchObject({ action: 'MEMBER_REGISTERED', actorEmail: email('actor'), targetType: 'MEMBER' });
+    expect(logs[0]).toMatchObject({
+      action: 'ACCOUNT_REGISTERED',
+      actorEmail: email('actor'),
+      targetType: 'ACCOUNT',
+      targetId: createdMember.id,
+    });
   });
 
   test('registration directs inactive and cancelled addresses to reactivation', async () => {
@@ -176,20 +182,15 @@ describe.skipIf(!hasDatabase)('team member management (real database, fake Googl
       role: 'VIEWER',
     });
     expect(missing.status).toBe(404);
-    const badId = await call('patch', '/team-members/nope', '/team-members/{memberId}', actorCookie, {
-      role: 'VIEWER',
-    });
-    expect(badId.status).toBe(400);
-
     const target = await addMember('role-target');
     const changed = await call('patch', `/team-members/${target.id}`, '/team-members/{memberId}', actorCookie, {
       role: 'VIEWER',
     });
     expect(changed.status).toBe(200);
     expect(await changed.json()).toMatchObject({ role: 'VIEWER' });
-    const logs = await database.db.select().from(changeLogs).where(eq(changeLogs.targetIdentifier, target.email));
+    const logs = await database.db.select().from(changeLogs).where(eq(changeLogs.targetId, target.id));
     expect(logs).toContainEqual(
-      expect.objectContaining({ action: 'MEMBER_ROLE_CHANGED', beforeValue: 'OPERATOR', afterValue: 'VIEWER' })
+      expect.objectContaining({ action: 'ACCOUNT_ROLE_CHANGED', beforeValue: 'OPERATOR', afterValue: 'VIEWER' })
     );
     await database.db.update(members).set({ status: 'INACTIVE' }).where(eq(members.id, target.id));
     const inactive = await call('patch', `/team-members/${target.id}`, '/team-members/{memberId}', actorCookie, {
@@ -228,14 +229,14 @@ describe.skipIf(!hasDatabase)('team member management (real database, fake Googl
     const actions = await database.db
       .select({ action: changeLogs.action })
       .from(changeLogs)
-      .where(eq(changeLogs.targetIdentifier, email('lifecycle')))
+      .where(eq(changeLogs.targetLabel, email('lifecycle')))
       .orderBy(asc(changeLogs.id));
     expect(actions.map(({ action }) => action)).toEqual([
-      'MEMBER_REGISTERED',
-      'MEMBER_CANCELLED',
-      'MEMBER_REACTIVATED',
-      'MEMBER_DEACTIVATED',
-      'MEMBER_REACTIVATED',
+      'ACCOUNT_REGISTERED',
+      'ACCOUNT_REGISTRATION_CANCELLED',
+      'ACCOUNT_REACTIVATED',
+      'ACCOUNT_DEACTIVATED',
+      'ACCOUNT_REACTIVATED',
     ]);
   });
 
@@ -253,6 +254,23 @@ describe.skipIf(!hasDatabase)('team member management (real database, fake Googl
     for (const [method, path, specPath, body] of routes) {
       expect((await call(method, path, specPath, null, body)).status).toBe(401);
       expect((await call(method, path, specPath, limitedCookie, body)).status).toBe(403);
+    }
+  });
+
+  test('every memberId route reports invalid path parameters as field-level 400 errors', async () => {
+    const routes = [
+      ['patch', '/team-members/abc', '/team-members/{memberId}', { role: 'VIEWER' }],
+      ['post', '/team-members/abc/deactivate', '/team-members/{memberId}/deactivate', undefined],
+      ['post', '/team-members/abc/cancel', '/team-members/{memberId}/cancel', undefined],
+      ['post', '/team-members/abc/reactivate', '/team-members/{memberId}/reactivate', undefined],
+    ] as const;
+    for (const [method, path, specPath, body] of routes) {
+      const response = await call(method, path, specPath, actorCookie, body);
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        code: 'VALIDATION_FAILED',
+        details: [expect.objectContaining({ field: 'memberId' })],
+      });
     }
   });
 

@@ -288,6 +288,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamMember'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -313,6 +315,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamMember'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -338,6 +342,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamMember'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':

@@ -34,7 +34,7 @@ export class TeamMembersController {
   @Patch(':memberId')
   async changeRole(
     @CurrentMember() actor: MemberRow,
-    @Param('memberId', new ZodValidationPipe(memberIdSchema)) memberId: number,
+    @Param('memberId', new ZodValidationPipe(memberIdSchema, 'memberId')) memberId: number,
     @Body(new ZodValidationPipe(changeRoleSchema)) body: z.infer<typeof changeRoleSchema>
   ): Promise<TeamMember> {
     return toTeamMember(await this.teamMembers.changeRole(actor, memberId, body.role));
@@ -44,7 +44,7 @@ export class TeamMembersController {
   @HttpCode(200)
   async deactivate(
     @CurrentMember() actor: MemberRow,
-    @Param('memberId', new ZodValidationPipe(memberIdSchema)) memberId: number
+    @Param('memberId', new ZodValidationPipe(memberIdSchema, 'memberId')) memberId: number
   ): Promise<TeamMember> {
     return toTeamMember(await this.teamMembers.deactivate(actor, memberId));
   }
@@ -53,7 +53,7 @@ export class TeamMembersController {
   @HttpCode(200)
   async cancel(
     @CurrentMember() actor: MemberRow,
-    @Param('memberId', new ZodValidationPipe(memberIdSchema)) memberId: number
+    @Param('memberId', new ZodValidationPipe(memberIdSchema, 'memberId')) memberId: number
   ): Promise<TeamMember> {
     return toTeamMember(await this.teamMembers.cancel(actor, memberId));
   }
@@ -62,7 +62,7 @@ export class TeamMembersController {
   @HttpCode(200)
   async reactivate(
     @CurrentMember() actor: MemberRow,
-    @Param('memberId', new ZodValidationPipe(memberIdSchema)) memberId: number
+    @Param('memberId', new ZodValidationPipe(memberIdSchema, 'memberId')) memberId: number
   ): Promise<TeamMember> {
     return toTeamMember(await this.teamMembers.reactivate(actor, memberId));
   }

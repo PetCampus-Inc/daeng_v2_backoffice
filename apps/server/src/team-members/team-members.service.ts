@@ -1,45 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, inArray } from 'drizzle-orm';
+import { recordChange } from '../change-log/record.js';
 import { ApiException } from '../common/api-error.js';
 import { DatabaseService } from '../database/database.service.js';
 import { isDuplicateEntry } from '../database/errors.js';
-import { changeLogs, members, sessions, type MemberRole, type MemberRow } from '../database/schema.js';
-
-type ChangeAction =
-  | 'MEMBER_REGISTERED'
-  | 'MEMBER_ROLE_CHANGED'
-  | 'MEMBER_DEACTIVATED'
-  | 'MEMBER_CANCELLED'
-  | 'MEMBER_REACTIVATED';
+import { members, sessions, type MemberRole, type MemberRow } from '../database/schema.js';
 
 const notFound = () => new ApiException(404, 'TEAM_MEMBER_NOT_FOUND', '계정을 찾을 수 없습니다.');
 const protectedMember = () =>
   new ApiException(409, 'TEAM_MEMBER_PROTECTED', '마지막 최고 관리자와 본인 계정은 변경할 수 없습니다.');
 const stateChanged = () =>
   new ApiException(409, 'TEAM_MEMBER_STATE_CHANGED', '계정 상태가 변경됐습니다. 다시 확인해 주세요.');
-
-function logEntry(
-  actor: MemberRow,
-  targetEmail: string,
-  action: ChangeAction,
-  beforeValue: string | null = null,
-  afterValue: string | null = null
-): typeof changeLogs.$inferInsert {
-  if (actor.displayName === null || actor.jobRole === null) {
-    throw new ApiException(403, 'PROFILE_INCOMPLETE', '프로필을 먼저 설정해 주세요.');
-  }
-  return {
-    actorMemberId: actor.id,
-    actorEmail: actor.email,
-    actorDisplayName: actor.displayName,
-    actorJobRole: actor.jobRole,
-    targetType: 'MEMBER',
-    targetIdentifier: targetEmail,
-    action,
-    beforeValue,
-    afterValue,
-  };
-}
 
 @Injectable()
 export class TeamMembersService {
@@ -54,8 +25,12 @@ export class TeamMembersService {
     try {
       return await db.transaction(async (tx) => {
         await tx.insert(members).values({ email: input.email, role: input.role, status: 'REGISTERED' });
-        await tx.insert(changeLogs).values(logEntry(actor, input.email, 'MEMBER_REGISTERED'));
         const [created] = await tx.select().from(members).where(eq(members.email, input.email)).limit(1);
+        await recordChange(tx, {
+          actor,
+          target: { type: 'ACCOUNT', id: created!.id, label: created!.email },
+          action: 'ACCOUNT_REGISTERED',
+        });
         return created!;
       });
     } catch (error) {
@@ -110,7 +85,12 @@ export class TeamMembersService {
           )
         );
       if (result.affectedRows === 0) throw stateChanged();
-      await tx.insert(changeLogs).values(logEntry(actor, target.email, 'MEMBER_ROLE_CHANGED', target.role, role));
+      await recordChange(tx, {
+        actor,
+        target: { type: 'ACCOUNT', id: target.id, label: target.email },
+        action: 'ACCOUNT_ROLE_CHANGED',
+        change: { from: target.role, to: role },
+      });
       const [updated] = await tx.select().from(members).where(eq(members.id, memberId)).limit(1);
       return updated!;
     });
@@ -137,7 +117,11 @@ export class TeamMembersService {
         .where(and(eq(members.id, memberId), eq(members.status, 'ACTIVE')));
       if (result.affectedRows === 0) throw stateChanged();
       await tx.delete(sessions).where(eq(sessions.memberId, memberId));
-      await tx.insert(changeLogs).values(logEntry(actor, target.email, 'MEMBER_DEACTIVATED'));
+      await recordChange(tx, {
+        actor,
+        target: { type: 'ACCOUNT', id: target.id, label: target.email },
+        action: 'ACCOUNT_DEACTIVATED',
+      });
       const [updated] = await tx.select().from(members).where(eq(members.id, memberId)).limit(1);
       return updated!;
     });
@@ -153,7 +137,11 @@ export class TeamMembersService {
         .set({ status: 'CANCELLED' })
         .where(and(eq(members.id, memberId), eq(members.status, 'REGISTERED')));
       if (result.affectedRows === 0) throw stateChanged();
-      await tx.insert(changeLogs).values(logEntry(actor, target.email, 'MEMBER_CANCELLED'));
+      await recordChange(tx, {
+        actor,
+        target: { type: 'ACCOUNT', id: target.id, label: target.email },
+        action: 'ACCOUNT_REGISTRATION_CANCELLED',
+      });
       const [updated] = await tx.select().from(members).where(eq(members.id, memberId)).limit(1);
       return updated!;
     });
@@ -170,7 +158,11 @@ export class TeamMembersService {
         .set({ status })
         .where(and(eq(members.id, memberId), inArray(members.status, ['INACTIVE', 'CANCELLED'])));
       if (result.affectedRows === 0) throw stateChanged();
-      await tx.insert(changeLogs).values(logEntry(actor, target.email, 'MEMBER_REACTIVATED'));
+      await recordChange(tx, {
+        actor,
+        target: { type: 'ACCOUNT', id: target.id, label: target.email },
+        action: 'ACCOUNT_REACTIVATED',
+      });
       const [updated] = await tx.select().from(members).where(eq(members.id, memberId)).limit(1);
       return updated!;
     });
