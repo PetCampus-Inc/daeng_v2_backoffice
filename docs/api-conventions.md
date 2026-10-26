@@ -49,7 +49,7 @@ HTTP 상태 코드로 실패를 알리고, 본문은 아래 형식으로 통일�
 {
   "code": "VALIDATION_FAILED",
   "message": "입력값이 올바르지 않습니다.",
-  "details": [{ "field": "email", "reason": "이메일 형식이 아닙니다." }]
+  "details": [{ "field": "email", "reason": "잘못된 이메일 주소" }]
 }
 ```
 

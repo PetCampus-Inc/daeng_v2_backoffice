@@ -46,6 +46,16 @@ test('zod pipe passes valid input and reports field reasons otherwise', () => {
   }
 });
 
+test('zod pipe reports validation reasons in Korean', () => {
+  const pipe = new ZodValidationPipe(z.object({ email: z.email() }));
+  try {
+    pipe.transform({ email: 'bad' });
+    expect.unreachable();
+  } catch (error) {
+    expect(toErrorResponse(error).body.details).toEqual([{ field: 'email', reason: '잘못된 이메일 주소' }]);
+  }
+});
+
 test('client errors from outside Nest keep their 4xx status', () => {
   const tooLarge = Object.assign(new Error('request entity too large'), { status: 413 });
   expect(toErrorResponse(tooLarge)).toEqual({

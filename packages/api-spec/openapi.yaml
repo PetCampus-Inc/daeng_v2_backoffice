@@ -8,6 +8,8 @@ servers:
   - url: /api/v0/admin
     description: local
 tags:
+  - name: '개발용'
+    description: 개발 환경에서만 켜지는 기능. 운영에서는 404입니다.
   - name: '인증'
     description: 로그인 세션
   - name: '내 계정'
@@ -28,8 +30,6 @@ tags:
     description: 알림 센터 (내 알림)
   - name: '홈·고객 관리'
     description: 기존 어드민 조회 화면(대시보드·회원·유치원·원장 인증 현황), 서비스 DB 읽기 전용
-  - name: '개발용'
-    description: 개발 환경에서만 켜지는 기능. 운영에서는 404입니다.
 security:
   - sessionCookie: []
 
@@ -288,6 +288,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamMember'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -313,6 +315,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamMember'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -338,6 +342,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TeamMember'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1575,7 +1581,7 @@ components:
           example: email
         reason:
           type: string
-          example: 이메일 형식이 아닙니다.
+          example: 잘못된 이메일 주소
 
     InvalidIdTokenError:
       allOf:
@@ -1650,7 +1656,7 @@ components:
         message: 입력값이 올바르지 않습니다.
         details:
           - field: email
-            reason: 이메일 형식이 아닙니다.
+            reason: 잘못된 이메일 주소
 
     ProfileDisplayNameDuplicateError:
       allOf:
@@ -1800,6 +1806,7 @@ components:
         email:
           type: string
           format: email
+          example: petcampus.knockdog@gmail.com
         googleName:
           type: string
           description: 연결된 구글 계정 이름(읽기 전용)입니다. 첫 로그인 설정에서 표시명 초기값으로 씁니다.
@@ -1833,6 +1840,7 @@ components:
           type: string
           format: email
           description: 등록된 팀원의 이메일(대소문자 구분 없음)
+          example: petcampus.knockdog@gmail.com
 
     UpdateMyAccountRequest:
       type: object
@@ -1854,6 +1862,7 @@ components:
         email:
           type: string
           format: email
+          example: petcampus.knockdog@gmail.com
         displayName:
           type: string
           nullable: true
@@ -1884,6 +1893,7 @@ components:
           type: string
           format: email
           description: 구글 이메일(대소문자 구분 없음)
+          example: petcampus.knockdog@gmail.com
         role:
           $ref: '#/components/schemas/Role'
 
@@ -1911,6 +1921,7 @@ components:
         email:
           type: string
           format: email
+          example: petcampus.knockdog@gmail.com
         displayName:
           type: string
         jobRole:
@@ -1928,6 +1939,7 @@ components:
           type: string
         email:
           type: string
+          example: petcampus.knockdog@gmail.com
 
     InquiryImage:
       type: object
@@ -2335,6 +2347,7 @@ components:
         email:
           type: string
           format: email
+          example: petcampus.knockdog@gmail.com
 
     ChangeLogTarget:
       type: object

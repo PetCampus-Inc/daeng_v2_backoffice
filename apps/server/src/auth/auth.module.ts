@@ -8,6 +8,7 @@ import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { GoogleIdTokenVerifier } from './google-id-token-verifier.js';
 import { OriginGuard } from './origin.guard.js';
+import { RoleGuard } from './role.guard.js';
 
 @Module({
   controllers: [AuthController],
@@ -37,6 +38,7 @@ import { OriginGuard } from './origin.guard.js';
     // 순서가 중요하다: 먼저 Origin을 확인하고 그다음에 로그인 여부를 확인한다.
     { provide: APP_GUARD, useClass: OriginGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: RoleGuard },
   ],
 })
 export class AuthModule {}
