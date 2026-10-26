@@ -1800,6 +1800,7 @@ components:
         email:
           type: string
           format: email
+          example: petcampus.knockdog@gmail.com
         googleName:
           type: string
           description: 연결된 구글 계정 이름(읽기 전용)입니다. 첫 로그인 설정에서 표시명 초기값으로 씁니다.
@@ -1855,6 +1856,7 @@ components:
         email:
           type: string
           format: email
+          example: petcampus.knockdog@gmail.com
         displayName:
           type: string
           nullable: true
@@ -1885,6 +1887,7 @@ components:
           type: string
           format: email
           description: 구글 이메일(대소문자 구분 없음)
+          example: petcampus.knockdog@gmail.com
         role:
           $ref: '#/components/schemas/Role'
 
@@ -1912,6 +1915,7 @@ components:
         email:
           type: string
           format: email
+          example: petcampus.knockdog@gmail.com
         displayName:
           type: string
         jobRole:
@@ -1929,6 +1933,7 @@ components:
           type: string
         email:
           type: string
+          example: petcampus.knockdog@gmail.com
 
     InquiryImage:
       type: object
@@ -2336,6 +2341,7 @@ components:
         email:
           type: string
           format: email
+          example: petcampus.knockdog@gmail.com
 
     ChangeLogTarget:
       type: object
