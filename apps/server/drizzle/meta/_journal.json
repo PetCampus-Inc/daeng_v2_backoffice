@@ -15,6 +15,20 @@
       "when": 1792917926949,
       "tag": "0001_add_access_log",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1792980369272,
+      "tag": "0002_unique_member_display_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1792987617520,
+      "tag": "0003_member_display_name_collation",
+      "breakpoints": true
     }
   ]
 }

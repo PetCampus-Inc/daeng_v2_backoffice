@@ -157,7 +157,7 @@ paths:
       operationId: updateMyAccount
       summary: 표시명·직무 저장
       description: |-
-        표시명과 직무를 저장합니다. 표시명은 1~10자이고, 다른 팀원과 겹칠 수 없습니다.
+        표시명과 직무를 저장합니다. 표시명은 1~10자이고, 다른 팀원과 대소문자 구분 없이 겹칠 수 없습니다.
       requestBody:
         required: true
         content:
@@ -175,6 +175,8 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           description: '충돌'
           content:

@@ -1,21 +1,21 @@
 import 'reflect-metadata';
 import type { INestApplication } from '@nestjs/common';
-import { and, eq, gt, inArray, isNull, like, max } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, max } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { hashSessionId } from '../../src/auth/session-id.js';
-import { readDatabaseConfig } from '../../src/database/database.config.js';
 import type { DatabaseService } from '../../src/database/database.service.js';
 import { accessLogs, members, sessions } from '../../src/database/schema.js';
 import { AuthService } from '../../src/auth/auth.service.js';
 import { toErrorResponse } from '../../src/common/api-exception.filter.js';
+import { deleteTestRun, hasDatabase, readTestDatabaseConfig } from '../support/test-database.js';
 import { expectMatchesSpec, OpenApiContract } from '../support/openapi-contract.js';
 import { ORIGIN, startAuthApp } from '../support/auth-app.js';
 
-// 로컬 DB에 마이그레이션이 적용돼 있을 때만 돈다: infisical run --env=dev -- pnpm --filter @daeng/server test:integration
-const hasDatabase = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'].every((name) => process.env[name]);
-
 const RUN = `vitest-auth-${Date.now()}`;
 const email = (name: string) => `${RUN}-${name}@example.com`;
+// 표시명은 10자까지이고 팀원끼리 겹칠 수 없어서, 실행마다 겹치지 않는 값을 만든다.
+let displayNameSeq = 0;
+const displayName = () => `길${Date.now() % 1_000_000}${++displayNameSeq}`;
 
 describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
   let app: INestApplication;
@@ -53,28 +53,11 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
 
   beforeAll(async () => {
     contract = await OpenApiContract.load();
-    const dbConfig = readDatabaseConfig({
-      host: process.env.DB_HOST,
-      port: process.env.DB_PORT,
-      database: process.env.DB_NAME,
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-    });
-    ({ app, baseUrl, database } = await startAuthApp(dbConfig, email));
+    ({ app, baseUrl, database } = await startAuthApp(readTestDatabaseConfig(), email));
   });
 
   afterAll(async () => {
-    // 이 실행이 만든 팀원·세션·접속 기록만 정리한다(접속 기록은 원래 추가만 하는 테이블이다).
-    const mine = await database.db
-      .select({ id: members.id })
-      .from(members)
-      .where(like(members.email, `${RUN}%`));
-    if (mine.length > 0) {
-      const ids = mine.map((m) => m.id);
-      await database.db.delete(sessions).where(inArray(sessions.memberId, ids));
-      await database.db.delete(members).where(inArray(members.id, ids));
-    }
-    await database.db.delete(accessLogs).where(like(accessLogs.email, `${RUN}%`));
+    await deleteTestRun(database, RUN);
     await app?.close();
   });
 
@@ -204,7 +187,7 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
   });
 
   test('dev login signs in a registered member without Google and the session works', async () => {
-    await addMember('dev', { displayName: '길동', jobRole: 'BE' });
+    await addMember('dev', { displayName: displayName(), jobRole: 'BE' });
     const response = await post('/auth/dev-login', { email: email('dev').toUpperCase() });
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ email: email('dev'), role: 'OPERATOR', isProfileCompleted: true });
@@ -271,7 +254,7 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
 
     await database.db
       .update(members)
-      .set({ displayName: '홍길동', jobRole: 'BE' })
+      .set({ displayName: displayName(), jobRole: 'BE' })
       .where(eq(members.email, email('gate')));
     const allowed = await probe(cookie);
     expect(allowed.status).toBe(200);
@@ -287,7 +270,7 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
   });
 
   test('sessions expire after 24 hours of inactivity and are deleted', async () => {
-    await addMember('idle', { displayName: '길동', jobRole: 'PM' });
+    await addMember('idle', { displayName: displayName(), jobRole: 'PM' });
     const cookie = sessionCookie(await login('idle'))!;
     const [member] = await database.db
       .select()
@@ -355,7 +338,7 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
   });
 
   test('requests within a minute do not touch the session or the cookie', async () => {
-    await addMember('quiet', { displayName: '길동', jobRole: 'PM' });
+    await addMember('quiet', { displayName: displayName(), jobRole: 'PM' });
     const cookie = sessionCookie(await login('quiet'))!;
     const [member] = await database.db
       .select()
@@ -372,7 +355,7 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
   });
 
   test('each request extends the session and refreshes the cookie', async () => {
-    await addMember('active', { displayName: '길동', jobRole: 'FE' });
+    await addMember('active', { displayName: displayName(), jobRole: 'FE' });
     const cookie = sessionCookie(await login('active'))!;
     const [member] = await database.db
       .select()
@@ -389,7 +372,7 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
   });
 
   test('deactivating a member ends their session immediately', async () => {
-    await addMember('fired', { displayName: '길동', jobRole: 'BE' });
+    await addMember('fired', { displayName: displayName(), jobRole: 'BE' });
     const cookie = sessionCookie(await login('fired'))!;
     expect((await probe(cookie)).status).toBe(200);
 
