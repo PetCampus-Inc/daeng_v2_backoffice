@@ -97,4 +97,29 @@ export const accessLogs = mysqlTable(
   (table) => [index('idx_access_log_occurred_at').on(table.occurredAt)]
 );
 
+/** 성공한 관리 작업의 당시 값을 보존한다. 행동·대상 종류는 새 기능에서도 확장할 수 있도록 문자열로 저장한다. */
+export const changeLogs = mysqlTable(
+  'change_log',
+  {
+    id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+    occurredAt: datetime('occurred_at', { fsp: 3 })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    actorMemberId: int('actor_member_id').notNull(),
+    actorEmail: varchar('actor_email', { length: 320 }).notNull(),
+    actorDisplayName: varchar('actor_display_name', { length: 10 }).notNull(),
+    actorJobRole: mysqlEnum('actor_job_role', MEMBER_JOB_ROLES).notNull(),
+    targetType: varchar('target_type', { length: 32 }).notNull(),
+    targetIdentifier: varchar('target_identifier', { length: 320 }).notNull(),
+    targetTitle: varchar('target_title', { length: 255 }),
+    action: varchar('action', { length: 64 }).notNull(),
+    beforeValue: varchar('before_value', { length: 255 }),
+    afterValue: varchar('after_value', { length: 255 }),
+  },
+  (table) => [
+    index('idx_change_log_occurred_at').on(table.occurredAt),
+    index('idx_change_log_actor').on(table.actorMemberId),
+  ]
+);
+
 export type MemberRow = typeof members.$inferSelect;

@@ -29,6 +29,13 @@
       "when": 1792987617520,
       "tag": "0003_member_display_name_collation",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1792988687815,
+      "tag": "0004_add_change_log",
+      "breakpoints": true
     }
   ]
 }
