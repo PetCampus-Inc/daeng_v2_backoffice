@@ -28,6 +28,7 @@ export const members = mysqlTable(
     /** 구글 계정 고유 ID(sub). 첫 로그인 때 채운다. */
     googleSubject: varchar('google_subject', { length: 255 }),
     googleName: varchar('google_name', { length: 255 }),
+    /** 대소문자 구분 없이 유일하다. 정렬 규칙(utf8mb4_unicode_ci)은 Drizzle이 표현하지 못해 마이그레이션 SQL에서 직접 지정했다. */
     displayName: varchar('display_name', { length: 10 }),
     jobRole: mysqlEnum('job_role', MEMBER_JOB_ROLES),
     role: mysqlEnum('role', MEMBER_ROLES).notNull(),
@@ -44,6 +45,8 @@ export const members = mysqlTable(
   (table) => [
     uniqueIndex('uq_member_email').on(table.email),
     uniqueIndex('uq_member_google_subject').on(table.googleSubject),
+    // 표시명은 팀원끼리 겹치지 않는다. 아직 정하지 않은 팀원(NULL)은 여러 명이어도 된다.
+    uniqueIndex('uq_member_display_name').on(table.displayName),
   ]
 );
 

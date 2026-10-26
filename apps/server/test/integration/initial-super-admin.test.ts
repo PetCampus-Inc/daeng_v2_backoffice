@@ -1,27 +1,17 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { readDatabaseConfig } from '../../src/database/database.config.js';
 import { DatabaseService } from '../../src/database/database.service.js';
 import { ensureInitialSuperAdmin } from '../../src/database/initial-super-admin.js';
 import { members } from '../../src/database/schema.js';
+import { hasDatabase, readTestDatabaseConfig } from '../support/test-database.js';
 
-// 로컬 DB에 마이그레이션이 적용돼 있을 때만 돈다: infisical run --env=dev -- pnpm --filter @daeng/server test:integration
-const hasDatabase = ['DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'].every((name) => process.env[name]);
 const EMAIL = `vitest-${Date.now()}@example.com`;
 
 describe.skipIf(!hasDatabase)('initial super admin (real database)', () => {
   let service: DatabaseService;
 
   beforeAll(() => {
-    service = new DatabaseService(
-      readDatabaseConfig({
-        host: process.env.DB_HOST,
-        port: process.env.DB_PORT,
-        database: process.env.DB_NAME,
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-      })
-    );
+    service = new DatabaseService(readTestDatabaseConfig());
   });
 
   afterAll(async () => {

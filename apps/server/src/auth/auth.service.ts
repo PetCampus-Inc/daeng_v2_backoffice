@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, inArray, lt } from 'drizzle-orm';
 import { ApiException } from '../common/api-error.js';
 import { DatabaseService } from '../database/database.service.js';
@@ -16,6 +16,8 @@ export interface AuthenticatedSession {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(AccessLogService) private readonly accessLog: AccessLogService,
@@ -108,12 +110,6 @@ export class AuthService {
         .set({ ...changes, status: 'ACTIVE', lastLoginAt: now })
         .where(and(eq(members.id, member.id), inArray(members.status, ['REGISTERED', 'ACTIVE'])));
       if (updated.affectedRows === 0) return undefined;
-      // 쓰이지 않고 만료된 이 팀원의 옛 세션을 정리한다. 안 지우면 로그인마다 쌓인다.
-      await tx
-        .delete(sessions)
-        .where(
-          and(eq(sessions.memberId, member.id), lt(sessions.lastUsedAt, new Date(now.getTime() - SESSION_IDLE_MS)))
-        );
       await tx
         .insert(sessions)
         .values({ idHash: hashSessionId(sessionId), memberId: member.id, createdAt: now, lastUsedAt: now });
@@ -128,8 +124,26 @@ export class AuthService {
         .limit(1);
       throw await this.deny(member.email, current?.status === 'CANCELLED' ? 'CANCELLED' : 'INACTIVE');
     }
+    await this.deleteExpiredSessions(member.id, now);
     await this.accessLog.record({ event: 'LOGIN_SUCCESS', result: 'SUCCESS', email: member.email });
     return { member: loggedIn, sessionId };
+  }
+
+  /**
+   * 쓰이지 않고 만료된 이 팀원의 옛 세션을 정리한다. 안 지우면 로그인마다 쌓인다.
+   * 범위 삭제는 잠금을 넓게 잡아서 로그인 트랜잭션 안에서 하면 다른 팀원의 동시 로그인과 교착(deadlock)이 난다.
+   * 그래서 트랜잭션 밖에서 하고, 실패해도 로그인은 막지 않는다.
+   */
+  private async deleteExpiredSessions(memberId: number, now: Date): Promise<void> {
+    try {
+      await this.database.db
+        .delete(sessions)
+        .where(
+          and(eq(sessions.memberId, memberId), lt(sessions.lastUsedAt, new Date(now.getTime() - SESSION_IDLE_MS)))
+        );
+    } catch (error) {
+      this.logger.warn(`Failed to delete expired sessions: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private async deny(email: string, result: AccessResult): Promise<ApiException> {

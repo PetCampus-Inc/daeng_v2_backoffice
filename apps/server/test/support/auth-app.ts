@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { Controller, Get, Module, type INestApplication } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, NestFactory, RouterModule } from '@nestjs/core';
+import { AccountService } from '../../src/account/account.service.js';
+import { MeController } from '../../src/account/me.controller.js';
 import { AccessLogService } from '../../src/auth/access-log.service.js';
 import { AUTH_CONFIG, ID_TOKEN_VERIFIER, type AuthConfig } from '../../src/auth/auth.constants.js';
 import { AuthController } from '../../src/auth/auth.controller.js';
@@ -66,7 +68,7 @@ export async function startAuthApp(
 ): Promise<AuthTestApp> {
   class TestApiModule {}
   Module({
-    controllers: [AuthController, ProbeController],
+    controllers: [AuthController, MeController, ProbeController],
     providers: [
       { provide: DATABASE_CONFIG, useValue: database },
       DatabaseService,
@@ -74,6 +76,7 @@ export async function startAuthApp(
       { provide: ID_TOKEN_VERIFIER, useValue: new FakeVerifier(emailFor) },
       AccessLogService,
       AuthService,
+      AccountService,
       { provide: APP_GUARD, useClass: OriginGuard },
       { provide: APP_GUARD, useClass: AuthGuard },
       { provide: APP_FILTER, useClass: ApiExceptionFilter },

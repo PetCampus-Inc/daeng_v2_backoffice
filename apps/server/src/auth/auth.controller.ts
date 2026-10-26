@@ -2,10 +2,11 @@ import { Body, Controller, HttpCode, Inject, Post, Req, Res } from '@nestjs/comm
 import { z } from 'zod';
 import { ApiException } from '../common/api-error.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import type { MemberRow } from '../database/schema.js';
 import { AUTH_CONFIG, type AuthConfig } from './auth.constants.js';
 import { AuthService } from './auth.service.js';
 import { clearSessionCookie, readSessionId, setSessionCookie } from './cookies.js';
-import { AllowIncompleteProfile, Public } from './decorators.js';
+import { AllowIncompleteProfile, CurrentMember, Public } from './decorators.js';
 import { isLoopbackAddress } from './loopback.js';
 import { toMyAccount, type MyAccount } from './my-account.js';
 import type { AuthRequest, CookieResponse } from './request.js';
@@ -56,11 +57,15 @@ export class AuthController {
   @AllowIncompleteProfile()
   @Post('logout')
   @HttpCode(204)
-  async logout(@Req() request: AuthRequest, @Res({ passthrough: true }) response: CookieResponse): Promise<void> {
+  async logout(
+    @CurrentMember() member: MemberRow,
+    @Req() request: AuthRequest,
+    @Res({ passthrough: true }) response: CookieResponse
+  ): Promise<void> {
     const sessionId = readSessionId(request);
-    // 가드를 통과했으면 세션과 팀원이 있다.
-    if (!sessionId || !request.member) throw new ApiException(401, 'UNAUTHENTICATED', '로그인이 필요합니다.');
-    await this.auth.logout(sessionId, request.member);
+    // 가드를 통과했으면 세션이 있다.
+    if (!sessionId) throw new ApiException(401, 'UNAUTHENTICATED', '로그인이 필요합니다.');
+    await this.auth.logout(sessionId, member);
     clearSessionCookie(response, this.config);
   }
 }
