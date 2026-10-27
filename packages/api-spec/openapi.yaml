@@ -391,6 +391,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InquirySummaryPage'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -434,6 +436,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InquiryDetail'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -471,6 +475,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InquiryAdjacent'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -503,6 +509,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InquiryDetail'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -526,6 +534,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InquiryDetail'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -552,6 +562,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InquiryDetail'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -621,6 +633,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InquiryImageOriginalUrl'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
