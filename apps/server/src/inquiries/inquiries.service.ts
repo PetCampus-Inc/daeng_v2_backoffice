@@ -1,7 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { asc, inArray, isNotNull } from 'drizzle-orm';
 import { recordChange } from '../change-log/record.js';
 import { ApiException } from '../common/api-error.js';
+import { retry } from '../common/retry.js';
 import { DatabaseService } from '../database/database.service.js';
 import { members, type MemberRow } from '../database/schema.js';
 import { JavaApiClient } from '../java-api/java-api.client.js';
@@ -9,6 +10,8 @@ import { INQUIRY_IMAGE_BASE_URL } from './inquiries.config.js';
 import { InquiryReader, type InquiryDetailRow, type InquiryFilter, type InquiryRow } from './inquiry-reader.js';
 
 const notFound = () => new ApiException(404, 'INQUIRY_NOT_FOUND', '문의를 찾을 수 없습니다.');
+/** 변경 이력을 쓰다 실패하면 이 간격으로 다시 시도한다(처음 1회 + 2회 재시도). */
+const RECORD_RETRY_DELAYS_MS = [100, 300] as const;
 /** 운영자 메시지의 작성자를 알 수 없을 때(작성자 ID가 없거나 계정이 사라졌을 때) 보여 줄 이름. */
 const UNKNOWN_OPERATOR = '운영자';
 
@@ -60,6 +63,8 @@ export interface InquiryQuery {
 
 @Injectable()
 export class InquiriesService {
+  private readonly logger = new Logger(InquiriesService.name);
+
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(InquiryReader) private readonly reader: InquiryReader,
@@ -147,20 +152,41 @@ export class InquiriesService {
     return this.detail(id);
   }
 
+  /**
+   * Java 쓰기가 끝난 뒤라 이력을 못 써도 변경을 되돌릴 수 없다. 재시도하고도 실패하면 요청은 성공으로 두고,
+   * 나중에 손으로 이력을 채울 수 있도록 필요한 값을 서버 로그에 남긴다. 실패로 응답하면 운영자가 다시 눌러 답변이 중복될 수 있다.
+   */
   private async record(
     actor: MemberRow,
     id: number,
     action: 'INQUIRY_ASSIGNED' | 'INQUIRY_ASSIGNEE_CHANGED' | 'INQUIRY_ASSIGNEE_RELEASED' | 'INQUIRY_REPLIED',
     change?: { from: string | null; to: string | null }
   ): Promise<void> {
-    await this.database.db.transaction((tx) =>
-      recordChange(tx, {
-        actor,
-        target: { type: 'INQUIRY', id, label: `문의 #${id}` },
-        action,
-        ...(change ? { change } : {}),
-      })
-    );
+    try {
+      await retry(
+        () =>
+          this.database.db.transaction((tx) =>
+            recordChange(tx, {
+              actor,
+              target: { type: 'INQUIRY', id, label: `문의 #${id}` },
+              action,
+              ...(change ? { change } : {}),
+            })
+          ),
+        { delaysMs: RECORD_RETRY_DELAYS_MS }
+      );
+    } catch (error) {
+      this.logger.error(
+        `변경 이력을 기록하지 못했습니다. 아래 값으로 수동 보완이 필요합니다: ${JSON.stringify({
+          inquiryId: id,
+          actorMemberId: actor.id,
+          action,
+          from: change?.from ?? null,
+          to: change?.to ?? null,
+        })}`,
+        error instanceof Error ? error.stack : String(error)
+      );
+    }
   }
 
   private async displayNameOf(memberId: number): Promise<string | null> {

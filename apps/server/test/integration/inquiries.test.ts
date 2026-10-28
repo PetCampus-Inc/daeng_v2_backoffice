@@ -1,7 +1,7 @@
 import 'reflect-metadata';
-import type { INestApplication } from '@nestjs/common';
+import { Logger, type INestApplication } from '@nestjs/common';
 import { and, eq, like } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { INQUIRY_IMAGE_BASE_URL } from '../../src/inquiries/inquiries.config.js';
 import { InquiriesController } from '../../src/inquiries/inquiries.controller.js';
 import { InquiriesService } from '../../src/inquiries/inquiries.service.js';
@@ -623,5 +623,63 @@ describe.skipIf(!hasDatabase)('inquiry operations (real database, fake service d
     expect(contract.checkSchema('Error', await response.json())).toEqual([]);
     expect(await logsOf(id)).toHaveLength(0);
     expect((await fixture.inquiry(id)).assignee_member_id).toBeNull();
+  });
+
+  // ---------- 변경 이력 기록 실패 (Java 쓰기는 이미 끝난 뒤라 되돌릴 수 없다)
+
+  test('a transient failure while recording the change is retried and the change is recorded once', async () => {
+    const id = await newInquiry('WAITING');
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const transaction = vi
+      .spyOn(database.db, 'transaction')
+      .mockRejectedValueOnce(new Error('connection lost'))
+      .mockRejectedValueOnce(new Error('connection lost'));
+
+    try {
+      const response = await call('post', `/inquiries/${id}/assignee`, '/inquiries/{id}/assignee', {
+        body: { expectedAssigneeId: null },
+      });
+
+      expect(response.status).toBe(200);
+      expect(transaction).toHaveBeenCalledTimes(3);
+      expect(await logsOf(id)).toHaveLength(1);
+      expect(logged).not.toHaveBeenCalled();
+    } finally {
+      transaction.mockRestore();
+      logged.mockRestore();
+    }
+  });
+
+  test('when every retry fails the request still succeeds and the log has what is needed to fill the record in by hand', async () => {
+    const id = await newInquiry('WAITING');
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const transaction = vi.spyOn(database.db, 'transaction').mockRejectedValue(new Error('connection lost'));
+
+    try {
+      const response = await call('post', `/inquiries/${id}/assignee`, '/inquiries/{id}/assignee', {
+        body: { expectedAssigneeId: null },
+      });
+
+      // 문의는 이미 바뀌었으므로 화면에는 성공을 알린다(실패로 보이면 운영자가 다시 눌러 중복이 생길 수 있다).
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ id, status: 'CHECKING', assignee: { id: ids.op } });
+      expect(transaction).toHaveBeenCalledTimes(3);
+      expect(await logsOf(id)).toHaveLength(0);
+
+      expect(logged).toHaveBeenCalledTimes(1);
+      const [message, stack] = logged.mock.calls[0]!;
+      expect(String(message)).toContain('변경 이력');
+      expect(JSON.parse(String(message).slice(String(message).indexOf('{')))).toEqual({
+        inquiryId: id,
+        actorMemberId: ids.op,
+        action: 'INQUIRY_ASSIGNED',
+        from: null,
+        to: expect.stringContaining(names.op),
+      });
+      expect(String(stack)).toContain('connection lost');
+    } finally {
+      transaction.mockRestore();
+      logged.mockRestore();
+    }
   });
 });
