@@ -26,6 +26,12 @@ const IMAGE_BASE = 'https://images.test';
 const T = Date.UTC(2026, 9, 20, 0, 0, 0);
 const at = (hours: number) => new Date(T + hours * 3_600_000);
 
+/** 재시도할 만한 일시적 DB 오류(drizzle이 감싼 mysql2 연결 끊김). */
+const connectionLost = () =>
+  new Error('connection lost', {
+    cause: Object.assign(new Error('connection lost'), { code: 'PROTOCOL_CONNECTION_LOST' }),
+  });
+
 let nameSeq = 0;
 const displayName = () => `문${Date.now() % 100_000}${++nameSeq}`;
 
@@ -632,8 +638,8 @@ describe.skipIf(!hasDatabase)('inquiry operations (real database, fake service d
     const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     const transaction = vi
       .spyOn(database.db, 'transaction')
-      .mockRejectedValueOnce(new Error('connection lost'))
-      .mockRejectedValueOnce(new Error('connection lost'));
+      .mockRejectedValueOnce(connectionLost())
+      .mockRejectedValueOnce(connectionLost());
 
     try {
       const response = await call('post', `/inquiries/${id}/assignee`, '/inquiries/{id}/assignee', {
@@ -653,7 +659,7 @@ describe.skipIf(!hasDatabase)('inquiry operations (real database, fake service d
   test('when every retry fails the request still succeeds and the log has what is needed to fill the record in by hand', async () => {
     const id = await newInquiry('WAITING');
     const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-    const transaction = vi.spyOn(database.db, 'transaction').mockRejectedValue(new Error('connection lost'));
+    const transaction = vi.spyOn(database.db, 'transaction').mockRejectedValue(connectionLost());
 
     try {
       const response = await call('post', `/inquiries/${id}/assignee`, '/inquiries/{id}/assignee', {
@@ -680,6 +686,102 @@ describe.skipIf(!hasDatabase)('inquiry operations (real database, fake service d
     } finally {
       transaction.mockRestore();
       logged.mockRestore();
+    }
+  });
+
+  test('an error that would fail the same way again is not retried, but is still logged', async () => {
+    const id = await newInquiry('WAITING');
+    const logged = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const transaction = vi.spyOn(database.db, 'transaction').mockRejectedValue(new Error('bad data'));
+
+    try {
+      const response = await call('post', `/inquiries/${id}/assignee`, '/inquiries/{id}/assignee', {
+        body: { expectedAssigneeId: null },
+      });
+
+      expect(response.status).toBe(200);
+      expect(transaction).toHaveBeenCalledTimes(1);
+      expect(logged).toHaveBeenCalledTimes(1);
+    } finally {
+      transaction.mockRestore();
+      logged.mockRestore();
+    }
+  });
+
+  test('the previous assignee in the change log comes from Java, not from a read made before the call', async () => {
+    const id = await newInquiry('CHECKING', ids.other);
+    const reader = app.get(InquiryReader);
+    const read = vi.spyOn(reader, 'get');
+    java.calls.length = 0;
+
+    try {
+      const response = await call('post', `/inquiries/${id}/assignee`, '/inquiries/{id}/assignee', {
+        body: { expectedAssigneeId: ids.other },
+      });
+
+      expect(response.status).toBe(200);
+      // 사전 조회 없이 Java가 알려 준 값으로 이력을 남기므로, 읽기는 최신 상세를 돌려주려고 한 번만 한다.
+      expect(read).toHaveBeenCalledTimes(1);
+      const logs = await logsOf(id);
+      expect(logs).toHaveLength(1);
+      expect(logs[0]).toMatchObject({ action: 'INQUIRY_ASSIGNEE_CHANGED' });
+      expect(logs[0]!.beforeValue).toContain(names.other);
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  test('assigning an unknown inquiry is decided by Java', async () => {
+    java.calls.length = 0;
+
+    const response = await call('post', '/inquiries/999999999/assignee', '/inquiries/{id}/assignee', {
+      body: { expectedAssigneeId: null },
+    });
+
+    expect(response.status).toBe(404);
+    expect(java.calls).toHaveLength(1);
+  });
+
+  // ---------- 쓰기 뒤 최신 상세 읽기 실패
+
+  test('a transient failure while reading the updated inquiry is retried, so a finished reply is not reported as failed', async () => {
+    const id = await newInquiry('CHECKING', ids.op);
+    const reader = app.get(InquiryReader);
+    const read = vi.spyOn(reader, 'get').mockRejectedValueOnce(connectionLost());
+
+    try {
+      const response = await call('post', `/inquiries/${id}/replies`, '/inquiries/{id}/replies', {
+        body: { body: '답변입니다' },
+      });
+
+      expect(response.status).toBe(200);
+      expect(read).toHaveBeenCalledTimes(2);
+      expect(await fixture.messages(id)).toHaveLength(2);
+      expect(await logsOf(id)).toHaveLength(1);
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  test('if the updated inquiry cannot be read at all the change and its log are still there', async () => {
+    const id = await newInquiry('CHECKING', ids.op);
+    const reader = app.get(InquiryReader);
+    const read = vi.spyOn(reader, 'get').mockRejectedValue(connectionLost());
+
+    try {
+      const response = await fetch(`${baseUrl}/api/v0/admin/inquiries/${id}/replies`, {
+        method: 'POST',
+        headers: { origin: ORIGIN, cookie: cookies.op, 'content-type': 'application/json' },
+        body: JSON.stringify({ body: '답변입니다' }),
+      });
+
+      // 명세의 200 응답은 상세 전체라 일부만 담아 성공으로 돌려줄 수 없다.
+      expect(response.status).toBe(500);
+      expect(read).toHaveBeenCalledTimes(3);
+      expect(await fixture.messages(id)).toHaveLength(2);
+      expect(await logsOf(id)).toHaveLength(1);
+    } finally {
+      read.mockRestore();
     }
   });
 });

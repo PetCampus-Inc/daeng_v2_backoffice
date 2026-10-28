@@ -108,6 +108,8 @@ export async function startFakeJava(fixture: ServiceFixture): Promise<FakeJava> 
         id,
         status: updated.status,
         assigneeMemberId: updated.assignee_member_id === null ? null : Number(updated.assignee_member_id),
+        // 처리 직전의 담당자. 실제 Java는 행 잠금 안에서 읽은 값을 준다.
+        previousAssigneeId: current,
         // Java의 LocalDateTime처럼 오프셋 없는 KST 시각 문자열이다.
         lastActivityAt: new Date((updated.last_activity_at as Date).getTime() + 9 * 3_600_000)
           .toISOString()

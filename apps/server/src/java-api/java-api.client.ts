@@ -1,5 +1,4 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { z } from 'zod';
 import { ApiException } from '../common/api-error.js';
 
 export const JAVA_API_CONFIG = Symbol('JAVA_API_CONFIG');
@@ -12,13 +11,14 @@ export interface JavaApiConfig {
 const API_KEY_HEADER = 'X-Backoffice-Api-Key';
 const TIMEOUT_MS = 10_000;
 
-/** Java 문의 운영 API가 쓰기 뒤에 돌려주는 값. 화면용 상세는 BO가 서비스 DB에서 다시 읽는다. */
-const operationSchema = z.object({
-  id: z.number(),
-  status: z.enum(['WAITING', 'CHECKING', 'ANSWERED', 'RESOLVED']),
-  assigneeMemberId: z.number().nullable(),
-});
-export type InquiryOperation = z.infer<typeof operationSchema>;
+/**
+ * 쓰기가 끝난 뒤 BO가 Java 응답에서 쓰는 값. 화면용 상세는 서비스 DB에서 다시 읽으므로 나머지 필드는 읽지 않는다.
+ * 쓰기는 이미 반영된 뒤라 응답 모양이 달라졌다는 이유로 실패로 바꾸지 않는다.
+ */
+export interface InquiryOperation {
+  /** 이 요청을 처리하기 직전의 담당자 팀원 ID. Java가 행 잠금 안에서 읽은 값이다. 없으면 null. */
+  previousAssigneeId: number | null;
+}
 
 /** Java가 돌려주는 오류 코드를 명세의 BO 오류로 옮긴다. 그 밖의 오류는 예상하지 못한 실패로 던진다. */
 const KNOWN_ERRORS: Record<string, () => ApiException> = {
@@ -66,6 +66,7 @@ export class JavaApiClient {
       // 응답 본문(Java 내부 메시지)은 오류에 싣지 않는다.
       throw new Error(`Java inquiry API failed: ${method} ${path.split('?')[0]} -> ${response.status} ${String(code)}`);
     }
-    return operationSchema.parse((payload as { data?: unknown } | undefined)?.data);
+    const previous = (payload as { data?: { previousAssigneeId?: unknown } } | undefined)?.data?.previousAssigneeId;
+    return { previousAssigneeId: typeof previous === 'number' ? previous : null };
   }
 }

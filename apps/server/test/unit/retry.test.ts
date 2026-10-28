@@ -52,6 +52,42 @@ describe('retry', () => {
     expect(waited).toEqual([10, 20]);
   });
 
+  test('an error that is not worth retrying is thrown at once, without waiting', async () => {
+    const { waited, sleep } = fakeSleep();
+    let calls = 0;
+
+    await expect(
+      retry(
+        async () => {
+          calls += 1;
+          throw new Error('permanent');
+        },
+        { delaysMs: [10, 20], sleep, shouldRetry: (error) => (error as Error).message !== 'permanent' }
+      )
+    ).rejects.toThrow('permanent');
+
+    expect(calls).toBe(1);
+    expect(waited).toEqual([]);
+  });
+
+  test('keeps retrying while the error is worth retrying, then stops at one that is not', async () => {
+    const { waited, sleep } = fakeSleep();
+    let calls = 0;
+
+    await expect(
+      retry(
+        async () => {
+          calls += 1;
+          throw new Error(calls < 2 ? 'transient' : 'permanent');
+        },
+        { delaysMs: [10, 20], sleep, shouldRetry: (error) => (error as Error).message === 'transient' }
+      )
+    ).rejects.toThrow('permanent');
+
+    expect(calls).toBe(2);
+    expect(waited).toEqual([10]);
+  });
+
   test('without delays it tries only once', async () => {
     const { sleep } = fakeSleep();
     let calls = 0;
