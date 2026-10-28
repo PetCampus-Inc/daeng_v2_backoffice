@@ -50,7 +50,7 @@ export default function TermsRoute() {
       <title>{formatDocumentTitle('이용약관')}</title>
       <div className='flex flex-wrap items-center justify-between gap-3'>
         <h1 className='text-kd-title-1'>이용약관</h1>
-        {user?.role === 'superAdmin' && (
+        {user?.role === 'SUPER_ADMIN' && (
           <Button asChild>
             <Link to={termPath(kind, 'new')}>새 버전 작성</Link>
           </Button>

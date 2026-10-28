@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useRef, useState, type SubmitEvent } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
-import { ROLE_LABELS, type Role } from '@/type/role';
+import { JOB_ROLE_LABELS } from '@/type/job-role-ui';
+import type { Role } from '@/type/role';
+import { ROLE_LABELS } from '@/type/role-ui';
 import type { ApiError } from '@/type/api';
 import { Badge } from '@/ui/atoms/badge';
 import { Button } from '@/ui/atoms/button';
@@ -25,12 +27,26 @@ import { showErrorToast, showSuccessToast } from '@/ui/atoms/sonner';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle } from '@/util/page-config';
-import { teamMembersQueryOptions, useRegisterTeamMember, useUpdateTeamMember } from './api/team-members';
-import { MEMBER_STATUS_LABELS, type TeamMember, type UpdateMemberInput } from './type/team-member';
+import {
+  getListTeamMembersQueryKey,
+  useCancelTeamMemberRegistration,
+  useChangeTeamMemberRole,
+  useDeactivateTeamMember,
+  useListTeamMembers,
+  useReactivateTeamMember,
+  useRegisterTeamMember,
+} from './api/use-team-members';
+import { MEMBER_STATUS_LABELS } from './type/member-status-ui';
+import type { TeamMember } from './type/team-member';
 import { isMemberProtected, memberEmailSchema, MEMBER_PROTECTION_MESSAGE } from './util/member-policy';
 import { MemberDialog } from './ui/member-dialog';
 
-const ROLE_OPTIONS: Role[] = ['viewer', 'operator', 'superAdmin'];
+/** 팀원 한 명에게 거는 변경. 역할 변경은 새 역할을 함께 보낸다. */
+type MemberAction =
+  | { memberId: number; action: 'changeRole'; role: Role }
+  | { memberId: number; action: 'deactivate' | 'cancel' | 'reactivate' };
+
+const ROLE_OPTIONS: Role[] = ['VIEWER', 'OPERATOR', 'SUPER_ADMIN'];
 const ACTION_MESSAGES = {
   changeRole: '역할을 변경했습니다.',
   deactivate: '계정을 비활성화했습니다.',
@@ -41,7 +57,7 @@ const ACTION_MESSAGES = {
 /** 서버가 전달한 요청 거부 사유를 읽는다. */
 const getMemberErrorMessage = (error: unknown) =>
   axios.isAxiosError<ApiError>(error)
-    ? (error.response?.data.errorMessage ?? '일시적 오류로 요청을 완료하지 못했습니다.')
+    ? (error.response?.data?.message ?? '일시적 오류로 요청을 완료하지 못했습니다.')
     : '일시적 오류로 요청을 완료하지 못했습니다.';
 
 /** 역할을 버튼형 단일 선택으로 표시한다. */
@@ -69,12 +85,20 @@ const MemberRoleField = ({
 /** 팀원·권한 목록. 등록과 역할 변경은 창으로, 상태 변경은 즉시 적용한다. */
 export default function TeamMembersRoute() {
   const currentEmail = useAuthStore((state) => state.user?.email) ?? '';
-  const membersQuery = useQuery(teamMembersQueryOptions(currentEmail));
-  const registerMemberMutation = useRegisterTeamMember(currentEmail);
-  const updateMemberMutation = useUpdateTeamMember(currentEmail);
+  const queryClient = useQueryClient();
+  const membersQuery = useListTeamMembers();
+  // 등록·변경이 성공하면 목록을 새로 읽는다.
+  const refreshOptions = {
+    mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListTeamMembersQueryKey() }) },
+  };
+  const registerMemberMutation = useRegisterTeamMember(refreshOptions);
+  const changeRoleMutation = useChangeTeamMemberRole(refreshOptions);
+  const deactivateMutation = useDeactivateTeamMember(refreshOptions);
+  const cancelMutation = useCancelTeamMemberRegistration(refreshOptions);
+  const reactivateMutation = useReactivateTeamMember(refreshOptions);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
-  const [selectedRole, setSelectedRole] = useState<Role>('viewer');
+  const [selectedRole, setSelectedRole] = useState<Role>('VIEWER');
   const [emailError, setEmailError] = useState('');
   const [roleMember, setRoleMember] = useState<TeamMember | null>(null);
   const [isClosePending, setIsClosePending] = useState(false);
@@ -82,13 +106,32 @@ export default function TeamMembersRoute() {
   const memberButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const members = membersQuery.data ?? [];
   const isDirty = isRegisterOpen && memberEmail.length > 0;
-  const isPending = registerMemberMutation.isPending || updateMemberMutation.isPending;
+  const isPending = [
+    registerMemberMutation,
+    changeRoleMutation,
+    deactivateMutation,
+    cancelMutation,
+    reactivateMutation,
+  ].some((mutation) => mutation.isPending);
+  /** 변경 종류에 맞는 요청을 보낸다. */
+  const requestMemberAction = (input: MemberAction) => {
+    switch (input.action) {
+      case 'changeRole':
+        return changeRoleMutation.mutateAsync({ memberId: input.memberId, data: { role: input.role } });
+      case 'deactivate':
+        return deactivateMutation.mutateAsync({ memberId: input.memberId });
+      case 'cancel':
+        return cancelMutation.mutateAsync({ memberId: input.memberId });
+      case 'reactivate':
+        return reactivateMutation.mutateAsync({ memberId: input.memberId });
+    }
+  };
   /** 등록 창의 입력을 비우고 닫는다. */
   const closeRegisterDialog = () => {
     setIsRegisterOpen(false);
     setMemberEmail('');
     setEmailError('');
-    setSelectedRole('viewer');
+    setSelectedRole('VIEWER');
   };
   // 이메일을 입력한 채 화면을 벗어나면(브라우저 뒤로 등) 앱 이탈 확인창(AppLayout)을 거친다.
   useLeaveGuard({ isDirty, description: '입력한 이메일과 역할을 버립니다.', discard: closeRegisterDialog });
@@ -106,7 +149,9 @@ export default function TeamMembersRoute() {
       return;
     }
     try {
-      const member = await registerMemberMutation.mutateAsync({ email: parsedEmail.data, role: selectedRole });
+      const member = await registerMemberMutation.mutateAsync({
+        data: { email: parsedEmail.data, role: selectedRole },
+      });
       closeRegisterDialog();
       showSuccessToast(`${member.email} 계정을 등록했습니다.`);
     } catch (error) {
@@ -114,9 +159,9 @@ export default function TeamMembersRoute() {
     }
   };
   /** 계정 변경 후 목록을 갱신하고 결과를 알린다. */
-  const handleUpdateMember = async (input: UpdateMemberInput) => {
+  const handleUpdateMember = async (input: MemberAction) => {
     try {
-      await updateMemberMutation.mutateAsync(input);
+      await requestMemberAction(input);
       setRoleMember(null);
       showSuccessToast(ACTION_MESSAGES[input.action]);
     } catch (error) {
@@ -138,7 +183,7 @@ export default function TeamMembersRoute() {
         <Button
           ref={registerButtonRef}
           onClick={() => {
-            setSelectedRole('viewer');
+            setSelectedRole('VIEWER');
             setIsRegisterOpen(true);
           }}
         >
@@ -171,9 +216,9 @@ export default function TeamMembersRoute() {
             <TableBody>
               {members.map((member) => {
                 const isProtected = isMemberProtected(member, members, currentEmail);
-                const isEnabled = member.status === 'active' || member.status === 'registered';
+                const isEnabled = member.status === 'ACTIVE' || member.status === 'REGISTERED';
                 return (
-                  <TableRow key={member.email}>
+                  <TableRow key={member.id}>
                     <TableCell>
                       <div className='font-bold'>
                         {member.displayName ?? <span className='text-kd-foreground-muted'>이름 없음</span>}
@@ -186,14 +231,14 @@ export default function TeamMembersRoute() {
                     <TableCell>
                       <Badge
                         variant={
-                          member.status === 'active' ? 'success' : member.status === 'registered' ? 'info' : 'default'
+                          member.status === 'ACTIVE' ? 'success' : member.status === 'REGISTERED' ? 'info' : 'default'
                         }
                       >
                         {MEMBER_STATUS_LABELS[member.status]}
                       </Badge>
                     </TableCell>
                     <TableCell>{ROLE_LABELS[member.role]}</TableCell>
-                    <TableCell>{member.jobRole ?? '—'}</TableCell>
+                    <TableCell>{member.jobRole ? JOB_ROLE_LABELS[member.jobRole] : '—'}</TableCell>
                     <TableCell className='tabular-nums'>{formatDate(member.lastLoginAt, true)}</TableCell>
                     <TableCell className='tabular-nums'>{formatDate(member.registeredAt)}</TableCell>
                     <TableCell>
@@ -224,12 +269,12 @@ export default function TeamMembersRoute() {
                                   disabled={isProtected}
                                   onSelect={() =>
                                     void handleUpdateMember({
-                                      email: member.email,
-                                      action: member.status === 'active' ? 'deactivate' : 'cancel',
+                                      memberId: member.id,
+                                      action: member.status === 'ACTIVE' ? 'deactivate' : 'cancel',
                                     })
                                   }
                                 >
-                                  {member.status === 'active' ? '비활성화' : '등록 취소'}
+                                  {member.status === 'ACTIVE' ? '비활성화' : '등록 취소'}
                                 </DropdownMenuItem>
                                 {isProtected && (
                                   <p className='max-w-64 px-3 py-2 text-kd-caption text-kd-foreground-muted'>
@@ -239,7 +284,7 @@ export default function TeamMembersRoute() {
                               </>
                             ) : (
                               <DropdownMenuItem
-                                onSelect={() => void handleUpdateMember({ email: member.email, action: 'reactivate' })}
+                                onSelect={() => void handleUpdateMember({ memberId: member.id, action: 'reactivate' })}
                               >
                                 재활성화
                               </DropdownMenuItem>
@@ -314,7 +359,7 @@ export default function TeamMembersRoute() {
             <Button
               disabled={isPending || selectedRole === roleMember.role}
               onClick={() =>
-                void handleUpdateMember({ email: roleMember.email, action: 'changeRole', role: selectedRole })
+                void handleUpdateMember({ memberId: roleMember.id, action: 'changeRole', role: selectedRole })
               }
             >
               역할 변경

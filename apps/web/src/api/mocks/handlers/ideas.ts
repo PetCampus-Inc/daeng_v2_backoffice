@@ -1,5 +1,5 @@
 import { http } from 'msw';
-import type { Idea } from '@/routes/ideas/type/idea';
+import type { Idea } from '@/routes/ideas/type/idea-ui';
 import { errorResponse, mockUrl, okResponse, pageResponse } from '../util/response';
 import { authenticateMockRequest } from '../util/session';
 import { recordMockNotification } from '../util/notification-event';

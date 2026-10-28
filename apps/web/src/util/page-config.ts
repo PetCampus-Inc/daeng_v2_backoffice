@@ -1,4 +1,5 @@
-import { ROLES, type Role } from '@/type/role';
+import type { Role } from '@/type/role';
+import { ROLES } from '@/type/role-ui';
 
 /** 메뉴 화면 하나의 주소·제목·볼 수 있는 역할. */
 export type PageInfo = {
@@ -8,9 +9,9 @@ export type PageInfo = {
 };
 
 /** 최고 관리자·운영자만 보는 화면(1:1 문의). */
-const STAFF_ROLES = ['superAdmin', 'operator'] as const satisfies readonly Role[];
+const STAFF_ROLES = ['SUPER_ADMIN', 'OPERATOR'] as const satisfies readonly Role[];
 /** 최고 관리자만 보는 화면(변경 이력, 팀원·권한). */
-const SUPER_ADMIN_ROLES = ['superAdmin'] as const satisfies readonly Role[];
+const SUPER_ADMIN_ROLES = ['SUPER_ADMIN'] as const satisfies readonly Role[];
 
 /** 메뉴 화면 목록. 역할은 PRD 4.1 권한표, 홈 주소 `/home`은 PRD 4.5를 따른다. */
 export const PAGES = {

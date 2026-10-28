@@ -38,7 +38,7 @@ async function scenario(
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__termsQA = { delay, delays: {}, failGet: false, mutationDelay: 0, mutationStatus: 0, requests: [] };
       network.use(
-        http.all('/api/v0/platform-admin/terms/*', async ({ request }) => {
+        http.all('/api/v0/admin/terms/*', async ({ request }) => {
           const qa = window.__termsQA;
           const method = request.method;
           qa.requests.push({ method, url: request.url });
@@ -109,7 +109,7 @@ async function text(page: Page, value: string) {
 async function api(page: Page, method: string, url: string, body?: unknown) {
   return page.evaluate(
     async ({ method, url, body }) => {
-      const response = await fetch(`/api/v0/platform-admin${url}`, {
+      const response = await fetch(`/api/v0/admin${url}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         ...(body ? { body: JSON.stringify(body) } : {}),

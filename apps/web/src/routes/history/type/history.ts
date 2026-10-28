@@ -1,4 +1,4 @@
-import type { JobRole } from '@daeng/shared';
+import type { JobRole } from '@/type/job-role';
 import type { Role } from '@/type/role';
 
 /** 변경 이력 대상 종류(PRD 7.12). 툴바 선택지 순서와 같다. */

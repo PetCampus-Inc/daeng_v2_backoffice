@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
 import type { ApiResponse, PageResponse } from '@/type/api';
-import type { Idea, IdeaListParams } from '../../type/idea';
+import type { Idea, IdeaListParams } from '../../type/idea-ui';
 
 /** 제안 목록은 20건씩 조회한다. page는 0부터 시작한다. */
 export const ideasQueryOptions = (email: string, params: IdeaListParams, page: number) =>

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Vitest 리포터 결과
+.vitest
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -20,7 +20,7 @@ import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { ideasQueryOptions } from './api/ideas/index';
-import { IDEA_USER_TYPE_LABELS, IDEA_USER_TYPES, type IdeaListParams } from './type/idea';
+import { IDEA_USER_TYPE_LABELS, IDEA_USER_TYPES, type IdeaListParams } from './type/idea-ui';
 import { useIdeaListSearchParams } from './util/list-search-params';
 
 /** 서비스 운영 > 아이디어 제안 목록(PRD 7.5). 조건은 주소에 두어 상세에서 돌아와도 그대로다. */

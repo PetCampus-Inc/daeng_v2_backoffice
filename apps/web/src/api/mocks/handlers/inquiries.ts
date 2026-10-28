@@ -15,6 +15,7 @@ import {
 import { checkAssignRequest, transitionInquiry, type InquiryEvent } from '@/routes/inquiries/util/inquiry-policy';
 import { canSubmitReply } from '@/routes/inquiries/util/reply-input';
 import type { TeamMember } from '@/routes/settings/members/type/team-member';
+import { JOB_ROLE_LABELS } from '@/type/job-role-ui';
 
 // fixtures에 맞춰 담당자 이메일을 바꿔 저장 키를 바꿨다. 이전 키(`daeng-bo-mock-inquiries`)의 값은 더 읽지 않는다.
 const STORAGE_KEY = 'daeng-bo-mock-inquiries-v2';
@@ -214,7 +215,7 @@ const toAssignee = (member: TeamMember | undefined): InquiryAssignee | null =>
         email: member.email,
         displayName: member.displayName,
         jobRole: member.jobRole,
-        isActive: member.status === 'active',
+        isActive: member.status === 'ACTIVE',
       }
     : null;
 
@@ -233,7 +234,7 @@ const authorizeInquiryRequest = () => {
   const auth = authenticateMockRequest();
   if (auth.denied) return { denied: auth.denied };
   const { member } = auth;
-  if (member.role === 'viewer') return { denied: rejectInquiryRequest(403, 'FORBIDDEN', '접근 권한이 없습니다.') };
+  if (member.role === 'VIEWER') return { denied: rejectInquiryRequest(403, 'FORBIDDEN', '접근 권한이 없습니다.') };
   return { member };
 };
 
@@ -311,7 +312,7 @@ export const INQUIRY_HANDLERS = [
     if (denied) return denied;
     // 표시명이 없는 등록됨·등록 취소 팀원은 빠진다(R-담당자필터목록)
     const assignees = getMockTeamMembers()
-      .filter((member) => member.status === 'active' || member.status === 'inactive')
+      .filter((member) => member.status === 'ACTIVE' || member.status === 'INACTIVE')
       .map(toAssignee)
       .filter((assignee) => assignee !== null);
     return okResponse(assignees);
@@ -352,12 +353,12 @@ export const INQUIRY_HANDLERS = [
     const members = getMockTeamMembers();
     const previousAssignee = members.find((item) => item.email === inquiry.assigneeEmail);
     // 이전 담당자가 활성 팀원일 때만 알린다(S-문의-034). 변경 이력 기록은 실제 서버가 한다.
-    if (previousAssignee && previousAssignee.email !== member.email && previousAssignee.status === 'active') {
+    if (previousAssignee && previousAssignee.email !== member.email && previousAssignee.status === 'ACTIVE') {
       recordMockNotification(members, {
         type: 'assigneeChanged',
         targetId: inquiry.id,
         previousEmail: previousAssignee.email,
-        actorName: `${member.displayName} · ${member.jobRole}`,
+        actorName: [member.displayName, member.jobRole && JOB_ROLE_LABELS[member.jobRole]].filter(Boolean).join(' · '),
       });
     }
     return okResponse(toInquiryDetail(inquiries[index], members));

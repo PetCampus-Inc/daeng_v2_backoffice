@@ -2,7 +2,7 @@ import { http } from 'msw';
 import { authenticateMockRequest } from '../util/session';
 import { errorResponse, mockUrl, okResponse } from '../util/response';
 import { getMockTeamMembers } from './team-members';
-import type { Notification } from '@/routes/app/ui/top-bar/ui/notification-center/type/notification';
+import type { Notification } from '@/routes/app/ui/top-bar/ui/notification-center/type/notification-ui';
 
 const STORAGE_KEY = 'daeng-bo-mock-notifications';
 const READ_STORAGE_KEY = 'daeng-bo-mock-notification-reads';
@@ -63,7 +63,7 @@ function getNotifications(email: string): Notification[] {
   let stored = readStored<StoredNotification[] | null>(STORAGE_KEY, null);
   if (!Array.isArray(stored)) {
     stored = getMockTeamMembers()
-      .filter((member) => member.status === 'active')
+      .filter((member) => member.status === 'ACTIVE')
       .flatMap((member) => DEFAULT_NOTIFICATIONS.map((item) => ({ ...item, recipientEmail: member.email })));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   }

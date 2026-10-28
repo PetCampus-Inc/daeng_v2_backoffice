@@ -61,7 +61,7 @@ async function switchAccount(page: Page, fromName: string, role: string) {
 async function post<Result = unknown>(page: Page, endpoint: string, body: unknown): Promise<Result> {
   return page.evaluate(
     async ({ endpoint, body }) => {
-      const response = await fetch(`/api/v0/platform-admin${endpoint}`, {
+      const response = await fetch(`/api/v0/admin${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -84,7 +84,7 @@ async function intercept(
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__notificationQA = { fail, calls: 0 };
       network.use(
-        http[method](`/api/v0/platform-admin${endpoint}`, async () => {
+        http[method](`/api/v0/admin${endpoint}`, async () => {
           window.__notificationQA.calls++;
           await new Promise((resolve) => setTimeout(resolve, delay));
           if (window.__notificationQA.fail) {
@@ -413,7 +413,7 @@ test('비로그인 알림 API 요청을 거부한다', async () =>
   scenario('authorization-guest', async (page) => {
     await page.goto(`${BASE}/login`);
     await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).waitFor();
-    assert.equal(await page.evaluate(async () => (await fetch('/api/v0/platform-admin/notifications')).status), 401);
+    assert.equal(await page.evaluate(async () => (await fetch('/api/v0/admin/notifications')).status), 401);
   }));
 
 test('다른 수신자의 알림 읽음 요청을 거부한다', async () =>
@@ -435,7 +435,7 @@ test('다른 수신자의 알림 읽음 요청을 거부한다', async () =>
     );
     assert.equal(
       await page.evaluate(
-        async () => (await fetch('/api/v0/platform-admin/notifications/foreign/read', { method: 'PATCH' })).status
+        async () => (await fetch('/api/v0/admin/notifications/foreign/read', { method: 'PATCH' })).status
       ),
       404
     );

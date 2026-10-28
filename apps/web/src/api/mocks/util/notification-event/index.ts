@@ -11,10 +11,10 @@ export type NotificationEvent =
 export function getNotificationRecipients(members: TeamMember[], event: NotificationEvent): string[] {
   return members
     .filter((member) => {
-      if (member.status !== 'active') return false;
+      if (member.status !== 'ACTIVE') return false;
       switch (event.type) {
         case 'newInquiry':
-          return member.role === 'superAdmin' || member.role === 'operator';
+          return member.role === 'SUPER_ADMIN' || member.role === 'OPERATOR';
         case 'newIdea':
           return true;
         case 'followUp':

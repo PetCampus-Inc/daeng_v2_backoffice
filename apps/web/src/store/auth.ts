@@ -1,7 +1,7 @@
-import type { JobRole } from '@daeng/shared';
 import { create } from 'zustand';
 
-import type { MyAccount } from '@/type/account';
+import type { JobRole } from '@/type/job-role';
+import type { MyAccount } from '@/type/my-account';
 import type { Role } from '@/type/role';
 
 type SessionUserBase = {
@@ -57,7 +57,7 @@ type AuthState = {
 /** 서버의 내 계정 정보를 화면이 쓰는 세션 팀원 모양으로 바꾼다. */
 function toSessionUser(account: MyAccount): SessionUser {
   const base = { role: account.role, email: account.email, googleName: account.googleName };
-  if (account.profileCompleted && account.displayName && account.jobRole) {
+  if (account.isProfileCompleted && account.displayName && account.jobRole) {
     return { ...base, profileCompleted: true, displayName: account.displayName, jobRole: account.jobRole };
   }
   return { ...base, profileCompleted: false, displayName: null, jobRole: null };

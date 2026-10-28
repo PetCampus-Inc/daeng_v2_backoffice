@@ -9,7 +9,7 @@ export default function NoticeWriteRoute() {
   const user = useAuthStore((state) => state.user);
   const navigate = useNavigate();
   const { listSearch } = useNoticeListSearchParams();
-  if (!user || user.role === 'viewer') return <Forbidden title={PAGES.notices.title} />;
+  if (!user || user.role === 'VIEWER') return <Forbidden title={PAGES.notices.title} />;
   return (
     <NoticeEditor
       onPublished={(notice) =>

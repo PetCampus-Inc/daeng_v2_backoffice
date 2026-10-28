@@ -1,7 +1,7 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import type { PageResponse } from '@/type/api';
-import type { IdeaListParams, Idea } from '../../type/idea';
+import type { IdeaListParams, Idea } from '../../type/idea-ui';
 import { ideasQueryOptions } from './index';
 
 const INITIAL_PARAMS: IdeaListParams = { keyword: '', userType: 'all', sort: 'latest' };

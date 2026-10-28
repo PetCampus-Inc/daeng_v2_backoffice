@@ -1,5 +1,5 @@
 import type { TeamMember } from '@/routes/settings/members/type/team-member';
-import { AUTH_ERROR_CODES } from '@/type/auth';
+import { UnauthorizedErrorCode } from '@/type/unauthorized-error-code';
 import { getMockTeamMembers } from '../handlers/team-members';
 import { isSessionExpired } from './auth-rule';
 import { errorResponse } from './response';
@@ -50,9 +50,9 @@ function createAuthErrorResponse(code: string, message: string) {
 
 /**
  * 요청마다 세션을 검사한다(PRD 4.5 서버 보장).
- * - 세션 없음 → 401 UNAUTHORIZED
+ * - 세션 없음 → 401 UNAUTHENTICATED
  * - 마지막 요청 뒤 24시간 → 세션 삭제, 401 SESSION_EXPIRED
- * - 그 사이 비활성·등록 취소 → 세션 삭제, 401 ACCOUNT_INACTIVE(FR-BO-014)
+ * - 그 사이 비활성·등록 취소 → 세션 삭제, 401 ACCOUNT_DEACTIVATED(FR-BO-014)
  * 통과하면 마지막 요청 시각을 갱신하고 세션과 현재 팀원을 돌려준다.
  */
 export function authenticateMockRequest():
@@ -60,18 +60,20 @@ export function authenticateMockRequest():
   | { denied: Response } {
   const session = readMockSession();
   if (!session) {
-    return { denied: createAuthErrorResponse(AUTH_ERROR_CODES.unauthorized, '로그인이 필요합니다.') };
+    return { denied: createAuthErrorResponse(UnauthorizedErrorCode.UNAUTHENTICATED, '로그인이 필요합니다.') };
   }
   const now = Date.now();
   if (isSessionExpired(session.lastRequestAt, now)) {
     endMockSession();
-    return { denied: createAuthErrorResponse(AUTH_ERROR_CODES.sessionExpired, '로그인이 만료되었습니다.') };
+    return { denied: createAuthErrorResponse(UnauthorizedErrorCode.SESSION_EXPIRED, '로그인이 만료되었습니다.') };
   }
   const members = getMockTeamMembers();
   const member = members.find((item) => item.email === session.email);
-  if (!member || member.status === 'inactive' || member.status === 'cancelled') {
+  if (!member || member.status === 'INACTIVE' || member.status === 'CANCELLED') {
     endMockSession();
-    return { denied: createAuthErrorResponse(AUTH_ERROR_CODES.accountInactive, '접근 권한이 없는 계정입니다.') };
+    return {
+      denied: createAuthErrorResponse(UnauthorizedErrorCode.ACCOUNT_DEACTIVATED, '접근 권한이 없는 계정입니다.'),
+    };
   }
   const touchedSession = { ...session, lastRequestAt: now };
   writeMockSession(touchedSession);

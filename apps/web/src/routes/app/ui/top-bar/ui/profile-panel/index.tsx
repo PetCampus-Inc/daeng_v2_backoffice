@@ -1,15 +1,16 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { myAccountQueryOptions, useUpdateMyAccount } from '@/api/account';
-import { useLogout } from '@/api/auth';
+import { useLogout, useSaveMyAccount } from '@/api/auth';
+import { useGetMyAccount } from '@/api/use-my-account';
 import { useAuthStore, type CompletedSessionUser } from '@/store/auth';
 import { useLeaveGuard, useLeaveGuardStore } from '@/store/leave-guard';
 import type { ApiError } from '@/type/api';
-import { ROLE_LABELS } from '@/type/role';
+import { JOB_ROLE_LABELS } from '@/type/job-role-ui';
+import { ProfileDisplayNameDuplicateErrorCode } from '@/type/profile-display-name-duplicate-error-code';
+import { ROLE_LABELS } from '@/type/role-ui';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,8 +31,8 @@ import { DISPLAY_NAME_ERROR, profileFormSchema, type ProfileFormInput, type Prof
 export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
   const logoutMutation = useLogout();
   const updateProfile = useAuthStore((state) => state.updateProfile);
-  const accountQuery = useQuery(myAccountQueryOptions(user.email));
-  const updateAccountMutation = useUpdateMyAccount(user.email);
+  const accountQuery = useGetMyAccount();
+  const updateAccountMutation = useSaveMyAccount();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isClosePending, setIsClosePending] = useState(false);
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
@@ -74,14 +75,16 @@ export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
   const handleSubmitProfile = form.handleSubmit(async (values) => {
     try {
       const account = await updateAccountMutation.mutateAsync({
-        displayName: values.displayName,
-        jobRole: values.jobRole,
+        data: { displayName: values.displayName, jobRole: values.jobRole },
       });
       updateProfile(account);
       form.reset({ displayName: account.displayName!, jobRole: account.jobRole! });
       showSuccessToast('프로필을 저장했습니다.');
     } catch (error) {
-      if (axios.isAxiosError<ApiError>(error) && error.response?.data.code === 'PROFILE_DISPLAY_NAME_DUPLICATE') {
+      if (
+        axios.isAxiosError<ApiError>(error) &&
+        error.response?.data.code === ProfileDisplayNameDuplicateErrorCode.PROFILE_DISPLAY_NAME_DUPLICATE
+      ) {
         form.setError('displayName', { message: DISPLAY_NAME_ERROR }, { shouldFocus: true });
         return;
       }
@@ -116,7 +119,9 @@ export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
         <PopoverTrigger asChild>
           <Button variant='ghost' className='gap-1.5 px-3'>
             <span>{user.displayName}</span>
-            <span className='font-normal text-kd-foreground-muted max-[1199px]:hidden'>{user.jobRole}</span>
+            <span className='font-normal text-kd-foreground-muted max-[1199px]:hidden'>
+              {JOB_ROLE_LABELS[user.jobRole]}
+            </span>
           </Button>
         </PopoverTrigger>
         <PopoverContent

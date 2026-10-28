@@ -1,5 +1,7 @@
-import { JOB_ROLES, type JobRole } from '@daeng/shared';
 import { z } from 'zod';
+
+import type { JobRole } from '@/type/job-role';
+import { JOB_ROLE_LABELS, JOB_ROLES } from '@/type/job-role-ui';
 
 export const DISPLAY_NAME_ERROR = '표시명은 1~10자이며 이미 사용 중인 이름은 사용할 수 없습니다.';
 export const JOB_ROLE_ERROR = '직무를 선택해 주세요.';
@@ -19,7 +21,7 @@ export function isValidDisplayName(value: string) {
 
 /** 팀원 이름 `표시명 · 직무`. 문의 담당자·변경 이력 행위자 등 여러 화면이 같이 쓴다. */
 export function formatProfileName(profile: { displayName: string; jobRole: JobRole }) {
-  return `${profile.displayName} · ${profile.jobRole}`;
+  return `${profile.displayName} · ${JOB_ROLE_LABELS[profile.jobRole]}`;
 }
 
 /** 첫 로그인 화면과 프로필 패널이 함께 쓰는 입력 규칙. */

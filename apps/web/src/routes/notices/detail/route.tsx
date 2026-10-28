@@ -50,7 +50,7 @@ function NoticeDetailContent({ id, edit }: { id: number; edit: boolean }) {
       void navigate({ pathname: location.pathname, search: location.search }, { replace: true, state: null });
     }
   }, [location, navigate]);
-  const canWrite = user && user.role !== 'viewer';
+  const canWrite = user && user.role !== 'VIEWER';
   if (edit && !canWrite) return <Forbidden title={PAGES.notices.title} />;
   if (query.isPending) {
     return (

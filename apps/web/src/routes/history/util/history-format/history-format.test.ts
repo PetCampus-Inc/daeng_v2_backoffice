@@ -25,7 +25,7 @@ describe('R-이력기록. 변경 전 → 후', () => {
     ['02 담당자 변경', { kind: 'assignee', before: leeOps, after: kimOps }, '이담당 · FE → 김운영 · PM'],
     ['03 담당 해제는 미배정으로', { kind: 'assignee', before: kimOps, after: null }, '김운영 · PM → 미배정'],
     ['06 담당 해제 실행 취소는 미배정에서', { kind: 'assignee', before: null, after: kimOps }, '미배정 → 김운영 · PM'],
-    ['24 역할 변경', { kind: 'role', before: 'operator', after: 'viewer' }, '운영자 → 조회자'],
+    ['24 역할 변경', { kind: 'role', before: 'OPERATOR', after: 'VIEWER' }, '운영자 → 조회자'],
   ])('%s', (_, change, expected) => {
     expect(formatHistoryChange(change)).toBe(expected);
   });

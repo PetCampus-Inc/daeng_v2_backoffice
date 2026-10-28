@@ -71,7 +71,7 @@ function deny(status: number, code: string, message: string) {
 function authorize(write = false) {
   const auth = authenticateMockRequest();
   if (auth.denied) return auth.denied;
-  return write && auth.member.role !== 'superAdmin' ? deny(403, 'FORBIDDEN', '접근 권한이 없습니다.') : null;
+  return write && auth.member.role !== 'SUPER_ADMIN' ? deny(403, 'FORBIDDEN', '접근 권한이 없습니다.') : null;
 }
 function validInput(input: Partial<TermInput>): input is TermInput {
   return isRichContent(input.body) && typeof input.effectiveDate === 'string';

@@ -3,11 +3,12 @@ import type { TeamMember } from '../../type/team-member';
 import { getReactivatedStatus, isMemberProtected, memberEmailSchema } from '.';
 
 const ADMIN: TeamMember = {
+  id: 1,
   email: 'admin@example.com',
   displayName: '관리',
   jobRole: 'PM',
-  role: 'superAdmin',
-  status: 'active',
+  role: 'SUPER_ADMIN',
+  status: 'ACTIVE',
   lastLoginAt: '2026-10-22T00:00:00Z',
   registeredAt: '2026-10-01T00:00:00Z',
 };
@@ -20,7 +21,7 @@ describe('팀원 계정 보호', () => {
     expect(
       isMemberProtected(
         ADMIN,
-        [ADMIN, { ...ADMIN, email: 'new@example.com', status: 'registered' }],
+        [ADMIN, { ...ADMIN, email: 'new@example.com', status: 'REGISTERED' }],
         'other@example.com'
       )
     ).toBe(true);
@@ -31,15 +32,15 @@ describe('팀원 계정 보호', () => {
     );
   });
   it('비활성 최고 관리자는 마지막 활성 관리자 보호 대상이 아니다', () => {
-    expect(isMemberProtected({ ...ADMIN, status: 'inactive' }, [ADMIN], 'other@example.com')).toBe(false);
+    expect(isMemberProtected({ ...ADMIN, status: 'INACTIVE' }, [ADMIN], 'other@example.com')).toBe(false);
   });
 });
 
 describe('팀원 재활성화', () => {
   it('로그인 이력이 있으면 활성으로 복원한다', () =>
-    expect(getReactivatedStatus({ ...ADMIN, status: 'inactive' })).toBe('active'));
+    expect(getReactivatedStatus({ ...ADMIN, status: 'INACTIVE' })).toBe('ACTIVE'));
   it('로그인 이력이 없으면 등록됨으로 복원한다', () =>
-    expect(getReactivatedStatus({ ...ADMIN, status: 'cancelled', lastLoginAt: null })).toBe('registered'));
+    expect(getReactivatedStatus({ ...ADMIN, status: 'CANCELLED', lastLoginAt: null })).toBe('REGISTERED'));
 });
 
 describe('등록 이메일', () => {

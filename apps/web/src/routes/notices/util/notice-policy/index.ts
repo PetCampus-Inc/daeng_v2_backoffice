@@ -1,5 +1,5 @@
 import { getRichText as getNoticeText } from '@/util/rich-content';
-import type { Notice, NoticeInput } from '../../type/notice';
+import type { Notice, NoticeInput } from '../../type/notice-ui';
 
 export { createRichContent as createNoticeBody, getRichText as getNoticeText } from '@/util/rich-content';
 

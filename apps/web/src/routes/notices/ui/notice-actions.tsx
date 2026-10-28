@@ -15,7 +15,7 @@ import {
   AlertDialogAction,
 } from '@/ui/atoms/alert-dialog';
 import { useChangeNotice } from '../api/notices/index';
-import type { Notice } from '../type/notice';
+import type { Notice } from '../type/notice-ui';
 
 /** 목록·읽기·초안 화면에서 동일한 상태 전환과 확인창을 쓴다. */
 export function NoticeActions({
@@ -36,7 +36,7 @@ export function NoticeActions({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const isBusy = useRef(false);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
-  if (!user || user.role === 'viewer') return null;
+  if (!user || user.role === 'VIEWER') return null;
   const action = notice.status === 'draft' ? 'delete' : notice.status === 'published' ? 'unpublish' : 'republish';
   if (action === 'republish' && !showRepublish) return null;
   const label = action === 'delete' ? '초안 삭제' : action === 'unpublish' ? '게시 해제' : '공지 재게시';

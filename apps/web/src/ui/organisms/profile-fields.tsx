@@ -1,6 +1,6 @@
-import { JOB_ROLES } from '@daeng/shared';
 import { Controller, type UseFormReturn } from 'react-hook-form';
 
+import { JOB_ROLE_LABELS, JOB_ROLES } from '@/type/job-role-ui';
 import { Field, FieldCounter, FieldError, FieldGroup, FieldLabel } from '@/ui/atoms/field';
 import { Input } from '@/ui/atoms/input';
 import { RadioGroup, RadioGroupItem } from '@/ui/atoms/radio-group';
@@ -43,7 +43,7 @@ export function ProfileFields({
             <RadioGroup value={field.value} onValueChange={field.onChange}>
               {JOB_ROLES.map((jobRole) => (
                 <RadioGroupItem key={jobRole} value={jobRole}>
-                  {jobRole}
+                  {JOB_ROLE_LABELS[jobRole]}
                 </RadioGroupItem>
               ))}
             </RadioGroup>

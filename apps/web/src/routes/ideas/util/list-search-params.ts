@@ -1,5 +1,5 @@
 import { createSerializer, parseAsInteger, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
-import { IDEA_SORTS, IDEA_USER_TYPES } from '../type/idea';
+import { IDEA_SORTS, IDEA_USER_TYPES } from '../type/idea-ui';
 
 const IDEA_LIST_SEARCH_PARAMS = {
   keyword: parseAsString.withDefault(''),

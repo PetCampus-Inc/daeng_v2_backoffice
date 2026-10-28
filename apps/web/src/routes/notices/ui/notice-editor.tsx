@@ -25,7 +25,7 @@ import {
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { useChangeNotice } from '../api/notices/index';
-import type { Notice } from '../type/notice';
+import type { Notice } from '../type/notice-ui';
 import { createNoticeBody, validateNotice } from '../util/notice-policy';
 import { useNoticeListSearchParams } from '../util/list-search-params';
 import { NoticeActions } from './notice-actions';

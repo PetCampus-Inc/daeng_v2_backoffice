@@ -3,7 +3,7 @@ import { HttpResponse } from 'msw/http';
 import type { ApiError, ApiResponse, PageResponse } from '@/type/api';
 
 /** 가짜 API 기본 주소. 실제 관리자 API와 같다. */
-export const MOCK_API_BASE = '/api/v0/platform-admin';
+export const MOCK_API_BASE = '/api/v0/admin';
 
 /** 성공 응답의 `code`. 실제 값이 문서에 없어 비워 둔다. 서버 확인 필요. */
 const SUCCESS_CODE = '';

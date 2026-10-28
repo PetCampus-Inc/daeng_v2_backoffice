@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
 import type { ApiResponse } from '@/type/api';
-import type { Notification } from '../type/notification';
+import type { Notification } from '../type/notification-ui';
 
 export const notificationsQueryOptions = (email: string) =>
   queryOptions({

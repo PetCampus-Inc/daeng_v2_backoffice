@@ -1,7 +1,7 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import type { PageResponse } from '@/type/api';
-import type { Notice, NoticeListParams } from '../../type/notice';
+import type { Notice, NoticeListParams } from '../../type/notice-ui';
 import { noticesQueryOptions } from './index';
 
 const PREVIOUS_PAGE: PageResponse<Notice> = {

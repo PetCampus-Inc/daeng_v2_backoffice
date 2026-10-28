@@ -53,9 +53,9 @@ async function scenario(
         const { http } = await import('/node_modules/.vite/deps/msw.js');
         window.__supportQA = { listDelay: delay, rules, requests: [] };
         network.use(
-          http.all(/\/api\/v0\/platform-admin\/(inquiries|ideas)(?:[/?]|$)/, async ({ request }) => {
+          http.all(/\/api\/v0\/admin\/(inquiries|ideas)(?:[/?]|$)/, async ({ request }) => {
             const url = new URL(request.url);
-            const key = url.pathname.replace('/api/v0/platform-admin', '');
+            const key = url.pathname.replace('/api/v0/admin', '');
             const state = window.__supportQA;
             const entry: RequestEntry = {
               path: key,
@@ -589,7 +589,7 @@ for (const mode of ['assignee', 'resolved'] as const) {
       await reply.fill('경합 중 보존할 답변');
       // mock은 첫 변경 때 기본 데이터를 저장하므로 기본 응답을 저장 형태로 먼저 복제한다.
       await page.evaluate(async () => {
-        const response = await fetch('/api/v0/platform-admin/inquiries/1043');
+        const response = await fetch('/api/v0/admin/inquiries/1043');
         const { data } = await response.json();
         localStorage.setItem(
           'daeng-bo-mock-inquiries-v2',
@@ -618,7 +618,7 @@ test('inquiry attachment loading and failure do not shift reply', () =>
   scenario('inquiry-images', '/inquiries', async (page) => {
     await page.locator('table').waitFor();
     await page.evaluate(async () => {
-      const response = await fetch('/api/v0/platform-admin/inquiries/1041');
+      const response = await fetch('/api/v0/admin/inquiries/1041');
       const { data } = await response.json();
       data.messages[0].images = [
         { id: 'good', url: '/qa-images/good.svg', fileName: 'good.svg', originalUrl: null },
@@ -703,7 +703,7 @@ test('inquiry takeover conflict refreshes confirmation before change', () =>
     const assign = page.getByRole('button', { name: '내가 맡기', exact: true });
     await assign.waitFor();
     await page.evaluate(async () => {
-      const response = await fetch('/api/v0/platform-admin/inquiries/1045');
+      const response = await fetch('/api/v0/admin/inquiries/1045');
       const { data } = await response.json();
       localStorage.setItem(
         'daeng-bo-mock-inquiries-v2',

@@ -14,9 +14,9 @@ export default function TermWriteRoute() {
   const user = useAuthStore((state) => state.user);
   const query = useQuery({
     ...termsQueryOptions(user?.email ?? '', kind ?? 'service'),
-    enabled: !!kind && user?.role === 'superAdmin',
+    enabled: !!kind && user?.role === 'SUPER_ADMIN',
   });
-  if (user?.role !== 'superAdmin') return <Forbidden title='이용약관' />;
+  if (user?.role !== 'SUPER_ADMIN') return <Forbidden title='이용약관' />;
   if (!kind) return <TermMissing />;
   if (query.isPending) {
     return (

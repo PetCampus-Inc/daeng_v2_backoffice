@@ -41,7 +41,7 @@ function TermDetail({ kind, version, edit }: { kind: TermKind; version: number; 
   const query = useQuery(termQueryOptions(user?.email ?? '', kind, version));
   const versions = useQuery(termsQueryOptions(user?.email ?? '', kind));
   const now = useTermClock(query.dataUpdatedAt + versions.dataUpdatedAt);
-  if (edit && user?.role !== 'superAdmin') return <Forbidden title='이용약관' />;
+  if (edit && user?.role !== 'SUPER_ADMIN') return <Forbidden title='이용약관' />;
   if (query.isPending || versions.isPending) {
     return (
       <Card>
@@ -67,7 +67,7 @@ function TermDetail({ kind, version, edit }: { kind: TermKind; version: number; 
   }
   const term = query.data;
   const title = `${TERM_KIND_LABELS[kind]} 버전 #${version}`;
-  if (term.status === 'draft' && user?.role === 'superAdmin') {
+  if (term.status === 'draft' && user?.role === 'SUPER_ADMIN') {
     return <TermEditor key={`${kind}:${version}`} kind={kind} term={term} versions={versions.data} />;
   }
   if (edit) return <Forbidden title='이용약관' />;
@@ -80,7 +80,7 @@ function TermDetail({ kind, version, edit }: { kind: TermKind; version: number; 
         <h1 tabIndex={-1} className='min-w-0 text-kd-title-1 [overflow-wrap:anywhere]'>
           {title}
         </h1>
-        {user?.role === 'superAdmin' && status === '예정' && <TermConfirm term={term} action='withdraw' />}
+        {user?.role === 'SUPER_ADMIN' && status === '예정' && <TermConfirm term={term} action='withdraw' />}
       </div>
       <div className='mt-4 flex flex-wrap items-center gap-3'>
         <TermStatusBadge status={status} />

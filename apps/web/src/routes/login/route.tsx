@@ -50,16 +50,19 @@ export default function LoginRoute() {
   /** 구글(개발 서버에서는 개발용 계정 고르기)이 준 ID 토큰으로 로그인한다. 로그인 중 다시 누른 것은 무시한다. */
   const handleCredential = (credential: string) => {
     if (googleLoginMutation.isPending) return;
-    googleLoginMutation.mutate(credential, {
-      onError: (error) => {
-        // 미등록·비활성·등록 취소는 모두 같은 빨간 박스다(R-로그인판정-04~06).
-        if (axios.isAxiosError(error) && error.response?.status === 403) {
-          showLoginNotice('denied');
-          return;
-        }
-        showErrorToast('일시적 오류로 요청을 완료하지 못했습니다.');
-      },
-    });
+    googleLoginMutation.mutate(
+      { data: { idToken: credential } },
+      {
+        onError: (error) => {
+          // 미등록·비활성·등록 취소는 모두 같은 빨간 박스다(R-로그인판정-04~06).
+          if (axios.isAxiosError(error) && error.response?.status === 403) {
+            showLoginNotice('denied');
+            return;
+          }
+          showErrorToast('일시적 오류로 요청을 완료하지 못했습니다.');
+        },
+      }
+    );
   };
 
   const notice = loginNotice ? LOGIN_NOTICES[loginNotice] : null;

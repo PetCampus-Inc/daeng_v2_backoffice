@@ -58,7 +58,7 @@ async function scenario(
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__schoolQA = { delay, delays: {}, fail: false, started: [], completed: [] };
       network.use(
-        http.get('/api/v0/platform-admin/kindergartens', async ({ request }) => {
+        http.get('/api/v0/admin/kindergartens', async ({ request }) => {
           const params = new URL(request.url).searchParams;
           const key = params.get('status') || params.get('keyword') || `page:${params.get('page')}`;
           const { delay: fallback, delays, fail } = window.__schoolQA;

@@ -1,6 +1,6 @@
 import { isRichContent } from '@/util/rich-content';
 import { http } from 'msw';
-import type { Notice, NoticeAction, NoticeInput } from '@/routes/notices/type/notice';
+import type { Notice, NoticeAction, NoticeInput } from '@/routes/notices/type/notice-ui';
 import { compareNotices, createNoticeBody, validateNotice } from '@/routes/notices/util/notice-policy';
 import { errorResponse, mockUrl, okResponse, pageResponse } from '../util/response';
 import { authenticateMockRequest } from '../util/session';
@@ -81,7 +81,7 @@ function deny(status: number, code: string, message: string) {
 function authorize(write = false) {
   const auth = authenticateMockRequest();
   if (auth.denied) return auth.denied;
-  if (write && auth.member.role === 'viewer') return deny(403, 'FORBIDDEN', '접근 권한이 없습니다.');
+  if (write && auth.member.role === 'VIEWER') return deny(403, 'FORBIDDEN', '접근 권한이 없습니다.');
   return null;
 }
 

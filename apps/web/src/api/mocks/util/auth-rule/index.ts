@@ -17,8 +17,8 @@ export function judgeLogin(googleEmail: string, members: TeamMember[]): LoginJud
   const email = googleEmail.toLowerCase();
   const member = members.find((item) => item.email.toLowerCase() === email);
   if (!member) return { result: 'denied', reason: 'unregistered' };
-  if (member.status === 'inactive' || member.status === 'cancelled') return { result: 'denied', reason: 'inactive' };
-  return { result: 'allowed', member, isFirstLogin: member.status === 'registered' };
+  if (member.status === 'INACTIVE' || member.status === 'CANCELLED') return { result: 'denied', reason: 'inactive' };
+  return { result: 'allowed', member, isFirstLogin: member.status === 'REGISTERED' };
 }
 
 /** 마지막 요청 뒤 24시간이 지났으면 세션 만료다. 24시간 0분부터 만료로 본다(R-세션 표 아래 메모). */

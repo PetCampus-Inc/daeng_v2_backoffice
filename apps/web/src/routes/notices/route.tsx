@@ -21,12 +21,12 @@ import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { noticesQueryOptions } from './api/notices/index';
 import { NoticeActions } from './ui/notice-actions';
 import { NoticeStatusBadge } from './ui/notice-status-badge';
-import { NOTICE_STATUS_LABELS, NOTICE_STATUSES, type NoticeListParams } from './type/notice';
+import { NOTICE_STATUS_LABELS, NOTICE_STATUSES, type NoticeListParams } from './type/notice-ui';
 import { useNoticeListSearchParams } from './util/list-search-params';
 
 /** 앱 공지 목록. 검색·필터·페이지를 주소에 보존한다. */
 export default function NoticesRoute() {
-  const canWrite = useAuthStore((state) => state.user?.role !== 'viewer');
+  const canWrite = useAuthStore((state) => state.user?.role !== 'VIEWER');
   const currentEmail = useAuthStore((state) => state.user?.email) ?? '';
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);

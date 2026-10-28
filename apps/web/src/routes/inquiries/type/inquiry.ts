@@ -1,4 +1,4 @@
-import type { JobRole } from '@daeng/shared';
+import type { JobRole } from '@/type/job-role';
 
 /** BO 문의 상태(PRD 5.2). '확인 중'은 BO 안에서만 쓰고 앱에는 '답변 대기'로 내려간다. */
 export const INQUIRY_STATUSES = ['waiting', 'checking', 'answered', 'resolved'] as const;

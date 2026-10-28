@@ -1,4 +1,4 @@
-import { ROLE_LABELS } from '@/type/role';
+import { ROLE_LABELS } from '@/type/role-ui';
 import { formatProfileName } from '@/util/profile';
 import { TERMS_TYPE_LABELS, type HistoryChange, type HistoryTarget } from '../../type/history';
 

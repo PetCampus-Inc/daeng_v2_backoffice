@@ -59,7 +59,7 @@ async function installListDelay(page: Page) {
     window.__noticeMode = { delay: 1200, fail: false };
     window.__noticeRequests = [];
     network.use(
-      http.get('/api/v0/platform-admin/notices', async ({ request }) => {
+      http.get('/api/v0/admin/notices', async ({ request }) => {
         const keyword = new URL(request.url).searchParams.get('keyword') ?? '';
         const entry = { keyword, finished: false };
         window.__noticeRequests.push(entry);
@@ -384,7 +384,7 @@ test('S-공지-069 저장 실패 복구·게시 대기·중복 요청 방지', (
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__noticeWrite = { fail: true, requests: 0 };
       network.use(
-        http.post('/api/v0/platform-admin/notices', async () => {
+        http.post('/api/v0/admin/notices', async () => {
           window.__noticeWrite.requests++;
           await new Promise((resolve) => setTimeout(resolve, 1200));
           if (window.__noticeWrite.fail) {
@@ -486,7 +486,7 @@ test('S-공지-070 조회자 읽기·작성 주소·변경 API 권한', () =>
       const status = await target.evaluate(
         async () =>
           (
-            await fetch('/api/v0/platform-admin/notices/14', {
+            await fetch('/api/v0/admin/notices/14', {
               method: 'DELETE',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ revision: 1 }),
@@ -524,7 +524,7 @@ test('S-공지-069/070 초안 삭제 취소·409/404 입력 보존·이탈', () 
         const { http } = await import('/node_modules/.vite/deps/msw.js');
         window.__noticeConflict = 409;
         network.use(
-          http.patch('/api/v0/platform-admin/notices/14', () => {
+          http.patch('/api/v0/admin/notices/14', () => {
             const status = window.__noticeConflict;
             return new Response(
               JSON.stringify({

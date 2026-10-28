@@ -1,8 +1,8 @@
 ---
 title: 웹 기여 가이드
-version: 0.2.0
+version: 0.2.1
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-27
 author: 윤정
 ---
 
@@ -21,7 +21,9 @@ author: 윤정
 ### 컴포넌트·훅·이벤트
 
 - 컴포넌트는 명사형 PascalCase로 짓는다. 예: `RootLayout`, `ProfilePanel`.
-- 사용자 정의 훅은 `use`로 시작한다. 예: `useUpdateMyAccount`. Zod 스키마는 `profileFormSchema`처럼 역할을 드러낸다.
+- 컴포넌트 props 타입은 컴포넌트명 + `Props`로 짓는다. 예: `TopBarProps`.
+- 사용자 정의 훅은 `use`로 시작하고, 훅 파일은 `use-`로 시작하는 kebab-case로 짓는다. 예: `useUpdateMyAccount`,
+  `use-media-query.ts`. Zod 스키마는 `profileFormSchema`처럼 역할을 드러낸다.
 - 이벤트 핸들러는 `handle` + 동작 + 대상, 이벤트 props는 `on`으로 시작한다. 예: `handleSubmitProfile`, `onSubmit`.
 - 라이브러리가 정의한 props·메서드 이름은 변경하지 않는다. 예: `open`, `form.handleSubmit`.
 

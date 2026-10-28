@@ -12,7 +12,7 @@ import { showErrorToast } from '@/ui/atoms/sonner';
 import { cn } from '@/util/cn';
 import { formatDate } from '@/util/date-format';
 import { notificationsQueryOptions, patchNotificationsRead } from './api/notifications';
-import type { Notification } from './type/notification';
+import type { Notification } from './type/notification-ui';
 
 /** 개인별 읽음 상태와 작성 중 이탈 확인을 연결하는 상단바 알림 센터. */
 export function NotificationCenter({ user }: { user: CompletedSessionUser }) {

@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["src/**/api/use-*.ts"],
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
@@ -44,6 +45,12 @@
       "files": ["src/ui/atoms/**"],
       "rules": {
         "react/only-export-components": "off"
+      }
+    },
+    {
+      "files": ["src/type/**", "src/routes/**/type/**"],
+      "rules": {
+        "id-length": "off"
       }
     },
     {

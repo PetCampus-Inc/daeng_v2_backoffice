@@ -1,7 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
 import type { ApiResponse, PageResponse } from '@/type/api';
-import type { Notice, NoticeAction, NoticeInput, NoticeListParams } from '../../type/notice';
+import type { Notice, NoticeAction, NoticeInput, NoticeListParams } from '../../type/notice-ui';
 
 export const noticesQueryOptions = (email: string, params: NoticeListParams, page: number) =>
   queryOptions({

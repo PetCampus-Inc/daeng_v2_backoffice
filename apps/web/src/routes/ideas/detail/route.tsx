@@ -16,7 +16,7 @@ import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { ideaQueryOptions } from '../api/ideas/index';
-import { IDEA_USER_TYPE_LABELS } from '../type/idea';
+import { IDEA_USER_TYPE_LABELS } from '../type/idea-ui';
 import { useIdeaListSearchParams } from '../util/list-search-params';
 
 function IdeaNotFound() {

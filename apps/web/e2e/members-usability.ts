@@ -61,7 +61,7 @@ async function scenario(
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__memberQA = { delay, delays: {}, fail: false, started: [], completed: [] };
       network.use(
-        http.get('/api/v0/platform-admin/members', async ({ request }) => {
+        http.get('/api/v0/admin/members', async ({ request }) => {
           const params = new URL(request.url).searchParams;
           const key =
             params.get('joinedWithin') || params.get('type') || params.get('keyword') || `page:${params.get('page')}`;
@@ -202,7 +202,7 @@ test('S010 회원 API 응답에서 개인정보를 가린다', async () => {
   await scenario('render-api-masking', async (page) => {
     // 가림은 DOM 치환이 아니라 응답 계약에서 수행되어야 한다.
     const payload = await page.evaluate(async () => {
-      const response = await fetch('/api/v0/platform-admin/members');
+      const response = await fetch('/api/v0/admin/members');
       if (!response.ok) throw new Error(`회원 조회 ${response.status}`);
       return response.json();
     });

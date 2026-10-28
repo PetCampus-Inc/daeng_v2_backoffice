@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Notice } from '../../type/notice';
+import type { Notice } from '../../type/notice-ui';
 import { compareNotices, createNoticeBody, getNoticeText, validateNotice } from './index';
 
 describe('공지 입력 검증', () => {

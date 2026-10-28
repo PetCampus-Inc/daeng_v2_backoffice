@@ -52,7 +52,7 @@ const DEFAULT_HISTORIES: HistoryRecord[] = [
     actor: ADMIN,
     target: { type: 'teamMember', email: 'ops2@knockdog.test' },
     action: 'changeRole',
-    change: { kind: 'role', before: 'viewer', after: 'operator' },
+    change: { kind: 'role', before: 'VIEWER', after: 'OPERATOR' },
   },
   {
     id: 6,
@@ -125,7 +125,7 @@ const authorize = () => {
   const auth = authenticateMockRequest();
   if (auth.denied) return auth.denied;
   const { member } = auth;
-  if (member.role !== 'superAdmin') {
+  if (member.role !== 'SUPER_ADMIN') {
     return errorResponse(403, {
       code: 'FORBIDDEN',
       message: '접근 권한이 없습니다.',

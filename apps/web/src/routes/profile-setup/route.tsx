@@ -1,12 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 
-import { myAccountQueryOptions, useUpdateMyAccount } from '@/api/account';
+import { useSaveMyAccount } from '@/api/auth';
+import { useGetMyAccount } from '@/api/use-my-account';
 import { useAuthStore } from '@/store/auth';
 import type { ApiError } from '@/type/api';
+import { ProfileDisplayNameDuplicateErrorCode } from '@/type/profile-display-name-duplicate-error-code';
 import { Button } from '@/ui/atoms/button';
 import { Card, CardContent } from '@/ui/atoms/card';
 import { showErrorToast } from '@/ui/atoms/sonner';
@@ -19,8 +20,8 @@ export default function ProfileSetupRoute() {
   // 이 라우트는 AppLayout의 로그인 검사 안에서만 그려진다.
   const user = useAuthStore((state) => state.user)!;
   const updateProfile = useAuthStore((state) => state.updateProfile);
-  const accountQuery = useQuery(myAccountQueryOptions(user.email));
-  const updateAccountMutation = useUpdateMyAccount(user.email);
+  const accountQuery = useGetMyAccount();
+  const updateAccountMutation = useSaveMyAccount();
   const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: { displayName: '', jobRole: '' },
@@ -29,7 +30,7 @@ export default function ProfileSetupRoute() {
   useEffect(() => {
     if (!accountQuery.data || form.formState.isDirty) return;
     form.reset({
-      displayName: accountQuery.data.displayName ?? accountQuery.data.suggestedDisplayName ?? '',
+      displayName: accountQuery.data.displayName ?? accountQuery.data.googleName,
       jobRole: accountQuery.data.jobRole ?? '',
     });
   }, [accountQuery.data, form, form.formState.isDirty]);
@@ -42,12 +43,14 @@ export default function ProfileSetupRoute() {
   const handleSubmitProfile = form.handleSubmit(async (values) => {
     try {
       const account = await updateAccountMutation.mutateAsync({
-        displayName: values.displayName,
-        jobRole: values.jobRole,
+        data: { displayName: values.displayName, jobRole: values.jobRole },
       });
       updateProfile(account);
     } catch (error) {
-      if (axios.isAxiosError<ApiError>(error) && error.response?.data.code === 'PROFILE_DISPLAY_NAME_DUPLICATE') {
+      if (
+        axios.isAxiosError<ApiError>(error) &&
+        error.response?.data.code === ProfileDisplayNameDuplicateErrorCode.PROFILE_DISPLAY_NAME_DUPLICATE
+      ) {
         form.setError('displayName', { message: DISPLAY_NAME_ERROR }, { shouldFocus: true });
         return;
       }

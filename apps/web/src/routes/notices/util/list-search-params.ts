@@ -1,5 +1,5 @@
 import { createSerializer, parseAsInteger, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
-import { NOTICE_STATUSES } from '../type/notice';
+import { NOTICE_STATUSES } from '../type/notice-ui';
 
 const NOTICE_LIST_SEARCH_PARAMS = {
   keyword: parseAsString.withDefault(''),

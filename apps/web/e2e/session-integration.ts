@@ -46,7 +46,7 @@ async function login(page: Page, role = '최고관리자') {
 async function request(page: Page, method: string, url: string, body?: unknown) {
   return page.evaluate(
     async ({ method, url, body }) => {
-      const response = await fetch(`/api/v0/platform-admin${url}`, {
+      const response = await fetch(`/api/v0/admin${url}`, {
         method,
         headers: { 'Content-Type': 'application/json', 'X-Dev-Email': 'admin@knockdog.test' },
         ...(body ? { body: JSON.stringify(body) } : {}),
@@ -95,7 +95,7 @@ test('변경 이력 필터의 지연 전환과 주소를 보존한다', async ()
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__historyQA = { fail: false, delay: 1200 };
       network.use(
-        http.get('/api/v0/platform-admin/change-histories', async () => {
+        http.get('/api/v0/admin/change-histories', async () => {
           await new Promise((resolve) => setTimeout(resolve, window.__historyQA.delay));
           if (window.__historyQA.fail) {
             return new Response(JSON.stringify({ status: 500, code: 'QA_ERROR', message: '조회 실패' }), {
@@ -140,7 +140,7 @@ test('변경 이력 조회 실패 후 다시 시도한다', async () =>
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__recover = false;
       network.use(
-        http.get('/api/v0/platform-admin/change-histories', () => {
+        http.get('/api/v0/admin/change-histories', () => {
           if (!window.__recover) {
             return new Response(JSON.stringify({ status: 500, code: 'QA_ERROR', message: '조회 실패' }), {
               status: 500,
