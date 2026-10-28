@@ -1,15 +1,7 @@
-import type { Notice, NoticeBody, NoticeInput } from '../../type/notice';
+import { getRichText as getNoticeText } from '@/util/rich-content';
+import type { Notice, NoticeInput } from '../../type/notice';
 
-export function createNoticeBody(text: string): NoticeBody {
-  return {
-    schemaVersion: 1,
-    blocks: text.split('\n').map((line) => ({ type: 'paragraph', children: [{ text: line }] })),
-  };
-}
-
-export function getNoticeText(body: NoticeBody) {
-  return body.blocks.map((block) => block.children.map((child) => child.text).join('')).join('\n');
-}
+export { createRichContent as createNoticeBody, getRichText as getNoticeText } from '@/util/rich-content';
 
 export function validateNotice(input: NoticeInput) {
   const titleCount = [...input.title].length;

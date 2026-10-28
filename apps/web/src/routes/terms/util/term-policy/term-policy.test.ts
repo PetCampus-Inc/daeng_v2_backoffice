@@ -1,3 +1,4 @@
+import { createRichContent, getRichText } from '@/util/rich-content';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_TERMS } from '@/api/mocks/handlers/terms';
 import {
@@ -82,24 +83,29 @@ describe('R-약관판정·정렬·처음본문·자리표시자·날짜채움', 
     expect([...SERVICE].sort(compareTerms).map((item) => item.version)).toEqual([4, 3, 2, 1]);
     expect([...PRIVACY].sort(compareTerms).map((item) => item.version)).toEqual([2, 1]);
     expect(PRIVACY.map((item) => getTermStatus(item, PRIVACY, NOW))).toEqual(['현행', '철회']);
-    expect(getInitialTermBody(PRIVACY)).toContain('개인정보 처리방침 1판');
+    expect(getRichText(getInitialTermBody(PRIVACY))).toContain('개인정보 처리방침 1판');
     expect(
-      getInitialTermBody(SERVICE.map((item) => (item.version === 3 ? { ...item, status: 'withdrawn' } : item)))
+      getRichText(
+        getInitialTermBody(SERVICE.map((item) => (item.version === 3 ? { ...item, status: 'withdrawn' } : item)))
+      )
     ).toContain('서비스 이용약관 2판');
-    expect(getInitialTermBody([])).toContain('공고일자: {{공고일}}');
+    expect(getRichText(getInitialTermBody([]))).toContain('공고일자: {{공고일}}');
   });
   it('복제 시 네 곳의 공개·시행일을 되돌리고 공개 시 모두 채운다', () => {
-    const text = getInitialTermBody(SERVICE);
+    const body = getInitialTermBody(SERVICE);
+    const text = getRichText(body);
     expect(text).toContain('공고일자: {{공고일}}');
     expect(text).toContain('시행일자: {{시행일}}');
     expect(text).toContain('이 약관은 {{시행일}}부터 시행합니다.');
     expect(text).toContain('{{공고일}} 공고');
-    const filled = fillTermDates(text, '2026-11-10', NOW);
+    const filled = getRichText(fillTermDates(body, '2026-11-10', NOW));
     expect(filled).not.toContain('{{');
     expect(filled).toContain('공고일자: 2026년 10월 7일');
     expect(filled).toContain('시행일자: 2026년 11월 10일');
-    expect(fillTermDates('{{공고일}}', '2026-11-10', new Date('2026-10-07T15:30:00Z'))).toBe('2026년 10월 8일');
-    expect(fillTermDates('{{시행일}}부터 {{시행일}}까지', '2027-03-05', NOW)).toBe(
+    expect(
+      getRichText(fillTermDates(createRichContent('{{공고일}}'), '2026-11-10', new Date('2026-10-07T15:30:00Z')))
+    ).toBe('2026년 10월 8일');
+    expect(getRichText(fillTermDates(createRichContent('{{시행일}}부터 {{시행일}}까지'), '2027-03-05', NOW))).toBe(
       '2027년 3월 5일부터 2027년 3월 5일까지'
     );
   });

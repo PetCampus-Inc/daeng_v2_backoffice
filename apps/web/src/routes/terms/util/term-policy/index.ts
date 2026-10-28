@@ -1,3 +1,5 @@
+import type { RichContent } from '@/type/rich-content';
+import { createRichContent, normalizeRichContent, replaceRichText } from '@/util/rich-content';
 import type { Term, TermDisplayStatus } from '../../type/term';
 
 export function kstDate(now = new Date()): string {
@@ -62,15 +64,18 @@ export function getInitialTermBody(versions: Term[]) {
   const latest = versions
     .filter((item) => item.status === 'published')
     .sort((left, right) => right.effectiveDate.localeCompare(left.effectiveDate) || right.version - left.version)[0];
-  if (!latest) return DEFAULT_TERM_BODY;
-  let body = latest.body;
-  // 일반 텍스트 계약에서는 명시된 공개일·시행일만 되돌린다.
-  if (latest.publishedAt) body = body.replaceAll(koreanTermDate(kstDate(new Date(latest.publishedAt))), '{{공고일}}');
-  if (latest.effectiveDate) body = body.replaceAll(koreanTermDate(latest.effectiveDate), '{{시행일}}');
+  if (!latest) return createRichContent(DEFAULT_TERM_BODY);
+  let body = normalizeRichContent(latest.body);
+  // 명시된 공개일·시행일을 되돌리면서 문단과 인라인 서식은 유지한다.
+  if (latest.publishedAt) {
+    body = replaceRichText(body, [[koreanTermDate(kstDate(new Date(latest.publishedAt))), '{{공고일}}']]);
+  }
+  if (latest.effectiveDate) body = replaceRichText(body, [[koreanTermDate(latest.effectiveDate), '{{시행일}}']]);
   return body;
 }
-export function fillTermDates(body: string, effectiveDate: string, now = new Date()) {
-  return body
-    .replaceAll('{{공고일}}', koreanTermDate(kstDate(now)))
-    .replaceAll('{{시행일}}', koreanTermDate(effectiveDate));
+export function fillTermDates(body: RichContent, effectiveDate: string, now = new Date()) {
+  return replaceRichText(body, [
+    ['{{공고일}}', koreanTermDate(kstDate(now))],
+    ['{{시행일}}', koreanTermDate(effectiveDate)],
+  ]);
 }

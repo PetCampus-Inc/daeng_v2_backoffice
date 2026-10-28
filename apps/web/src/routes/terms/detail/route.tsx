@@ -4,6 +4,7 @@ import { useParams } from 'react-router';
 import { Forbidden } from '@/routes/app/ui/forbidden';
 import { useAuthStore } from '@/store/auth';
 import { Card, CardContent } from '@/ui/atoms/card';
+import { RichContentView } from '@/ui/organisms/rich-content-editor';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle } from '@/util/page-config';
@@ -90,7 +91,7 @@ function TermDetail({ kind, version, edit }: { kind: TermKind; version: number; 
       <div className='mt-6 grid min-w-0 grid-cols-[minmax(0,1fr)_320px] gap-6 max-[1199px]:grid-cols-1'>
         <Card className='min-w-0'>
           <CardContent className='py-6'>
-            <p className='whitespace-pre-wrap text-kd-body [overflow-wrap:anywhere]'>{term.body}</p>
+            <RichContentView value={term.body} />
           </CardContent>
         </Card>
         <Card>

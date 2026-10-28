@@ -111,3 +111,17 @@ rtk proxy node --test --test-name-pattern='S-공지-069 저장 실패 복구' ap
 
 공지 스크립트의 기존 환경변수 `NOTICE_TEST_BASE_URL`, `NOTICE_TEST_OUTPUT_DIR`, `PLAYWRIGHT_MODULE`,
 `PLAYWRIGHT_CHROMIUM_PATH`는 유지한다. 결과 기본 위치는 `.local/test-results/notices`다.
+
+## Plate 편집기
+
+`rich-content-usability.ts`는 공지·약관의 BO 기본 서식·미리보기·모의 저장·공개·재열기와 좁은 화면 조작을 검사한다. 서버
+블록 계약·실제 앱 표시·이미지 업로드는 별도 연동 대기다.
+
+```sh
+rtk proxy pnpm --filter @daeng/web dev --host 127.0.0.1 --port 5196 --strictPort
+rtk proxy node --test apps/web/e2e/rich-content-usability.ts
+```
+
+기본 서버 주소는 `http://127.0.0.1:5196`이며 `BO_QA_BASE_URL`로 변경할 수 있다. 기존 실행 파일을 쓰려면
+`PLAYWRIGHT_EXECUTABLE_PATH`를 지정한다. 결과는 `.local/test-results/rich-content-editor/` 아래에 생성하며
+`BO_QA_OUTPUT_DIR`로 실행별 디렉터리를 지정한다. 새 브라우저를 설치하거나 개인 브라우저에 연결하지 않는다.

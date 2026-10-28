@@ -401,7 +401,7 @@ test('S-공지-069 저장 실패 복구·게시 대기·중복 요청 방지', (
     await page.waitForFunction(() => document.querySelector<HTMLInputElement>('#notice-title')?.disabled === true);
     await page.getByText('일시적 오류로 요청을 완료하지 못했습니다.', { exact: true }).waitFor();
     assert.equal(await page.getByLabel('제목 *', { exact: true }).inputValue(), '사용성 확인');
-    assert.equal(await page.getByLabel('본문 *', { exact: true }).inputValue(), '<b>HTML은 글자</b>\n둘째 문단');
+    assert.equal(await page.getByLabel('본문 *', { exact: true }).innerText(), '<b>HTML은 글자</b>\n둘째 문단');
     await page.evaluate(() => {
       window.__noticeWrite = { fail: false, requests: 0 };
     });

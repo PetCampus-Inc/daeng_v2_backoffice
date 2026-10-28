@@ -1,3 +1,5 @@
+import type { RichContent } from '@/type/rich-content';
+
 export const TERM_KINDS = ['service', 'privacy', 'location'] as const;
 export type TermKind = (typeof TERM_KINDS)[number];
 export const TERM_KIND_LABELS: Record<TermKind, string> = {
@@ -7,13 +9,13 @@ export const TERM_KIND_LABELS: Record<TermKind, string> = {
 };
 export type TermStatus = 'draft' | 'published' | 'withdrawn';
 export type TermDisplayStatus = '초안' | '예정' | '현행' | '과거' | '철회';
-/** 본문 블록 계약(OQ-P4) 확정 전에는 일반 텍스트만 보존한다. */
+/** 서식은 BO 개발용 블록으로 보존하며 서버·앱 계약은 OQ-P4에서 확인한다. */
 export type Term = {
   kind: TermKind;
   version: number;
   status: TermStatus;
   effectiveDate: string;
-  body: string;
+  body: RichContent;
   publishedAt: string | null;
   updatedAt: string;
   revision: number;

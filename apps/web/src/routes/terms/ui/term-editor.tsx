@@ -10,7 +10,8 @@ import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
 import { Card, CardContent } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
-import { Textarea } from '@/ui/atoms/textarea';
+import { RichContentEditor, RichContentView } from '@/ui/organisms/rich-content-editor';
+import { getRichText, sameRichContent } from '@/util/rich-content';
 import { Label } from '@/ui/atoms/label';
 import {
   AlertDialog,
@@ -51,10 +52,10 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
   } | null>(null);
   const busy = useRef(false);
   const dateRef = useRef<HTMLInputElement>(null);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const publishRef = useRef<HTMLButtonElement>(null);
   const hasChanged =
-    body !== (saved?.body ?? initialBody) ||
+    !sameRichContent(body, saved?.body ?? initialBody) ||
     date !== (saved?.effectiveDate ? displayTermDate(saved.effectiveDate) : '');
   const title = `${TERM_KIND_LABELS[kind]} ${saved ? `버전 #${saved.version} 초안 수정` : '새 버전'}`;
   useLeaveGuard({
@@ -76,7 +77,7 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
       showPublishError(validation);
       return;
     }
-    if (!body.trim()) {
+    if (!getRichText(body).trim()) {
       showPublishError('본문을 입력해 주세요.', 'body');
       return;
     }
@@ -236,17 +237,17 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
                   </details>
                 </div>
                 <div className='space-y-2'>
-                  <Label htmlFor='term-body'>본문 *</Label>
-                  <Textarea
+                  <Label htmlFor='term-body' onClick={() => bodyRef.current?.focus()}>
+                    본문 *
+                  </Label>
+                  <RichContentEditor
                     ref={bodyRef}
                     id='term-body'
-                    className='h-96 min-h-96 resize-y'
-                    style={{ fieldSizing: 'fixed' }}
                     value={body}
                     readOnly={isPending}
                     aria-invalid={error?.field === 'body'}
                     aria-describedby='term-body-help'
-                    onChange={(event) => setBody(event.target.value)}
+                    onChange={setBody}
                   />
                   <p id='term-body-help' className='text-kd-caption text-kd-foreground-muted'>
                     {
@@ -272,7 +273,7 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
                   <p className='text-kd-caption text-kd-foreground-muted'>
                     시행일 {parseTermDate(date) ? displayTermDate(parseTermDate(date)!) : date || '미정'}
                   </p>
-                  <p className='mt-5 whitespace-pre-wrap text-kd-body'>{body}</p>
+                  <RichContentView value={body} className='mt-5' />
                 </div>
               </div>
             </aside>

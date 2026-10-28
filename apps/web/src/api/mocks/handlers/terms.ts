@@ -1,4 +1,5 @@
 import { http } from 'msw';
+import { createRichContent, getRichText, isRichContent, normalizeRichContent } from '@/util/rich-content';
 import { TERM_KINDS, type Term, type TermAction, type TermInput, type TermKind } from '@/routes/terms/type/term';
 import {
   compareTerms,
@@ -18,7 +19,7 @@ function fixture(
   status: Term['status'],
   effectiveDate: string,
   publishedAt: string | null,
-  text: string
+  text: string | Term['body']
 ): Term {
   return {
     kind,
@@ -27,8 +28,12 @@ function fixture(
     effectiveDate,
     publishedAt,
     body: publishedAt
-      ? fillTermDates(text + '\n\n공고일자: {{공고일}}\n시행일자: {{시행일}}', effectiveDate, new Date(publishedAt))
-      : text,
+      ? fillTermDates(
+          createRichContent(text + '\n\n공고일자: {{공고일}}\n시행일자: {{시행일}}'),
+          effectiveDate,
+          new Date(publishedAt)
+        )
+      : normalizeRichContent(text),
     revision: 1,
     updatedAt: publishedAt ?? '2026-10-06T15:00:00+09:00',
   };
@@ -54,7 +59,7 @@ export const DEFAULT_TERMS: Term[] = [
 export function getMockTerms(): Term[] {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-    if (Array.isArray(stored)) return stored;
+    if (Array.isArray(stored)) return stored.map((item) => ({ ...item, body: normalizeRichContent(item.body) }));
   } catch {
     /* 개발 데이터 복구 */
   }
@@ -69,7 +74,7 @@ function authorize(write = false) {
   return write && auth.member.role !== 'superAdmin' ? deny(403, 'FORBIDDEN', '접근 권한이 없습니다.') : null;
 }
 function validInput(input: Partial<TermInput>): input is TermInput {
-  return typeof input.body === 'string' && typeof input.effectiveDate === 'string';
+  return isRichContent(input.body) && typeof input.effectiveDate === 'string';
 }
 /** 개발용 계약. 버전 번호 체계와 본문 블록은 서버 계약 확정 시 교체한다. */
 export const TERM_HANDLERS = [
@@ -101,7 +106,8 @@ export const TERM_HANDLERS = [
     const versions = all.filter((item) => item.kind === params.kind);
     const error =
       input.action === 'publish'
-        ? validateEffectiveDate(input.effectiveDate, versions) || (!input.body.trim() ? '본문을 입력해 주세요.' : null)
+        ? validateEffectiveDate(input.effectiveDate, versions) ||
+          (!getRichText(input.body).trim() ? '본문을 입력해 주세요.' : null)
         : null;
     if (error) return deny(400, 'INVALID_TERM', error);
     const now = new Date();
@@ -144,7 +150,8 @@ export const TERM_HANDLERS = [
       if (!validInput(input)) return deny(400, 'INVALID_TERM', '입력 내용을 확인해 주세요.');
       if (input.action === 'publish') {
         const error =
-          validateEffectiveDate(input.effectiveDate, versions) || (!input.body.trim() ? '본문을 입력해 주세요.' : null);
+          validateEffectiveDate(input.effectiveDate, versions) ||
+          (!getRichText(input.body).trim() ? '본문을 입력해 주세요.' : null);
         if (error) return deny(400, 'INVALID_TERM', error);
       }
       item.effectiveDate = parseTermDate(input.effectiveDate) ?? input.effectiveDate;

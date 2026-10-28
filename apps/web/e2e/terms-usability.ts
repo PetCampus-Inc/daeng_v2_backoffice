@@ -193,10 +193,10 @@ test('약관 상세에서 목록으로 돌아오면 종류와 초점을 유지�
 test('새 버전을 초안 저장하고 생성된 주소로 교체한다', async () =>
   scenario('draft-create', async (page) => {
     await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
-    assert.match(await page.getByLabel('본문 *', { exact: true }).inputValue(), /공고일자: \{\{공고일\}\}/);
+    assert.match(await page.getByLabel('본문 *', { exact: true }).innerText(), /공고일자: \{\{공고일\}\}/);
     await page
       .getByLabel('본문 *', { exact: true })
-      .fill('제1조 목적\n' + (await page.getByLabel('본문 *', { exact: true }).inputValue()));
+      .fill('제1조 목적\n' + (await page.getByLabel('본문 *', { exact: true }).innerText()));
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
     await page.getByRole('heading', { name: '서비스 이용약관 버전 #5 초안 수정', exact: true }).waitFor();
     assert.match(page.url(), /service\/5$/);
@@ -301,7 +301,7 @@ test('초안 저장 지연 중 중복 실행을 막고 500 오류에서 입력�
     await qa(page, { mutationDelay: 1500, mutationStatus: 500 });
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
     await text(page, '처리 중… 입력은 처리 후 수정할 수 있습니다.');
-    assert.equal(await page.getByLabel('본문 *', { exact: true }).getAttribute('readonly'), '');
+    assert.equal(await page.getByLabel('본문 *', { exact: true }).getAttribute('aria-readonly'), 'true');
     assert.equal(await page.getByRole('button', { name: '초안 삭제', exact: true }).isDisabled(), true);
     assert.equal(await page.getByRole('button', { name: '공개하기', exact: true }).isDisabled(), true);
     await text(page, '일시적 오류로 요청을 완료하지 못했습니다.');
@@ -384,7 +384,7 @@ test('새 버전 작성은 최근 공개 버전을 복제한다', async () =>
     await text(page, '앱에 보이지 않는 버전입니다.');
     await page.getByRole('link', { name: '이용약관', exact: true }).last().click();
     await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
-    assert.match(await page.getByLabel('본문 *', { exact: true }).inputValue(), /서비스 이용약관 2판/);
+    assert.match(await page.getByLabel('본문 *', { exact: true }).innerText(), /서비스 이용약관 2판/);
   }));
 
 test('입력을 원래 값으로 되돌리면 확인 없이 목록으로 이동한다', async () =>
@@ -393,7 +393,11 @@ test('입력을 원래 값으로 되돌리면 확인 없이 목록으로 이동�
     await text(page, '철회');
     await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
     const body = page.getByLabel('본문 *', { exact: true });
-    const initial = await body.inputValue();
+    const initial = await body.evaluate((element) =>
+      [...element.children]
+        .map((block) => [...block.querySelectorAll('[data-slate-string]')].map((leaf) => leaf.textContent).join(''))
+        .join('\n')
+    );
     await body.fill('바뀜');
     await body.fill(initial);
     await page.getByRole('link', { name: '이용약관', exact: true }).last().click();
@@ -499,11 +503,21 @@ for (const [name, method, url, body, status] of [
 
 test('삭제한 초안 번호를 다음 버전에서 재사용하지 않는다', async () =>
   scenario('api-version-sequence', async (page) => {
-    const saved = await api(page, 'POST', '/terms/location', { action: 'save', body: '', effectiveDate: 'abc' });
+    const saved = await api(page, 'POST', '/terms/location', {
+      action: 'save',
+      body: { schemaVersion: 1, blocks: [{ type: 'paragraph', children: [{ text: '' }] }] },
+      effectiveDate: 'abc',
+    });
     assert.equal(saved.status, 201);
     assert.equal((await api(page, 'DELETE', '/terms/location/1', { revision: 1 })).status, 200);
     assert.equal(
-      (await api(page, 'POST', '/terms/location', { action: 'save', body: '', effectiveDate: '' })).body.data.version,
+      (
+        await api(page, 'POST', '/terms/location', {
+          action: 'save',
+          body: { schemaVersion: 1, blocks: [{ type: 'paragraph', children: [{ text: '' }] }] },
+          effectiveDate: '',
+        })
+      ).body.data.version,
       2
     );
   }));
@@ -545,7 +559,12 @@ for (const width of [1440, 1200, 1199, 390] as const) {
         await body.fill('긴본문'.repeat(500) + '\n{{공고일}} {{시행일}}');
         await body.evaluate((el) => {
           el.focus();
-          (el as HTMLInputElement).setSelectionRange(20, 25);
+          const node = el.querySelector('[data-slate-string]')!.firstChild!;
+          const range = document.createRange();
+          range.setStart(node, 20);
+          range.setEnd(node, 25);
+          window.getSelection()!.removeAllRanges();
+          window.getSelection()!.addRange(range);
           el.scrollTop = 50;
         });
         if (width < 1200) {
@@ -560,8 +579,8 @@ for (const width of [1440, 1200, 1199, 390] as const) {
           );
           assert.deepEqual(
             await body.evaluate((el) => [
-              (el as HTMLInputElement).selectionStart,
-              (el as HTMLInputElement).selectionEnd,
+              window.getSelection()?.anchorOffset,
+              window.getSelection()?.focusOffset,
               el.scrollTop,
             ]),
             [20, 25, 50]
@@ -604,11 +623,11 @@ for (const status of [500, 409, 404] as const) {
       await page.getByRole('button', { name: '초안 삭제', exact: true }).click();
       await confirm(page, '초안 삭제');
       await text(page, '초안 삭제 중…');
-      assert.equal(await page.getByLabel('본문 *', { exact: true }).getAttribute('readonly'), '');
+      assert.equal(await page.getByLabel('본문 *', { exact: true }).getAttribute('aria-readonly'), 'true');
       await page.getByRole('alertdialog').waitFor({ state: 'hidden' });
       if (status === 500) await text(page, '일시적 오류로 요청을 완료하지 못했습니다.');
       else await text(page, '삭제하지 못했습니다.');
-      assert.equal(await body.inputValue(), '복사할 미저장 내용');
+      assert.equal(await body.innerText(), '복사할 미저장 내용');
     }));
 }
 
@@ -643,7 +662,7 @@ test('CDP 한글 조합 입력을 본문에 반영한다', async () =>
     await cdp.send('Input.imeSetComposition', { text: '한', selectionStart: 1, selectionEnd: 1 });
     await cdp.send('Input.insertText', { text: '한' });
     await cdp.detach();
-    assert.equal(await body.inputValue(), '한');
+    assert.equal(await body.innerText(), '한');
   }));
 
 test('네트워크 전송 실패 뒤 입력을 보존해 다시 저장한다', async () =>
@@ -655,7 +674,7 @@ test('네트워크 전송 실패 뒤 입력을 보존해 다시 저장한다', a
     await qa(page, { mutationStatus: -1 });
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
     await text(page, '일시적 오류로 요청을 완료하지 못했습니다.');
-    assert.equal(await body.inputValue(), '한');
+    assert.equal(await body.innerText(), '한');
     await qa(page, { mutationStatus: 0 });
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
     await text(page, '초안을 저장했습니다.');

@@ -13,15 +13,9 @@ import KindergartensRoute from './routes/kindergartens/route.tsx';
 import LoginRoute from './routes/login/route.tsx';
 import MembersRoute from './routes/members/route.tsx';
 import NotFoundRoute from './routes/not-found/route.tsx';
-import NoticesRoute from './routes/notices/route.tsx';
-import NoticeDetailRoute, { NoticeEditRoute } from './routes/notices/detail/route.tsx';
-import NoticeWriteRoute from './routes/notices/write/route.tsx';
 import OwnerVerificationsRoute from './routes/owner-verifications/route.tsx';
 import ProfileSetupRoute from './routes/profile-setup/route.tsx';
 import TeamMembersRoute from './routes/settings/members/route.tsx';
-import TermsRoute from './routes/terms/route.tsx';
-import TermDetailRoute, { TermEditRoute } from './routes/terms/detail/route.tsx';
-import TermWriteRoute from './routes/terms/write/route.tsx';
 import { PAGES, type PageInfo } from './util/page-config.ts';
 
 /** 메뉴 화면의 handle. AppLayout이 이 page로 역할을 검사한다. */
@@ -63,22 +57,46 @@ export const router = createBrowserRouter([
           },
           { path: PAGES.ideas.path, Component: IdeasRoute, handle: createPageHandle(PAGES.ideas) },
           { path: `${PAGES.ideas.path}/:ideaId`, Component: IdeaDetailRoute, handle: createPageHandle(PAGES.ideas) },
-          { path: PAGES.notices.path, Component: NoticesRoute, handle: createPageHandle(PAGES.notices) },
-          { path: `${PAGES.notices.path}/new`, Component: NoticeWriteRoute, handle: createPageHandle(PAGES.notices) },
+          {
+            path: PAGES.notices.path,
+            lazy: async () => ({ Component: (await import('./routes/notices/route.tsx')).default }),
+            handle: createPageHandle(PAGES.notices),
+          },
+          {
+            path: `${PAGES.notices.path}/new`,
+            lazy: async () => ({ Component: (await import('./routes/notices/write/route.tsx')).default }),
+            handle: createPageHandle(PAGES.notices),
+          },
           {
             path: `${PAGES.notices.path}/:noticeId`,
-            Component: NoticeDetailRoute,
+            lazy: async () => ({ Component: (await import('./routes/notices/detail/route.tsx')).default }),
             handle: createPageHandle(PAGES.notices),
           },
           {
             path: `${PAGES.notices.path}/:noticeId/edit`,
-            Component: NoticeEditRoute,
+            lazy: async () => ({ Component: (await import('./routes/notices/detail/route.tsx')).NoticeEditRoute }),
             handle: createPageHandle(PAGES.notices),
           },
-          { path: PAGES.terms.path, Component: TermsRoute, handle: createPageHandle(PAGES.terms) },
-          { path: '/terms/:kind/new', Component: TermWriteRoute, handle: createPageHandle(PAGES.terms) },
-          { path: '/terms/:kind/:version', Component: TermDetailRoute, handle: createPageHandle(PAGES.terms) },
-          { path: '/terms/:kind/:version/edit', Component: TermEditRoute, handle: createPageHandle(PAGES.terms) },
+          {
+            path: PAGES.terms.path,
+            lazy: async () => ({ Component: (await import('./routes/terms/route.tsx')).default }),
+            handle: createPageHandle(PAGES.terms),
+          },
+          {
+            path: '/terms/:kind/new',
+            lazy: async () => ({ Component: (await import('./routes/terms/write/route.tsx')).default }),
+            handle: createPageHandle(PAGES.terms),
+          },
+          {
+            path: '/terms/:kind/:version',
+            lazy: async () => ({ Component: (await import('./routes/terms/detail/route.tsx')).default }),
+            handle: createPageHandle(PAGES.terms),
+          },
+          {
+            path: '/terms/:kind/:version/edit',
+            lazy: async () => ({ Component: (await import('./routes/terms/detail/route.tsx')).TermEditRoute }),
+            handle: createPageHandle(PAGES.terms),
+          },
           { path: PAGES.history.path, Component: HistoryRoute, handle: createPageHandle(PAGES.history) },
           { path: PAGES.teamMembers.path, Component: TeamMembersRoute, handle: createPageHandle(PAGES.teamMembers) },
           { path: '*', Component: NotFoundRoute },

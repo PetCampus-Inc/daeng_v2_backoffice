@@ -1,3 +1,5 @@
+import type { RichContent } from '@/type/rich-content';
+
 export const NOTICE_STATUSES = ['draft', 'published', 'unpublished'] as const;
 export type NoticeStatus = (typeof NOTICE_STATUSES)[number];
 export const NOTICE_STATUS_LABELS: Record<NoticeStatus, string> = {
@@ -6,11 +8,7 @@ export const NOTICE_STATUS_LABELS: Record<NoticeStatus, string> = {
   unpublished: '게시 해제',
 };
 
-/** 서식 블록 정의 확정 전에는 문단만 다룬다(OQ-P4). HTML은 텍스트로 보존한다. */
-export type NoticeBody = {
-  schemaVersion: 1;
-  blocks: { type: 'paragraph'; children: { text: string }[] }[];
-};
+export type NoticeBody = RichContent;
 export type Notice = {
   id: number;
   status: NoticeStatus;

@@ -1,3 +1,4 @@
+import { isRichContent } from '@/util/rich-content';
 import { http } from 'msw';
 import type { Notice, NoticeAction, NoticeInput } from '@/routes/notices/type/notice';
 import { compareNotices, createNoticeBody, validateNotice } from '@/routes/notices/util/notice-policy';
@@ -87,17 +88,7 @@ function authorize(write = false) {
 function isNoticeInput(value: unknown): value is NoticeInput {
   if (!value || typeof value !== 'object') return false;
   const input = value as NoticeInput;
-  return (
-    typeof input.title === 'string' &&
-    input.body?.schemaVersion === 1 &&
-    Array.isArray(input.body.blocks) &&
-    input.body.blocks.every(
-      (block) =>
-        block.type === 'paragraph' &&
-        Array.isArray(block.children) &&
-        block.children.every((child) => typeof child.text === 'string')
-    )
-  );
+  return typeof input.title === 'string' && isRichContent(input.body);
 }
 
 /** 화면 검증용 API. 실제 관리자 공지 API·서식 블록 계약은 서버 확정 후 교체한다. */

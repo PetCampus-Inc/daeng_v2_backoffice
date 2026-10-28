@@ -10,7 +10,7 @@ import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { noticeQueryOptions } from '../api/notices/index';
-import { getNoticeText } from '../util/notice-policy';
+import { RichContentView } from '@/ui/organisms/rich-content-editor';
 import { useNoticeListSearchParams } from '../util/list-search-params';
 import { NoticeActions } from '../ui/notice-actions';
 import { NoticeBreadcrumb } from '../ui/notice-breadcrumb';
@@ -106,7 +106,7 @@ function NoticeDetailContent({ id, edit }: { id: number; edit: boolean }) {
       <div className='mt-6 grid grid-cols-[minmax(0,1fr)_320px] items-start gap-6 max-[1200px]:grid-cols-1'>
         <Card>
           <CardContent className='py-6'>
-            <p className='whitespace-pre-wrap text-kd-body [overflow-wrap:anywhere]'>{getNoticeText(notice.body)}</p>
+            <RichContentView value={notice.body} />
           </CardContent>
         </Card>
         <Card>

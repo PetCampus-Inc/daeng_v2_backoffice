@@ -9,7 +9,8 @@ import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
-import { Textarea } from '@/ui/atoms/textarea';
+import { RichContentEditor, RichContentView } from '@/ui/organisms/rich-content-editor';
+import { sameRichContent } from '@/util/rich-content';
 import { Label } from '@/ui/atoms/label';
 import {
   AlertDialog,
@@ -25,7 +26,7 @@ import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { useChangeNotice } from '../api/notices/index';
 import type { Notice } from '../type/notice';
-import { createNoticeBody, getNoticeText, validateNotice } from '../util/notice-policy';
+import { createNoticeBody, validateNotice } from '../util/notice-policy';
 import { useNoticeListSearchParams } from '../util/list-search-params';
 import { NoticeActions } from './notice-actions';
 import { NoticeBreadcrumb } from './notice-breadcrumb';
@@ -40,17 +41,17 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
   const [savedNotice, setSavedNotice] = useState(notice);
   const [previewDate] = useState(() => new Date().toISOString());
   const [title, setTitle] = useState(notice?.title ?? '');
-  const [text, setText] = useState(notice ? getNoticeText(notice.body) : '');
+  const [body, setBody] = useState(() => notice?.body ?? createNoticeBody(''));
   const [isDiscarded, setIsDiscarded] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('write');
   const [saveError, setSaveError] = useState<{ title: string; description: string; isMissing: boolean } | null>(null);
   const isBusy = useRef(false);
   const publishButtonRef = useRef<HTMLButtonElement>(null);
-  const input = { title, body: createNoticeBody(text) };
+  const input = { title, body };
   const validation = validateNotice(input);
   const hasChanged =
-    title !== (savedNotice?.title ?? '') || text !== (savedNotice ? getNoticeText(savedNotice.body) : '');
+    title !== (savedNotice?.title ?? '') || !sameRichContent(body, savedNotice?.body ?? createNoticeBody(''));
   const isDirty = hasChanged && !isDiscarded;
   const isDraft = !savedNotice || savedNotice.status === 'draft';
   const pageTitle = isDraft ? (savedNotice ? '초안 수정' : '새 공지 작성') : '공지 수정';
@@ -281,20 +282,21 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
             </div>
             <div className='space-y-2'>
               <div className='flex items-center justify-between gap-2'>
-                <Label htmlFor='notice-body'>본문 *</Label>
+                <Label htmlFor='notice-body' onClick={() => document.getElementById('notice-body')?.focus()}>
+                  본문 *
+                </Label>
                 <span className='text-kd-caption text-kd-foreground-muted'>
                   {validation.bodyCount.toLocaleString()} / 5,000
                 </span>
               </div>
-              <Textarea
+              <RichContentEditor
                 id='notice-body'
-                className='min-h-96 resize-y'
                 placeholder='앱에 표시할 공지 내용을 입력해 주세요'
-                value={text}
+                value={body}
                 aria-invalid={!!bodyError}
                 aria-describedby={bodyError ? 'notice-body-error' : undefined}
-                onChange={(event) => setText(event.target.value)}
-                disabled={isPending}
+                onChange={setBody}
+                readOnly={isPending}
               />
               {bodyError && (
                 <p id='notice-body-error' className='text-kd-caption text-kd-error-foreground'>
@@ -319,7 +321,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
               <p className='mt-2 text-kd-caption text-kd-foreground-muted'>
                 {savedNotice?.publishedAt ? formatDate(savedNotice.publishedAt) : formatDate(previewDate)}
               </p>
-              <p className='mt-6 whitespace-pre-wrap text-kd-body'>{text || '공지 내용을 입력해 주세요.'}</p>
+              <RichContentView value={body} className='mt-6' />
             </div>
           </div>
         </aside>
