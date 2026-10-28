@@ -310,13 +310,15 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
           id='notice-preview-panel'
           role='tabpanel'
           aria-label='앱 공지 미리보기'
-          className={`sticky top-6 mx-auto w-full max-w-[360px] ${activeTab !== 'preview' ? 'max-[1200px]:hidden' : ''}`}
+          className={`mx-auto flex w-full max-w-[360px] flex-col self-stretch min-[1200px]:h-0 min-[1200px]:min-h-full ${activeTab !== 'preview' ? 'max-[1200px]:hidden' : ''}`}
         >
           <p className='mb-3 text-kd-sub font-semibold text-kd-foreground-muted'>앱 미리보기</p>
-          <div className='overflow-hidden rounded-[32px] border-4 border-kd-neutral-200 bg-kd-background shadow-kd-float'>
-            <div className='mx-auto mt-3 h-1.5 w-16 rounded-full bg-kd-neutral-200' />
-            <div className='border-b border-kd-border px-5 py-4 text-center text-kd-body font-bold'>공지사항</div>
-            <div className='max-h-[65vh] min-h-96 overflow-y-auto p-5 [overflow-wrap:anywhere]'>
+          <div className='flex min-h-0 flex-col overflow-hidden rounded-[32px] border-4 border-kd-neutral-200 bg-kd-background shadow-kd-float min-[1200px]:flex-1'>
+            <div className='mx-auto mt-3 h-1.5 w-16 shrink-0 rounded-full bg-kd-neutral-200' />
+            <div className='shrink-0 border-b border-kd-border px-5 py-4 text-center text-kd-body font-bold'>
+              공지사항
+            </div>
+            <div className='h-[32rem] overflow-y-auto p-5 [overflow-wrap:anywhere] min-[1200px]:h-auto min-[1200px]:min-h-0 min-[1200px]:flex-1'>
               <h2 className='text-kd-title-2'>{title || '공지 제목'}</h2>
               <p className='mt-2 text-kd-caption text-kd-foreground-muted'>
                 {savedNotice?.publishedAt ? formatDate(savedNotice.publishedAt) : formatDate(previewDate)}

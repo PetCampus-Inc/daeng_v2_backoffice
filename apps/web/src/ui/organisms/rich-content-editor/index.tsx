@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentProps, type Ref } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react';
 import {
   BasicBlocksPlugin,
   BoldPlugin,
@@ -19,8 +19,10 @@ import {
   usePlateEditor,
   useEditorRef,
   useEditorSelector,
+  createPlatePlugin,
   type PlateElementProps,
 } from 'platejs/react';
+import { createSlatePlugin } from 'platejs';
 import { PlateStatic, createStaticEditor, type SlateElementProps } from 'platejs/static';
 import { createElement } from 'react';
 import {
@@ -28,7 +30,9 @@ import {
   Italic,
   Underline,
   Strikethrough,
+  Heading1,
   Heading2,
+  Heading3,
   List,
   ListOrdered,
   Link,
@@ -139,7 +143,31 @@ const COMPONENTS = Object.fromEntries(
     'a',
   ].map((key) => [key, ContentElement])
 );
+const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28];
+/** 선택 목록(FONT_SIZES)에 있는 px 값인지 확인한다. */
+function isFontSize(value: unknown): value is number {
+  return typeof value === 'number' && FONT_SIZES.includes(value);
+}
+/** 글자 크기 표시를 위한 mark. 목록에 있는 px 숫자만 그린다. */
+function FontSizeLeaf({
+  attributes,
+  children,
+  leaf,
+}: {
+  attributes: object;
+  children: ReactNode;
+  leaf: { fontSize?: unknown };
+}) {
+  const size = isFontSize(leaf.fontSize) ? leaf.fontSize : undefined;
+  return (
+    <span {...attributes} style={size ? { fontSize: `${size}px` } : undefined}>
+      {children}
+    </span>
+  );
+}
+const EDITOR_COMPONENTS = { ...COMPONENTS, fontSize: FontSizeLeaf };
 const PLUGINS = [
+  createPlatePlugin({ key: 'fontSize', node: { isLeaf: true } }),
   BasicBlocksPlugin,
   BoldPlugin,
   ItalicPlugin,
@@ -160,7 +188,7 @@ type EditorProps = {
 } & Pick<ComponentProps<typeof PlateContent>, 'id' | 'placeholder' | 'aria-invalid' | 'aria-describedby'>;
 
 export function RichContentEditor({ value, onChange, readOnly = false, ref, ...props }: EditorProps) {
-  const editor = usePlateEditor({ plugins: PLUGINS, components: COMPONENTS, value: toEditorValue(value) });
+  const editor = usePlateEditor({ plugins: PLUGINS, components: EDITOR_COMPONENTS, value: toEditorValue(value) });
   return (
     <div className='min-w-0 rounded-kd-3 border border-kd-border focus-within:ring-2 focus-within:ring-kd-primary'>
       <Plate editor={editor} readOnly={readOnly} onValueChange={({ value }) => onChange(fromEditorValue(value))}>
@@ -172,7 +200,10 @@ export function RichContentEditor({ value, onChange, readOnly = false, ref, ...p
           aria-label='본문 *'
           aria-multiline='true'
           aria-readonly={readOnly}
-          className={cn(CONTENT_CLASS, 'h-96 min-h-96 overflow-y-auto p-4 outline-none')}
+          className={cn(
+            CONTENT_CLASS,
+            'h-96 min-h-96 overflow-y-auto p-4 outline-none [&_[data-slate-placeholder]]:top-4! [&_[data-slate-placeholder]]:w-[calc(100%-2rem)]!'
+          )}
         />
       </Plate>
     </div>
@@ -183,9 +214,24 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
   const editor = useEditorRef();
   const marks = useEditorSelector((editor) => editor.api.marks() ?? {}, []);
   const block = useEditorSelector(
-    (editor) => ['h2', 'ul', 'ol', 'table', 'a'].filter((type) => editor.api.some({ match: { type } })).join(','),
+    (editor) =>
+      ['h1', 'h2', 'h3', 'ul', 'ol', 'table', 'a'].filter((type) => editor.api.some({ match: { type } })).join(','),
     []
   );
+  const fontSize = useEditorSelector(
+    (editor) =>
+      editor.selection
+        ? isFontSize(editor.api.marks()?.fontSize)
+          ? (editor.api.marks()?.fontSize as number)
+          : undefined
+        : null,
+    []
+  );
+  const selection = useEditorSelector((editor) => editor.selection, []);
+  const lastSelection = useRef(selection);
+  useEffect(() => {
+    if (selection) lastSelection.current = selection;
+  }, [selection]);
   const [linkOpen, setLinkOpen] = useState(false);
   const [url, setUrl] = useState('');
   const [linkError, setLinkError] = useState(false);
@@ -197,6 +243,8 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
       const range = editor.api.toSlateRange(selection, { exactMatch: false, suppressThrow: true });
       if (range) editor.tf.select(range);
     }
+    // 입력칸처럼 편집기 밖을 눌러 선택이 풀린 경우, 마지막 선택으로 되돌려 적용한다.
+    if (!editor.selection && lastSelection.current) editor.tf.select(lastSelection.current);
     run();
     editor.tf.focus();
   };
@@ -210,7 +258,9 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
       active: !!marks.strikethrough,
       run: () => editor.tf.toggleMark('strikethrough'),
     },
+    { label: '큰 제목', Icon: Heading1, active: block.includes('h1'), run: () => editor.tf.toggleBlock('h1') },
     { label: '소제목', Icon: Heading2, active: block.includes('h2'), run: () => editor.tf.toggleBlock('h2') },
+    { label: '작은 제목', Icon: Heading3, active: block.includes('h3'), run: () => editor.tf.toggleBlock('h3') },
     {
       label: '글머리 목록',
       Icon: List,
@@ -258,21 +308,45 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
     <>
       <div role='group' aria-label='본문 서식' className='flex flex-wrap gap-1 border-b border-kd-border p-2'>
         {buttons.map(({ label, Icon, active, run }) => (
-          <Button
-            key={label}
-            type='button'
-            variant={active ? 'default' : 'ghost'}
-            size='icon'
-            className='size-9'
-            aria-label={label}
-            title={label}
-            aria-pressed={active}
-            disabled={readOnly}
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => act(run)}
-          >
-            <Icon className='size-4' />
-          </Button>
+          <Fragment key={label}>
+            <Button
+              type='button'
+              variant={active ? 'default' : 'ghost'}
+              size='icon'
+              className='size-9'
+              aria-label={label}
+              title={label}
+              aria-pressed={active}
+              disabled={readOnly}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => act(run)}
+            >
+              <Icon className='size-4' />
+            </Button>
+            {label === '작은 제목' && (
+              <select
+                aria-label='글자 크기'
+                title='글자 크기'
+                className='h-9 rounded-kd-3 border border-kd-border bg-kd-background px-2 text-kd-sub'
+                disabled={readOnly}
+                value={String(fontSize ?? '')}
+                onChange={(event) =>
+                  act(() =>
+                    event.target.value
+                      ? editor.tf.addMark('fontSize', Number(event.target.value))
+                      : editor.tf.removeMark('fontSize')
+                  )
+                }
+              >
+                <option value=''>기본 크기</option>
+                {FONT_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {size}px
+                  </option>
+                ))}
+              </select>
+            )}
+          </Fragment>
         ))}
         {block.includes('table') && (
           <div className='flex flex-wrap gap-1'>
@@ -363,8 +437,15 @@ export function RichContentView({ value, className }: { value: RichContent; clas
   const editor = useMemo(
     () =>
       createStaticEditor({
-        plugins: [BaseBasicBlocksPlugin, BaseBasicMarksPlugin, BaseListPlugin, BaseLinkPlugin, BaseTablePlugin],
-        components: COMPONENTS,
+        plugins: [
+          BaseBasicBlocksPlugin,
+          BaseBasicMarksPlugin,
+          BaseListPlugin,
+          BaseLinkPlugin,
+          BaseTablePlugin,
+          createSlatePlugin({ key: 'fontSize', node: { isLeaf: true } }),
+        ],
+        components: EDITOR_COMPONENTS,
       }),
     []
   );
