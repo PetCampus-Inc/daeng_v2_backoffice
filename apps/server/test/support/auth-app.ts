@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Controller, Get, Module, type INestApplication } from '@nestjs/common';
+import { Controller, Get, Module, type INestApplication, type Provider, type Type } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, NestFactory, RouterModule } from '@nestjs/core';
 import { AccountService } from '../../src/account/account.service.js';
 import { MeController } from '../../src/account/me.controller.js';
@@ -67,12 +67,14 @@ export interface AuthTestApp {
 export async function startAuthApp(
   database: DatabaseConfig,
   emailFor: (name: string) => string,
-  config: AuthConfig = AUTH_CONFIG_FOR_TEST
+  config: AuthConfig = AUTH_CONFIG_FOR_TEST,
+  extra: { controllers?: Type[]; providers?: Provider[] } = {}
 ): Promise<AuthTestApp> {
   class TestApiModule {}
   Module({
-    controllers: [AuthController, MeController, TeamMembersController, ProbeController],
+    controllers: [AuthController, MeController, TeamMembersController, ProbeController, ...(extra.controllers ?? [])],
     providers: [
+      ...(extra.providers ?? []),
       { provide: DATABASE_CONFIG, useValue: database },
       DatabaseService,
       { provide: AUTH_CONFIG, useValue: config },
