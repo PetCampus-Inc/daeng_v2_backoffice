@@ -47,8 +47,8 @@ updated: 2026-10-28
 - 답변은 Java 쪽에 중복 방지가 없다. 더블 클릭 방지는 화면(BO 웹)이 맡는다.
 - 사용자 이름의 출처: 서비스 DB에 문의자 이름이 한 곳에 없다. 임시로 `social_user.name`을 쓰고, 없으면
   `user.nickname`이다. 원장 이름 기준이 따로 있는지 확인한다.
-- 운영자 답변의 작성자: `inquiry_message`에 작성 팀원 ID 열(`author_member_id`)이 있어야 `authorName`을 채울 수 있다.
-  Java에 열 추가가 필요하다.
+- 운영자 답변의 작성자: Java가 운영자 답변을 저장할 때 `inquiry_message.author_member_id`를 채우도록 했다(Java 커밋
+  `4b456884`). 이 열이 만들어지기 전 답변이나 팀원이 사라진 답변은 `authorName`이 '운영자'로 나온다.
 - 해제 취소를 변경 이력에 남기는 방식: PRD에 없다. 임시로 `INQUIRY_ASSIGNED`로 기록한다.
 - Java 호출 실패(5xx·연결 실패)는 공통 500으로 응답한다. 별도 오류 코드가 필요한지 정한다.
 - 이미지 URL은 `INQUIRY_IMAGE_BASE_URL` + S3 키로 만든다. 원본 다운로드(임시 주소)와 HEIC 변환은 후속이다.
