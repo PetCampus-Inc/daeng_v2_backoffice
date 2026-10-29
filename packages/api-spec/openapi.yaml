@@ -653,7 +653,10 @@ paths:
       operationId: listIdeas
       summary: 아이디어 제안 목록
       description: |-
-        아이디어 제안 목록을 반환합니다. 최근 제출순이며, 내용과 사용자 이름·이메일로 검색합니다.
+        아이디어 제안 목록을 반환합니다.
+        - 검색: 내용, 사용자 이름·이메일
+        - 정렬: 제출일시 순(기본 최근순), 같으면 ID 내림차순
+        - 조회 전용입니다. 처리 상태, 담당자, 분류는 없습니다.
       parameters:
         - $ref: '#/components/parameters/Keyword'
         - name: userType
@@ -671,8 +674,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/IdeaPage'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /ideas/{id}:
     get:
@@ -693,8 +700,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Idea'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           description: '찾을 수 없음'
           content:

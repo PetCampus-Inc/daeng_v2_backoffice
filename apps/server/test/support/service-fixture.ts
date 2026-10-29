@@ -28,6 +28,13 @@ export interface FixtureInquiryInput {
   messages?: FixtureMessage[];
 }
 
+export interface FixtureIdeaInput {
+  user: FixtureUser;
+  type?: 'GUARDIAN' | 'OWNER';
+  content: string;
+  createdAt: Date;
+}
+
 const TABLES = [
   `CREATE TABLE IF NOT EXISTS \`user\` (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -83,6 +90,14 @@ const TABLES = [
     display_order INT NOT NULL,
     PRIMARY KEY (id)
   )`,
+  `CREATE TABLE IF NOT EXISTS idea_suggestion (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    inquirer_type VARCHAR(20) NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id)
+  )`,
 ];
 
 /**
@@ -92,6 +107,7 @@ const TABLES = [
 export class ServiceFixture {
   private readonly userPks: number[] = [];
   private readonly inquiryIds: number[] = [];
+  private readonly ideaIds: number[] = [];
   private seq = 0;
 
   private constructor(
@@ -156,6 +172,15 @@ export class ServiceFixture {
     return inquiry.insertId;
   }
 
+  async addIdea(input: FixtureIdeaInput): Promise<number> {
+    const [idea] = await this.pool.query<ResultSetHeader>(
+      'INSERT INTO idea_suggestion (user_id, inquirer_type, content, created_at) VALUES (?, ?, ?, ?)',
+      [input.user.pk, input.type ?? 'GUARDIAN', input.content, input.createdAt]
+    );
+    this.ideaIds.push(idea.insertId);
+    return idea.insertId;
+  }
+
   async inquiry(id: number): Promise<RowDataPacket> {
     const [rows] = await this.pool.query<RowDataPacket[]>('SELECT * FROM inquiry WHERE id = ?', [id]);
     return rows[0]!;
@@ -179,6 +204,12 @@ export class ServiceFixture {
       );
       await this.pool.query(`DELETE FROM inquiry_message WHERE inquiry_id IN (${marks})`, this.inquiryIds);
       await this.pool.query(`DELETE FROM inquiry WHERE id IN (${marks})`, this.inquiryIds);
+    }
+    if (this.ideaIds.length > 0) {
+      await this.pool.query(
+        `DELETE FROM idea_suggestion WHERE id IN (${this.ideaIds.map(() => '?').join(',')})`,
+        this.ideaIds
+      );
     }
     await this.pool.query('DELETE FROM social_user WHERE provider_id LIKE ?', [`${this.run}-%`]);
     if (this.userPks.length > 0) {
