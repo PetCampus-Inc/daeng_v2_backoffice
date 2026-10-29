@@ -12,3 +12,26 @@ export function isDuplicateEntry(error: unknown, indexName?: string): boolean {
   }
   return false;
 }
+
+/** 잠시 뒤 다시 하면 성공할 수 있는 연결·잠금 오류의 코드(mysql2의 `code`). */
+const TRANSIENT_CODES = new Set([
+  'PROTOCOL_CONNECTION_LOST',
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE',
+  'ER_LOCK_DEADLOCK',
+  'ER_LOCK_WAIT_TIMEOUT',
+]);
+
+/**
+ * 연결 끊김, 교착, 잠금 대기 초과처럼 다시 해 볼 만한 오류인지 확인한다. 같은 요청이 같은 이유로 또 실패하는
+ * 오류(중복 키, 잘못된 값, 코드 오류)는 거짓이다. drizzle이 mysql2 에러를 감싸므로 원인까지 따라간다.
+ */
+export function isTransientDatabaseError(error: unknown): boolean {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    const { code } = current as { code?: unknown };
+    if (typeof code === 'string' && TRANSIENT_CODES.has(code)) return true;
+  }
+  return false;
+}
