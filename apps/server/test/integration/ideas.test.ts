@@ -197,6 +197,23 @@ describe.skipIf(!hasDatabase)('idea suggestions (real database, fake service dat
     expect(beyond).toMatchObject({ page: 9, totalItems: 5, totalPages: 3 });
   });
 
+  test('treats a blank keyword as no search', async () => {
+    // 공백뿐인 키워드는 조건이 아니라서, 키워드 없이 조회한 것과 같은 결과여야 한다.
+    const blank = await call('/ideas?keyword=%20%20&size=1', '/ideas');
+    const none = await call('/ideas?size=1', '/ideas');
+    expect(blank.status).toBe(200);
+    const [blankBody, noneBody] = [await blank.json(), await none.json()] as Array<Record<string, any>>;
+    expect(blankBody.totalItems).toBe(noneBody.totalItems);
+    expect(blankBody.totalItems).toBeGreaterThanOrEqual(5);
+  });
+
+  test('accepts the boundary values of keyword length and page size', async () => {
+    expect((await call(`/ideas?keyword=${'a'.repeat(100)}`, '/ideas')).status).toBe(200);
+    const response = await call('/ideas?size=100', '/ideas');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ size: 100 });
+  });
+
   test('rejects invalid list queries', async () => {
     for (const query of [
       'page=0',

@@ -30,16 +30,18 @@ export class IdeaReader {
 
   async list(filter: IdeaFilter, page: number, size: number): Promise<{ rows: IdeaRow[]; total: number }> {
     const where = this.where(filter);
-    const [counted] = await this.service.db
-      .select({ total: count() })
-      .from(serviceIdeas)
-      .innerJoin(serviceUsers, eq(serviceIdeas.userId, serviceUsers.id))
-      .where(where);
-    const rows = await this.selectRows()
-      .where(where)
-      .orderBy(...this.order(filter.sort))
-      .limit(size)
-      .offset((page - 1) * size);
+    const [[counted], rows] = await Promise.all([
+      this.service.db
+        .select({ total: count() })
+        .from(serviceIdeas)
+        .innerJoin(serviceUsers, eq(serviceIdeas.userId, serviceUsers.id))
+        .where(where),
+      this.selectRows()
+        .where(where)
+        .orderBy(...this.order(filter.sort))
+        .limit(size)
+        .offset((page - 1) * size),
+    ]);
     return { rows: rows.map(toRow), total: counted?.total ?? 0 };
   }
 
