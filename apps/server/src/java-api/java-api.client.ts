@@ -49,7 +49,19 @@ export class JavaApiClient {
   }
 
   private async request(method: string, path: string, body?: unknown): Promise<InquiryOperation> {
-    const response = await fetch(`${this.config.baseUrl}/api/v0/platform-admin/inquiries${path}`, {
+    const payload = await this.requestJava(method, `/api/v0/platform-admin/inquiries${path}`, body, KNOWN_ERRORS);
+    const previous = (payload as { data?: { previousAssigneeId?: unknown } } | undefined)?.data?.previousAssigneeId;
+    return { previousAssigneeId: typeof previous === 'number' ? previous : null };
+  }
+
+  /** Java 전송과 오류 파싱을 공유하고 도메인별 오류 코드는 호출자가 지정한다. */
+  async requestJava(
+    method: string,
+    path: string,
+    body?: unknown,
+    knownErrors: Record<string, () => ApiException> = {}
+  ): Promise<unknown> {
+    const response = await fetch(`${this.config.baseUrl}${path}`, {
       method,
       headers: {
         [API_KEY_HEADER]: this.config.apiKey,
@@ -61,12 +73,11 @@ export class JavaApiClient {
     const payload: unknown = await response.json().catch(() => undefined);
     if (!response.ok) {
       const code = (payload as { code?: unknown } | undefined)?.code;
-      const known = typeof code === 'string' ? KNOWN_ERRORS[code] : undefined;
+      const known = typeof code === 'string' ? knownErrors[code] : undefined;
       if (known) throw known();
       // 응답 본문(Java 내부 메시지)은 오류에 싣지 않는다.
-      throw new Error(`Java inquiry API failed: ${method} ${path.split('?')[0]} -> ${response.status} ${String(code)}`);
+      throw new Error(`Java API failed: ${method} ${path.split('?')[0]} -> ${response.status} ${String(code)}`);
     }
-    const previous = (payload as { data?: { previousAssigneeId?: unknown } } | undefined)?.data?.previousAssigneeId;
-    return { previousAssigneeId: typeof previous === 'number' ? previous : null };
+    return payload;
   }
 }
