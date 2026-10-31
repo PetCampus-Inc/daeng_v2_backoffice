@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { InquiriesModule } from './inquiries/inquiries.module.js';
 import { NoticesModule } from './notices/notices.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { ServiceAdminModule } from './service-admin/service-admin.module.js';
 import { TeamMembersModule } from './team-members/team-members.module.js';
 import { TermsModule } from './terms/terms.module.js';
 
@@ -20,6 +21,7 @@ const FEATURE_MODULES = [
   NoticesModule,
   TermsModule,
   NotificationsModule,
+  ServiceAdminModule,
 ];
 
 @Module({

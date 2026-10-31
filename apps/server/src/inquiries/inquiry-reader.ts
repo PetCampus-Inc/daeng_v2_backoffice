@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, count, desc, eq, inArray, isNull, like, or, sql, type SQL } from 'drizzle-orm';
+import { escapeLike } from '../common/sql.js';
 import { kstToIso } from '../common/time.js';
 import { ServiceDatabaseService } from '../service-database/service-database.service.js';
 import {
@@ -48,8 +49,6 @@ export interface InquiryMessageRow {
 export interface InquiryDetailRow extends InquiryRow {
   messages: InquiryMessageRow[];
 }
-
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);
 
 // 문의자 이름·이메일은 소셜 가입 정보에서 가져온다. 이름이 없으면 닉네임을 쓴다.
 const userNameSql = () =>
