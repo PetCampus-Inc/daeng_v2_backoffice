@@ -712,6 +712,7 @@ paths:
       description: |-
         변경 이력을 최신순으로 반환합니다. 기간은 KST 날짜 기준이며 `to`일도 포함합니다.
         이력은 쓰기 작업이 성공하면 서버가 자동으로 남기고, 접속 기록은 API로 제공하지 않습니다.
+        `from`이 `to`보다 늦으면 400입니다. 최고 관리자만 조회할 수 있습니다.
       parameters:
         - name: from
           in: query
@@ -2404,7 +2405,9 @@ components:
 
     ChangeLogTarget:
       type: object
-      description: 변경 대상입니다. `label`에는 기록 당시의 문의·공지 제목, 약관 종류와 버전, 계정 이메일이 들어갑니다.
+      description: |-
+        변경 대상입니다. `label`에는 기록 당시의 문의·공지 제목, 약관 종류와 시행일(예: `서비스 이용약관 (시행 2026-11-20)`), 계정 이메일이 들어갑니다.
+        약관은 공개한 버전의 시행일을 고칠 수 없어서 한 버전의 이력은 항상 같은 `label`로 남습니다.
       required: [id, label]
       properties:
         id:

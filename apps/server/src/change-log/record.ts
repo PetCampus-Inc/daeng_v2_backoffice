@@ -16,7 +16,10 @@ export const CHANGE_ACTIONS = {
   ],
 } as const;
 
-type ChangeTargetType = keyof typeof CHANGE_ACTIONS;
+export type ChangeTargetType = keyof typeof CHANGE_ACTIONS;
+
+/** 이력을 남기는 대상 종류. 조회 API의 필터가 같은 목록을 쓴다. */
+export const CHANGE_TARGET_TYPES = Object.keys(CHANGE_ACTIONS) as [ChangeTargetType, ...ChangeTargetType[]];
 
 export type ChangeLogInput = {
   [T in ChangeTargetType]: {

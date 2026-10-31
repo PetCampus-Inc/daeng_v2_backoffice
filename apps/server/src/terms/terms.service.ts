@@ -7,11 +7,20 @@ import type { MemberRow } from '../database/schema.js';
 import { requireMarkdownBody } from '../java-api/java-content.js';
 import { currentVersionId, effectiveStatusOf } from './terms-status.js';
 import { TermsJavaClient, type JavaTerms } from './terms-java.client.js';
-import { TERMS_KINDS, type TermsKind } from './terms.types.js';
+import { TERMS_KINDS, TERMS_KIND_NAMES, type TermsKind } from './terms.types.js';
 
 const dateTime = (value: string | null) => (value === null ? null : kstToIso(value));
 const byEffectiveDateDesc = (a: { effectiveDate: string | null; id: number }, b: typeof a) =>
   (b.effectiveDate ?? '').localeCompare(a.effectiveDate ?? '') || b.id - a.id;
+
+/**
+ * 변경 이력에 남기는 대상 이름: 약관 종류와 시행일. 같은 약관의 여러 버전을 구별한다. 공개한 버전은 시행일을 고칠 수 없어서
+ * 한 버전의 등록·공개·철회 이력이 같은 이름으로 남는다.
+ */
+function historyLabel(item: JavaTerms): string {
+  const name = TERMS_KIND_NAMES[item.kind];
+  return item.effectiveDate ? `${name} (시행 ${item.effectiveDate})` : name;
+}
 
 @Injectable()
 export class TermsService {
@@ -122,7 +131,7 @@ export class TermsService {
   ) {
     return recordChangeBestEffort(this.database, this.logger, {
       actor,
-      target: { type: 'TERMS_VERSION', id, label: item.title },
+      target: { type: 'TERMS_VERSION', id, label: historyLabel(item) },
       action,
     });
   }

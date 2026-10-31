@@ -31,3 +31,8 @@ export function addDays(date: string, days: number): string {
   const [year, month, day] = date.split('-').map(Number) as [number, number, number];
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
+
+/** KST 날짜(`YYYY-MM-DD`)의 00:00에 해당하는 시각. DB의 UTC 시각과 비교할 때 쓴다. */
+export function kstStartOfDay(date: string): Date {
+  return new Date(`${date}T00:00:00+09:00`);
+}
