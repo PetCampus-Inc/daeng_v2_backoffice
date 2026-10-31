@@ -1,7 +1,8 @@
 import 'reflect-metadata';
 import { afterEach, expect, test, vi } from 'vitest';
+import { JavaApiClient } from '../../src/java-api/java-api.client.js';
 import { NotificationEventClient } from '../../src/notifications/notification-event-client.js';
-const client = new NotificationEventClient({ baseUrl: 'https://java.test', apiKey: 'secret' });
+const client = new NotificationEventClient(new JavaApiClient({ baseUrl: 'https://java.test', apiKey: 'secret' }));
 afterEach(() => vi.unstubAllGlobals());
 test('uses the agreed event endpoints and sends the API key', async () => {
   const fake = vi

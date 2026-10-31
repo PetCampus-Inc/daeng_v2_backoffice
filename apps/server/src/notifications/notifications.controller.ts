@@ -1,6 +1,7 @@
 import { Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { CurrentMember } from '../auth/decorators.js';
+import { idPipe } from '../common/id-pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import type { MemberRow } from '../database/schema.js';
 import { NotificationsService } from './notifications.service.js';
@@ -11,7 +12,6 @@ const listPipe = new ZodValidationPipe(
     size: z.coerce.number().int().min(1).max(100).default(20),
   })
 );
-const idPipe = new ZodValidationPipe(z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER), 'id');
 @Controller('notifications')
 export class NotificationsController {
   constructor(@Inject(NotificationsService) private readonly notifications: NotificationsService) {}

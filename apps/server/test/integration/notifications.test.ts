@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { DatabaseService } from '../../src/database/database.service.js';
 import { members, notifications, processedNotificationEvents } from '../../src/database/schema.js';
 import { NotificationEventProcessor } from '../../src/notifications/notification-event-processor.js';
+import { JavaApiClient } from '../../src/java-api/java-api.client.js';
 import { NotificationEventClient } from '../../src/notifications/notification-event-client.js';
 import { NotificationEventPoller } from '../../src/notifications/notification-event-poller.js';
 import { NotificationsService } from '../../src/notifications/notifications.service.js';
@@ -141,7 +142,7 @@ describe.skipIf(!hasDatabase)('notification storage and processing', () => {
       )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fake);
-    const client = new NotificationEventClient({ baseUrl: 'http://java.test', apiKey: 'test' });
+    const client = new NotificationEventClient(new JavaApiClient({ baseUrl: 'http://java.test', apiKey: 'test' }));
     const poller = new NotificationEventPoller(client, processor);
     try {
       await poller.poll();

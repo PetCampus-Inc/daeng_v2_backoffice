@@ -1,33 +1,22 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { JAVA_API_CONFIG, type JavaApiConfig } from '../java-api/java-api.client.js';
+import { JavaApiClient } from '../java-api/java-api.client.js';
 import { eventPageSchema } from './notification-events.js';
+
 const PATH = '/api/v0/platform-admin/bo-notification-events';
+const PAGE_SIZE = 50;
+
+/** Java 알림 이벤트 API(조회·완료)의 경로와 요청 형식을 감싼다. 전송과 오류 처리는 `JavaApiClient`가 한다. */
 @Injectable()
 export class NotificationEventClient {
-  constructor(@Inject(JAVA_API_CONFIG) private readonly config: JavaApiConfig) {}
-  private async request(path: string, init: RequestInit) {
-    const result = await fetch(`${this.config.baseUrl}${path}`, {
-      ...init,
-      headers: {
-        'X-Backoffice-Api-Key': this.config.apiKey,
-        ...(init.body ? { 'content-type': 'application/json' } : {}),
-      },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!result.ok) throw new Error(`Java notification event API failed: ${result.status}`);
-    return result;
-  }
+  constructor(@Inject(JavaApiClient) private readonly java: JavaApiClient) {}
+
   async list(afterId?: string) {
-    const params = new URLSearchParams({ limit: '50', ...(afterId ? { afterId } : {}) });
-    const response = await this.request(`${PATH}?${params}`, { method: 'GET' });
-    return eventPageSchema.parse(await response.json()).data;
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), ...(afterId ? { afterId } : {}) });
+    return eventPageSchema.parse(await this.java.requestJava('GET', `${PATH}?${params}`)).data;
   }
+
+  /** 처리한 이벤트를 Java에 알린다. Java의 이벤트 ID는 숫자라 숫자 배열로 보낸다. */
   async complete(eventId: string) {
-    const response = await this.request(`${PATH}/complete`, {
-      method: 'POST',
-      // Java는 숫자 배열을 받는다.
-      body: JSON.stringify({ eventIds: [Number(eventId)] }),
-    });
-    if (response.status !== 204) throw new Error(`Java notification event completion returned ${response.status}`);
+    await this.java.requestJava('POST', `${PATH}/complete`, { eventIds: [Number(eventId)] });
   }
 }
