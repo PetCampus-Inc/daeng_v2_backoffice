@@ -1,11 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { recordChangeBestEffort } from '../change-log/record-best-effort.js';
 import type { ChangeLogInput } from '../change-log/record.js';
-import { kstToIso } from '../common/time.js';
+import { kstToIso, todayInKst } from '../common/time.js';
 import { DatabaseService } from '../database/database.service.js';
 import type { MemberRow } from '../database/schema.js';
 import { requireMarkdownBody } from '../java-api/java-content.js';
-import { currentVersionId, effectiveStatusOf, todayInKst } from './terms-status.js';
+import { currentVersionId, effectiveStatusOf } from './terms-status.js';
 import { TermsJavaClient, type JavaTerms } from './terms-java.client.js';
 import { TERMS_KINDS, type TermsKind } from './terms.types.js';
 
