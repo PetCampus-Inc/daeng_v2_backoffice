@@ -8,8 +8,13 @@ import { RoleGuard } from '../../src/auth/role.guard.js';
 import { ApiExceptionFilter } from '../../src/common/api-exception.filter.js';
 import { DatabaseService } from '../../src/database/database.service.js';
 import { JAVA_API_CONFIG, JavaApiClient } from '../../src/java-api/java-api.client.js';
-import { PlatformContentController } from '../../src/platform-content/platform-content.controller.js';
-import { PlatformContentService } from '../../src/platform-content/platform-content.service.js';
+import { NoticeJavaClient } from '../../src/notices/notice-java.client.js';
+import { NoticesController } from '../../src/notices/notices.controller.js';
+import { NoticesService } from '../../src/notices/notices.service.js';
+import { TermVersionsController } from '../../src/terms/term-versions.controller.js';
+import { TermsController } from '../../src/terms/terms.controller.js';
+import { TermsJavaClient } from '../../src/terms/terms-java.client.js';
+import { TermsService } from '../../src/terms/terms.service.js';
 import { expectMatchesSpec, OpenApiContract } from '../support/openapi-contract.js';
 
 let java: Server;
@@ -126,9 +131,12 @@ beforeAll(async () => {
   const javaUrl = `http://127.0.0.1:${(java.address() as { port: number }).port}`;
   class TestModule {}
   Module({
-    controllers: [PlatformContentController],
+    controllers: [NoticesController, TermsController, TermVersionsController],
     providers: [
-      PlatformContentService,
+      NoticeJavaClient,
+      NoticesService,
+      TermsJavaClient,
+      TermsService,
       JavaApiClient,
       { provide: JAVA_API_CONFIG, useValue: { baseUrl: javaUrl, apiKey: 'test-key' } },
       { provide: DatabaseService, useValue: database },

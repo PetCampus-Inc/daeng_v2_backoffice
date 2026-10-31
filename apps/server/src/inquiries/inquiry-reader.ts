@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, count, desc, eq, inArray, isNull, like, or, sql, type SQL } from 'drizzle-orm';
+import { kstToIso } from '../common/time.js';
 import { ServiceDatabaseService } from '../service-database/service-database.service.js';
 import {
   serviceInquiries,
@@ -46,11 +47,6 @@ export interface InquiryMessageRow {
 
 export interface InquiryDetailRow extends InquiryRow {
   messages: InquiryMessageRow[];
-}
-
-/** 서비스 DB의 KST 시각 문자열(`YYYY-MM-DD HH:mm:ss.ffffff`)을 UTC ISO 문자열로 바꾼다. */
-export function kstToIso(value: string): string {
-  return new Date(`${value.replace(' ', 'T').replace(/(\.\d{3})\d+/, '$1')}+09:00`).toISOString();
 }
 
 const escapeLike = (value: string) => value.replace(/[\\%_]/g, (char) => `\\${char}`);

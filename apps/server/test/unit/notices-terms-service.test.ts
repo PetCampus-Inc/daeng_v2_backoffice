@@ -1,6 +1,9 @@
 import 'reflect-metadata';
 import { describe, expect, test, vi } from 'vitest';
-import { PlatformContentService } from '../../src/platform-content/platform-content.service.js';
+import { NoticeJavaClient } from '../../src/notices/notice-java.client.js';
+import { NoticesService } from '../../src/notices/notices.service.js';
+import { TermsJavaClient } from '../../src/terms/terms-java.client.js';
+import { TermsService } from '../../src/terms/terms.service.js';
 import type { JavaApiClient } from '../../src/java-api/java-api.client.js';
 import type { DatabaseService } from '../../src/database/database.service.js';
 import type { MemberRow } from '../../src/database/schema.js';
@@ -22,19 +25,19 @@ function setup(responses: unknown[]) {
   const requestJava = vi.fn(async () => ({ data: responses.shift() }));
   const values = vi.fn(async () => undefined);
   const transaction = vi.fn(async (fn: (tx: unknown) => Promise<void>) => fn({ insert: () => ({ values }) }));
-  const service = new PlatformContentService(
-    { requestJava } as unknown as JavaApiClient,
-    { db: { transaction } } as unknown as DatabaseService
-  );
-  return { service, requestJava, values, transaction };
+  const java = { requestJava } as unknown as JavaApiClient;
+  const database = { db: { transaction } } as unknown as DatabaseService;
+  const notices = new NoticesService(new NoticeJavaClient(java), database);
+  const terms = new TermsService(new TermsJavaClient(java), database);
+  return { notices, terms, requestJava, values, transaction };
 }
 
 describe('platform content Java translation', () => {
   test('translates notice filters, pagination, statuses, and KST timestamps', async () => {
-    const { service, requestJava } = setup([
+    const { notices, requestJava } = setup([
       { items: [{ ...notice, status: 'HIDDEN' }], page: 1, size: 20, totalElements: 21, totalPages: 2 },
     ]);
-    const result = await service.listNotices({ page: 2, size: 20, status: 'UNPUBLISHED', keyword: '점검' });
+    const result = await notices.list({ page: 2, size: 20, status: 'UNPUBLISHED', keyword: '점검' });
     expect(requestJava.mock.calls[0]![1]).toContain('page=1&size=20');
     expect(requestJava.mock.calls[0]![1]).toContain('status=HIDDEN');
     expect(result).toMatchObject({
@@ -53,8 +56,8 @@ describe('platform content Java translation', () => {
       effectiveDate: [2026, 11, 5],
       announcedDate: [2026, 10, 17],
     };
-    const { service } = setup([item, { items: [item], page: 0, size: 100, totalElements: 1, totalPages: 1 }]);
-    const result = await service.getTerms(7);
+    const { terms: service } = setup([item, { items: [item], page: 0, size: 100, totalElements: 1, totalPages: 1 }]);
+    const result = await service.get(7);
     expect(result).toMatchObject({
       effectiveDate: '2026-11-05',
       announcedDate: '2026-10-17',
@@ -63,11 +66,11 @@ describe('platform content Java translation', () => {
     });
   });
   test('uses the supplied version and distinguishes first publication from republication', async () => {
-    const { service, requestJava, values } = setup([
+    const { notices, requestJava, values } = setup([
       notice,
       { ...notice, status: 'PUBLISHED', publishedAt: '2026-10-29T12:00:00' },
     ]);
-    await service.publishNotice(actor, 7, 2);
+    await notices.publish(actor, 7, 2);
     expect(requestJava.mock.calls[1]![2]).toEqual({ rowVersion: 2 });
     expect(values).toHaveBeenCalledWith(expect.objectContaining({ action: 'NOTICE_CREATED', targetId: 7 }));
   });
@@ -77,11 +80,11 @@ describe('platform content Java translation', () => {
     try {
       const current = { ...terms, id: 1, status: 'PUBLISHED', effectiveDate: '2026-10-01' };
       const scheduled = { ...terms, id: 2, status: 'PUBLISHED', effectiveDate: '2026-11-20' };
-      const { service, requestJava } = setup([
+      const { terms: service, requestJava } = setup([
         { items: [current], totalPages: 2 },
         { items: [scheduled], totalPages: 2 },
       ]);
-      expect(await service.listTermsVersions('SERVICE_TERMS')).toMatchObject([
+      expect(await service.listVersions('SERVICE_TERMS')).toMatchObject([
         { id: 2, effectiveStatus: 'SCHEDULED' },
         { id: 1, effectiveStatus: 'CURRENT' },
       ]);
@@ -91,28 +94,28 @@ describe('platform content Java translation', () => {
     }
   });
   test('converts file names to Java image upload contract', async () => {
-    const { service, requestJava } = setup([[]]);
-    await service.uploadImages({ files: [{ fileName: 'a.png', contentType: 'image/png', size: 10 }] });
+    const { notices, requestJava } = setup([[]]);
+    await notices.uploadImages({ files: [{ fileName: 'a.png', contentType: 'image/png', size: 10 }] });
     expect(requestJava.mock.calls[0]![2]).toEqual({
       files: [{ filename: 'a.png', contentType: 'image/png', size: 10 }],
     });
   });
   test('does not misrepresent legacy JSON as markdown', async () => {
-    const { service } = setup([{ ...notice, body: { blocks: [] } }]);
-    await expect(service.getNotice(7)).rejects.toThrow('legacy JSON body');
+    const { notices } = setup([{ ...notice, body: { blocks: [] } }]);
+    await expect(notices.get(7)).rejects.toThrow('legacy JSON body');
   });
 });
 
 test('keeps a successful publication when change log storage fails', async () => {
-  const { service, transaction, requestJava } = setup([
+  const { notices, transaction, requestJava } = setup([
     notice,
     { ...notice, status: 'PUBLISHED', publishedAt: '2026-10-29T12:00:00' },
   ]);
   transaction.mockRejectedValue(new Error('database unavailable'));
   const logger = vi
-    .spyOn((service as unknown as { logger: { error: () => void } }).logger, 'error')
+    .spyOn((notices as unknown as { logger: { error: () => void } }).logger, 'error')
     .mockImplementation(() => undefined);
-  expect(await service.publishNotice(actor, 7, 2)).toMatchObject({ status: 'PUBLISHED' });
+  expect(await notices.publish(actor, 7, 2)).toMatchObject({ status: 'PUBLISHED' });
   expect(requestJava).toHaveBeenCalledTimes(2);
   expect(logger).toHaveBeenCalled();
 });
@@ -125,11 +128,11 @@ test('the real Java transport maps a publication conflict', async () => {
     .mockResolvedValueOnce(new Response(JSON.stringify({ code: 'PLATFORM-409-1' }), { status: 409 }));
   vi.stubGlobal('fetch', fetchMock);
   try {
-    const service = new PlatformContentService(
-      new JavaApiClient({ baseUrl: 'http://java.test', apiKey: 'key' }),
+    const service = new NoticesService(
+      new NoticeJavaClient(new JavaApiClient({ baseUrl: 'http://java.test', apiKey: 'key' })),
       {} as DatabaseService
     );
-    await expect(service.publishNotice(actor, 7, 1)).rejects.toMatchObject({
+    await expect(service.publish(actor, 7, 1)).rejects.toMatchObject({
       response: { code: 'NOTICE_VERSION_CONFLICT' },
     });
   } finally {
@@ -138,8 +141,8 @@ test('the real Java transport maps a publication conflict', async () => {
 });
 
 test('does not publish a legacy JSON notice before failing its response conversion', async () => {
-  const { service, requestJava } = setup([{ ...notice, body: { blocks: [] } }]);
-  await expect(service.publishNotice(actor, 7, 2)).rejects.toThrow('legacy JSON body');
+  const { notices, requestJava } = setup([{ ...notice, body: { blocks: [] } }]);
+  await expect(notices.publish(actor, 7, 2)).rejects.toThrow('legacy JSON body');
   expect(requestJava).toHaveBeenCalledTimes(1);
 });
 
@@ -147,11 +150,12 @@ test('publishing a terms draft records registration and publication without anot
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-29T00:00:00Z'));
   try {
-    const { service, requestJava, values } = setup([
-      terms,
-      { ...terms, status: 'PUBLISHED', publishedAt: '2026-10-29T12:00:00' },
-    ]);
-    expect(await service.publishTerms(actor, 7, 2)).toMatchObject({ effectiveStatus: 'SCHEDULED' });
+    const {
+      terms: service,
+      requestJava,
+      values,
+    } = setup([terms, { ...terms, status: 'PUBLISHED', publishedAt: '2026-10-29T12:00:00' }]);
+    expect(await service.publish(actor, 7, 2)).toMatchObject({ effectiveStatus: 'SCHEDULED' });
     expect(requestJava).toHaveBeenCalledTimes(2);
     expect(values.mock.calls.map((call) => call[0].action)).toEqual([
       'TERMS_VERSION_CREATED',

@@ -5,21 +5,24 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { RoleGuard } from '../../src/auth/role.guard.js';
 import { AccessLogService } from '../../src/auth/access-log.service.js';
 import { ApiExceptionFilter } from '../../src/common/api-exception.filter.js';
-import { PlatformContentController } from '../../src/platform-content/platform-content.controller.js';
-import { PlatformContentService } from '../../src/platform-content/platform-content.service.js';
+import { NoticesController } from '../../src/notices/notices.controller.js';
+import { NoticesService } from '../../src/notices/notices.service.js';
+import { TermVersionsController } from '../../src/terms/term-versions.controller.js';
+import { TermsController } from '../../src/terms/terms.controller.js';
+import { TermsService } from '../../src/terms/terms.service.js';
 
-const service = {
-  listNotices: vi.fn().mockResolvedValue({ items: [], page: 1, size: 20, totalItems: 0, totalPages: 0 }),
-  createNotice: vi.fn(),
-  draftTemplate: vi.fn(),
-  createTerms: vi.fn(),
+const notices = {
+  list: vi.fn().mockResolvedValue({ items: [], page: 1, size: 20, totalItems: 0, totalPages: 0 }),
+  create: vi.fn(),
 };
+const terms = { draftTemplate: vi.fn(), create: vi.fn() };
 const accessLog = { record: vi.fn() };
 class TestModule {}
 Module({
-  controllers: [PlatformContentController],
+  controllers: [NoticesController, TermsController, TermVersionsController],
   providers: [
-    { provide: PlatformContentService, useValue: service },
+    { provide: NoticesService, useValue: notices },
+    { provide: TermsService, useValue: terms },
     { provide: AccessLogService, useValue: accessLog },
     { provide: APP_GUARD, useClass: RoleGuard },
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
