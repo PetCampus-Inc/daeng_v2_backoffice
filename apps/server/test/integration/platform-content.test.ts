@@ -219,4 +219,22 @@ describe('notice API with fake Java and real HTTP', () => {
     expect(writes).toBe(before + 1);
     failLog = false;
   });
+  test('reads Java date and time arrays as KST', async () => {
+    const asArray = (value: unknown) => value as string;
+    notice = {
+      ...notice,
+      status: 'DRAFT',
+      publishedAt: asArray([2026, 10, 17, 1, 29, 48, 365885000]),
+      createdAt: asArray([2026, 10, 17, 0, 0, 0, 0]),
+      updatedAt: asArray([2026, 10, 18, 0, 0, 0]),
+    };
+    const response = await request('PUT', '/notices/1/publication', { version: notice.rowVersion });
+    expect(response.status).toBe(200);
+    await expectMatchesSpec(contract, response, { method: 'put', path: '/notices/{id}/publication' });
+    expect(await response.json()).toMatchObject({
+      publishedAt: '2026-10-16T16:29:48.365Z',
+      createdAt: '2026-10-16T15:00:00.000Z',
+      updatedAt: '2026-10-17T15:00:00.000Z',
+    });
+  });
 });

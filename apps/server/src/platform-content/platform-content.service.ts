@@ -10,6 +10,8 @@ import { JavaApiClient } from '../java-api/java-api.client.js';
 
 type Kind = 'SERVICE_TERMS' | 'PRIVACY_POLICY' | 'LOCATION_TERMS';
 type JavaKind = 'TERMS_OF_SERVICE' | 'PRIVACY_POLICY' | 'LOCATION_SERVICE_TERMS';
+/** Java는 날짜·시각을 `[2026,10,17]`·`[2026,10,17,1,29,48,365885000]` 배열로 내려준다. 문자열이 오면 그대로 쓴다. */
+type JavaTemporal = string | number[];
 type Item = {
   id: number;
   title: string;
@@ -24,7 +26,15 @@ type Item = {
   announcedDate: string | null;
   images?: { imageId: number; previewUrl: string | null }[];
 };
+type RawItem = Omit<Item, 'publishedAt' | 'createdAt' | 'updatedAt' | 'effectiveDate' | 'announcedDate'> & {
+  publishedAt: JavaTemporal | null;
+  createdAt: JavaTemporal;
+  updatedAt: JavaTemporal;
+  effectiveDate?: JavaTemporal | null;
+  announcedDate?: JavaTemporal | null;
+};
 type Page = { items: Item[]; page: number; size: number; totalElements: number; totalPages: number };
+type RawPage = Omit<Page, 'items'> & { items: RawItem[] };
 const KINDS: Record<Kind, JavaKind> = {
   SERVICE_TERMS: 'TERMS_OF_SERVICE',
   PRIVACY_POLICY: 'PRIVACY_POLICY',
@@ -37,6 +47,25 @@ const REVERSE_KINDS: Record<JavaKind, Kind> = {
 };
 const NOTICE = '/api/v0/platform-admin/notices';
 const TERMS = '/api/v0/platform-admin/legal-documents';
+const pad = (value: number | undefined, width = 2) => String(value ?? 0).padStart(width, '0');
+/** `YYYY-MM-DD`. */
+const javaDate = (value: JavaTemporal | null | undefined) =>
+  value == null ? null : Array.isArray(value) ? `${value[0]}-${pad(value[1])}-${pad(value[2])}` : value;
+/** `kstToIso`가 읽는 `YYYY-MM-DD HH:mm:ss.nnnnnnnnn`. 배열에서 0인 초·나노초는 빠져 있을 수 있다. */
+const javaDateTime = (value: JavaTemporal | null | undefined) =>
+  value == null
+    ? null
+    : Array.isArray(value)
+      ? `${javaDate(value)} ${pad(value[3])}:${pad(value[4])}:${pad(value[5])}.${pad(value[6], 9)}`
+      : value;
+const normalize = (raw: RawItem): Item => ({
+  ...raw,
+  publishedAt: javaDateTime(raw.publishedAt),
+  createdAt: javaDateTime(raw.createdAt)!,
+  updatedAt: javaDateTime(raw.updatedAt)!,
+  effectiveDate: javaDate(raw.effectiveDate),
+  announcedDate: javaDate(raw.announcedDate),
+});
 const dateTime = (value: string | null) => (value === null ? null : kstToIso(value));
 const error = (status: number, code: string) => () => new ApiException(status, code, '요청을 처리할 수 없습니다.');
 const invalidBody = () =>
@@ -82,6 +111,23 @@ export class PlatformContentService {
     const result = (await this.java.requestJava(method, path, body, errors)) as { data?: T } | undefined;
     return result?.data as T;
   }
+  private async callItem(
+    method: string,
+    path: string,
+    body?: unknown,
+    errors: Record<string, () => ApiException> = {}
+  ): Promise<Item> {
+    return normalize(await this.call<RawItem>(method, path, body, errors));
+  }
+  private async callPage(
+    method: string,
+    path: string,
+    body?: unknown,
+    errors: Record<string, () => ApiException> = {}
+  ): Promise<Page> {
+    const page = await this.call<RawPage>(method, path, body, errors);
+    return { ...page, items: page.items.map(normalize) };
+  }
   private noticeSummary(item: Item) {
     return {
       id: item.id,
@@ -100,7 +146,7 @@ export class PlatformContentService {
     const params = new URLSearchParams({ page: String(query.page - 1), size: String(query.size) });
     if (query.keyword) params.set('query', query.keyword);
     if (query.status) params.set('status', query.status === 'UNPUBLISHED' ? 'HIDDEN' : query.status);
-    const page = await this.call<Page>('GET', `${NOTICE}?${params}`, undefined, NOTICE_ERRORS);
+    const page = await this.callPage('GET', `${NOTICE}?${params}`, undefined, NOTICE_ERRORS);
     return {
       items: page.items.map((item) => this.noticeSummary(item)),
       page: page.page + 1,
@@ -113,10 +159,10 @@ export class PlatformContentService {
     return this.notice(await this.noticeRaw(id));
   }
   private noticeRaw(id: number) {
-    return this.call<Item>('GET', `${NOTICE}/${id}`, undefined, NOTICE_ERRORS);
+    return this.callItem('GET', `${NOTICE}/${id}`, undefined, NOTICE_ERRORS);
   }
   async createNotice(body: unknown) {
-    return this.notice(await this.call<Item>('POST', NOTICE, body, NOTICE_ERRORS));
+    return this.notice(await this.callItem('POST', NOTICE, body, NOTICE_ERRORS));
   }
   async updateNotice(
     actor: MemberRow,
@@ -126,7 +172,7 @@ export class PlatformContentService {
     const before = await this.noticeRaw(id);
     this.notice(before);
     const { version, ...data } = body;
-    const result = await this.call<Item>('PATCH', `${NOTICE}/${id}`, { ...data, rowVersion: version }, NOTICE_ERRORS);
+    const result = await this.callItem('PATCH', `${NOTICE}/${id}`, { ...data, rowVersion: version }, NOTICE_ERRORS);
     if (before.publishedAt !== null)
       await this.record({ actor, target: { type: 'NOTICE', id, label: result.title }, action: 'NOTICE_EDITED' });
     return this.notice(result);
@@ -134,7 +180,7 @@ export class PlatformContentService {
   async publishNotice(actor: MemberRow, id: number, version: number) {
     const before = await this.noticeRaw(id);
     this.notice(before);
-    const result = await this.call<Item>('PUT', `${NOTICE}/${id}/publication`, { rowVersion: version }, NOTICE_ERRORS);
+    const result = await this.callItem('PUT', `${NOTICE}/${id}/publication`, { rowVersion: version }, NOTICE_ERRORS);
     await this.record({
       actor,
       target: { type: 'NOTICE', id, label: result.title },
@@ -145,7 +191,7 @@ export class PlatformContentService {
   async unpublishNotice(actor: MemberRow, id: number) {
     const before = await this.noticeRaw(id);
     this.notice(before);
-    const result = await this.call<Item>(
+    const result = await this.callItem(
       'DELETE',
       `${NOTICE}/${id}/publication?rowVersion=${before.rowVersion}`,
       undefined,
@@ -171,7 +217,7 @@ export class PlatformContentService {
     let page = 0;
     let totalPages: number;
     do {
-      const result = await this.call<Page>(
+      const result = await this.callPage(
         'GET',
         `${TERMS}/types/${KINDS[kind]}/versions?page=${page}&size=100`,
         undefined,
@@ -249,13 +295,13 @@ export class PlatformContentService {
     };
   }
   private termsRaw(id: number) {
-    return this.call<Item>('GET', `${TERMS}/${id}`, undefined, TERMS_ERRORS);
+    return this.callItem('GET', `${TERMS}/${id}`, undefined, TERMS_ERRORS);
   }
   async getTerms(id: number) {
     return this.termsDetail(await this.termsRaw(id));
   }
   async createTerms(kind: Kind, body: { effectiveDate: string; content: string }) {
-    const item = await this.call<Item>(
+    const item = await this.callItem(
       'POST',
       `${TERMS}/types/${KINDS[kind]}/versions`,
       { body: body.content, effectiveDate: body.effectiveDate },
@@ -268,7 +314,7 @@ export class PlatformContentService {
     if (content === undefined && typeof (await this.termsRaw(id)).body !== 'string')
       throw new Error(`Terms ${id} has legacy JSON body; migration required`);
     return this.termsDetail(
-      await this.call<Item>(
+      await this.callItem(
         'PATCH',
         `${TERMS}/${id}`,
         { ...rest, ...(content === undefined ? {} : { body: content }), rowVersion: version },
@@ -280,7 +326,7 @@ export class PlatformContentService {
   async publishTerms(actor: MemberRow, id: number, version: number) {
     if (typeof (await this.termsRaw(id)).body !== 'string')
       throw new Error(`Terms ${id} has legacy JSON body; migration required`);
-    const item = await this.call<Item>('PUT', `${TERMS}/${id}/publication`, { rowVersion: version }, TERMS_ERRORS);
+    const item = await this.callItem('PUT', `${TERMS}/${id}/publication`, { rowVersion: version }, TERMS_ERRORS);
     await this.record({
       actor,
       target: { type: 'TERMS_VERSION', id, label: item.title },
@@ -296,7 +342,7 @@ export class PlatformContentService {
   async withdrawTerms(actor: MemberRow, id: number) {
     const before = await this.termsRaw(id);
     if (typeof before.body !== 'string') throw new Error(`Terms ${id} has legacy JSON body; migration required`);
-    const item = await this.call<Item>(
+    const item = await this.callItem(
       'DELETE',
       `${TERMS}/${id}/publication?rowVersion=${before.rowVersion}`,
       undefined,

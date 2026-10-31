@@ -43,6 +43,25 @@ describe('platform content Java translation', () => {
       items: [{ status: 'UNPUBLISHED', createdAt: '2026-10-20T03:00:00.000Z' }],
     });
   });
+  test('reads Java date and time arrays as KST', async () => {
+    const item = {
+      ...terms,
+      status: 'PUBLISHED',
+      publishedAt: [2026, 10, 17, 1, 29, 48, 365885000],
+      createdAt: [2026, 10, 17, 1, 41],
+      updatedAt: [2026, 10, 18, 0, 0, 0],
+      effectiveDate: [2026, 11, 5],
+      announcedDate: [2026, 10, 17],
+    };
+    const { service } = setup([item, { items: [item], page: 0, size: 100, totalElements: 1, totalPages: 1 }]);
+    const result = await service.getTerms(7);
+    expect(result).toMatchObject({
+      effectiveDate: '2026-11-05',
+      announcedDate: '2026-10-17',
+      publishedAt: '2026-10-16T16:29:48.365Z',
+      updatedAt: '2026-10-17T15:00:00.000Z',
+    });
+  });
   test('uses the supplied version and distinguishes first publication from republication', async () => {
     const { service, requestJava, values } = setup([
       notice,
