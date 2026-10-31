@@ -40,13 +40,37 @@ export function toErrorResponse(exception: unknown): { status: number; body: Api
   return { status: 500, body: INTERNAL_ERROR };
 }
 
+/** 래핑된 오류(예: 쿼리 실패 안의 DB 오류)의 원인을 `message (code)`로 이어 붙인다. 스택과 값은 싣지 않는다. */
+export function causeChain(exception: unknown): string[] {
+  const chain: string[] = [];
+  let current = exception instanceof Error ? exception.cause : undefined;
+  for (let depth = 0; current !== undefined && depth < 5; depth++) {
+    if (!(current instanceof Error)) {
+      chain.push(String(current));
+      break;
+    }
+    const { code } = current as { code?: unknown };
+    chain.push(typeof code === 'string' ? `${current.message} (${code})` : current.message);
+    current = current.cause;
+  }
+  return chain;
+}
+
 @Catch()
 export class ApiExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ApiExceptionFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const { status, body } = toErrorResponse(exception);
-    if (status >= 500) this.logger.error(exception instanceof Error ? exception.stack : String(exception));
+    if (status >= 500) {
+      const causes = causeChain(exception);
+      this.logger.error(
+        [
+          exception instanceof Error ? exception.stack : String(exception),
+          ...causes.map((cause) => `원인: ${cause}`),
+        ].join('\n')
+      );
+    }
     host.switchToHttp().getResponse<JsonResponse>().status(status).json(body);
   }
 }
