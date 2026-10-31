@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { RouterModule } from '@nestjs/core';
 import { AccountModule } from './account/account.module.js';
 import { AuthModule } from './auth/auth.module.js';
+import { ChangeLogModule } from './change-log/change-log.module.js';
 import { InquiriesModule } from './inquiries/inquiries.module.js';
 import { NoticesModule } from './notices/notices.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
@@ -22,6 +23,7 @@ const FEATURE_MODULES = [
   TermsModule,
   NotificationsModule,
   ServiceAdminModule,
+  ChangeLogModule,
 ];
 
 @Module({

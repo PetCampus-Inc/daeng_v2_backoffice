@@ -161,6 +161,11 @@ test('publishing a terms draft records registration and publication without anot
       'TERMS_VERSION_CREATED',
       'TERMS_VERSION_PUBLISHED',
     ]);
+    // 같은 약관의 여러 버전을 이력에서 구별하도록 종류와 시행일을 남긴다.
+    expect(values.mock.calls.map((call) => call[0].targetLabel)).toEqual([
+      '서비스 이용약관 (시행 2026-11-20)',
+      '서비스 이용약관 (시행 2026-11-20)',
+    ]);
   } finally {
     vi.useRealTimers();
   }

@@ -181,6 +181,9 @@ describe('terms API with fake Java and real HTTP', () => {
       'TERMS_VERSION_PUBLISHED',
       'TERMS_VERSION_WITHDRAWN',
     ]);
+    expect(changes.slice(-3).map((change) => change.targetLabel)).toEqual(
+      Array(3).fill('서비스 이용약관 (시행 2099-11-20)')
+    );
   });
 });
 afterAll(async () => {
