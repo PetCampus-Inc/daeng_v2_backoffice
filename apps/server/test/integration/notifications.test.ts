@@ -10,7 +10,14 @@ import { NotificationsService } from '../../src/notifications/notifications.serv
 import { hasDatabase, readTestDatabaseConfig } from '../support/test-database.js';
 
 const run = `notice-test-${Date.now()}`;
-const eventIds = ['9007199254740001', '9007199254740002', '9007199254740003', '9007199254740004', '9007199254740005'];
+const eventIds = [
+  '9007199254740001',
+  '9007199254740002',
+  '9007199254740003',
+  '9007199254740004',
+  '9007199254740005',
+  '9007199254740006',
+];
 const event = {
   eventId: eventIds[0]!,
   schemaVersion: 1 as const,
@@ -172,5 +179,32 @@ describe.skipIf(!hasDatabase)('notification storage and processing', () => {
         .where(eq(processedNotificationEvents.eventId, change.eventId))
     ).toHaveLength(1);
     expect(await db.db.select().from(notifications).where(eq(notifications.eventId, change.eventId))).toHaveLength(0);
+  });
+  test('read-all marks only the caller unread notifications and keeps earlier read times', async () => {
+    await db.db
+      .update(members)
+      .set({ status: 'ACTIVE' })
+      .where(inArray(members.id, [operatorId, viewerId]));
+    await processor.process({
+      ...event,
+      eventId: eventIds[5]!,
+      type: 'NEW_IDEA' as const,
+      targetType: 'IDEA' as const,
+      targetId: 456,
+    });
+    const earlier = (await service.list(operatorId, 1, 100)).items.find((n) => n.readAt !== null)!;
+    expect(earlier.readAt).not.toBeNull();
+    expect((await service.unreadCount(operatorId)).count).toBeGreaterThan(0);
+    const viewerUnread = (await service.unreadCount(viewerId)).count;
+    expect(viewerUnread).toBeGreaterThan(0);
+
+    await service.readAll(operatorId);
+
+    expect(await service.unreadCount(operatorId)).toEqual({ count: 0 });
+    expect(await service.unreadCount(viewerId)).toEqual({ count: viewerUnread });
+    const after = (await service.list(operatorId, 1, 100)).items.find((n) => n.id === earlier.id)!;
+    expect(after.readAt).toBe(earlier.readAt);
+    await service.readAll(operatorId);
+    expect(await service.unreadCount(operatorId)).toEqual({ count: 0 });
   });
 });
