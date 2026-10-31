@@ -6,10 +6,10 @@ import type { DatabaseService } from '../../src/database/database.service.js';
 import { members, type MemberRole } from '../../src/database/schema.js';
 import { ServiceAdminController } from '../../src/service-admin/service-admin.controller.js';
 import { ServiceAdminService } from '../../src/service-admin/service-admin.service.js';
-import { ServiceMembersReader } from '../../src/service-admin/service-members-reader.js';
-import { ServiceOverviewReader } from '../../src/service-admin/service-overview-reader.js';
-import { ServiceSchoolsReader } from '../../src/service-admin/service-schools-reader.js';
-import { ServiceVerificationsReader } from '../../src/service-admin/service-verifications-reader.js';
+import { ServiceMembersReader } from '../../src/service-admin/members-reader.js';
+import { ServiceOverviewReader } from '../../src/service-admin/overview-reader.js';
+import { ServiceSchoolsReader } from '../../src/service-admin/schools-reader.js';
+import { ServiceVerificationsReader } from '../../src/service-admin/verifications-reader.js';
 import {
   SERVICE_DATABASE_CONFIG,
   ServiceDatabaseService,

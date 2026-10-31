@@ -1,10 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { addDays, kstNow, kstToIso } from '../common/time.js';
 import type { Paged } from './paging.js';
-import { ServiceMembersReader, type MemberRow } from './service-members-reader.js';
-import { ServiceOverviewReader } from './service-overview-reader.js';
-import { ServiceSchoolsReader, type SchoolRow } from './service-schools-reader.js';
-import { ServiceVerificationsReader, type VerificationRow } from './service-verifications-reader.js';
+import { ServiceMembersReader, type MemberRow } from './members-reader.js';
+import { ServiceOverviewReader } from './overview-reader.js';
+import { ServiceSchoolsReader, type SchoolRow } from './schools-reader.js';
+import { ServiceVerificationsReader, type VerificationRow } from './verifications-reader.js';
 import { maskBusinessNumber, maskEmail, maskPhone } from './masking.js';
 import type { MembersQuery, OverviewQuery, SchoolsQuery, VerificationsQuery } from './service-admin.schemas.js';
 

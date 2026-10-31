@@ -8,10 +8,10 @@ import {
   verificationsQuerySchema,
 } from '../../src/service-admin/service-admin.schemas.js';
 import { ServiceAdminService } from '../../src/service-admin/service-admin.service.js';
-import type { ServiceMembersReader } from '../../src/service-admin/service-members-reader.js';
-import type { ServiceOverviewReader } from '../../src/service-admin/service-overview-reader.js';
-import type { ServiceSchoolsReader } from '../../src/service-admin/service-schools-reader.js';
-import type { ServiceVerificationsReader } from '../../src/service-admin/service-verifications-reader.js';
+import type { ServiceMembersReader } from '../../src/service-admin/members-reader.js';
+import type { ServiceOverviewReader } from '../../src/service-admin/overview-reader.js';
+import type { ServiceSchoolsReader } from '../../src/service-admin/schools-reader.js';
+import type { ServiceVerificationsReader } from '../../src/service-admin/verifications-reader.js';
 
 describe('masking (기존 어드민 규칙)', () => {
   test('email keeps two characters of the local part', () => {
