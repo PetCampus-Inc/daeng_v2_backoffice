@@ -106,8 +106,11 @@ describe.skipIf(!hasDatabase)('notification storage and processing', () => {
     await processor.process(noRecipients);
     await db.db.update(members).set({ status: 'ACTIVE' }).where(eq(members.id, operatorId));
     await processor.process(noRecipients);
+    // DB에 다른 활성 계정이 있을 수 있으므로 이 테스트가 만든 계정만 본다.
     expect(
-      await db.db.select().from(notifications).where(eq(notifications.eventId, noRecipients.eventId))
+      (await db.db.select().from(notifications).where(eq(notifications.eventId, noRecipients.eventId))).filter((row) =>
+        [operatorId, viewerId].includes(row.recipientId)
+      )
     ).toHaveLength(0);
     expect(
       await db.db
@@ -137,9 +140,11 @@ describe.skipIf(!hasDatabase)('notification storage and processing', () => {
       await poller.poll();
       await poller.poll();
       expect(fake).toHaveBeenCalledTimes(4);
-      expect(await db.db.select().from(notifications).where(eq(notifications.eventId, delivery.eventId))).toHaveLength(
-        1
-      );
+      expect(
+        (await db.db.select().from(notifications).where(eq(notifications.eventId, delivery.eventId))).filter(
+          (row) => row.recipientId === operatorId
+        )
+      ).toHaveLength(1);
       expect(
         await db.db
           .select()
