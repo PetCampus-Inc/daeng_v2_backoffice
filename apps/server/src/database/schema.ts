@@ -123,3 +123,36 @@ export const changeLogs = mysqlTable(
 );
 
 export type MemberRow = typeof members.$inferSelect;
+
+export const processedNotificationEvents = mysqlTable('processed_notification_event', {
+  eventId: varchar('event_id', { length: 20 }).primaryKey(),
+  processedAt: datetime('processed_at', { fsp: 3 })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const notifications = mysqlTable(
+  'notification',
+  {
+    id: bigint('id', { mode: 'number' }).autoincrement().primaryKey(),
+    recipientId: int('recipient_id')
+      .notNull()
+      .references(() => members.id),
+    eventId: varchar('event_id', { length: 20 })
+      .notNull()
+      .references(() => processedNotificationEvents.eventId),
+    kind: varchar('kind', { length: 32 }).notNull(),
+    message: varchar('message', { length: 255 }).notNull(),
+    targetType: varchar('target_type', { length: 16 }).notNull(),
+    targetId: bigint('target_id', { mode: 'number' }).notNull(),
+    createdAt: datetime('created_at', { fsp: 3 })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    readAt: datetime('read_at', { fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_notification_event_recipient').on(table.eventId, table.recipientId),
+    index('idx_notification_recipient_created').on(table.recipientId, table.createdAt, table.id),
+    index('idx_notification_recipient_read').on(table.recipientId, table.readAt),
+  ]
+);

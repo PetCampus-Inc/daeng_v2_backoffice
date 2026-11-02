@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, count, desc, eq, inArray, isNull, like, or, sql, type SQL } from 'drizzle-orm';
+import { escapeLike } from '../common/sql.js';
+import { kstToIso } from '../common/time.js';
 import { ServiceDatabaseService } from '../service-database/service-database.service.js';
-import { escapeLike, kstToIso, userEmailSql, userNameSql } from '../service-database/service-queries.js';
+import { userEmailSql, userNameSql } from '../service-database/service-queries.js';
 import {
   serviceInquiries,
   serviceInquiryImages,

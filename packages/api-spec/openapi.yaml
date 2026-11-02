@@ -723,6 +723,7 @@ paths:
       description: |-
         변경 이력을 최신순으로 반환합니다. 기간은 KST 날짜 기준이며 `to`일도 포함합니다.
         이력은 쓰기 작업이 성공하면 서버가 자동으로 남기고, 접속 기록은 API로 제공하지 않습니다.
+        `from`이 `to`보다 늦으면 400입니다. 최고 관리자만 조회할 수 있습니다.
       parameters:
         - name: from
           in: query
@@ -978,8 +979,12 @@ paths:
       operationId: createNoticeImageUploadUrls
       summary: 공지 이미지 업로드 주소 발급
       description: |-
-        공지 본문에 넣을 이미지의 업로드 주소를 발급합니다. `uploadUrl`로 파일을 올린 뒤, `imageUrl`을 본문에 `![설명](imageUrl)` 형태로 넣습니다.
-        JPEG·PNG만 가능하고, 파일당 20MB 이하로 한 번에 10개까지 올릴 수 있습니다. [확인 필요] 용량·개수 기준
+        공지 본문에 넣을 이미지의 업로드 주소를 발급합니다. 순서는 다음과 같습니다.
+        1. `uploadUrl`로 파일을 올립니다.
+        2. 이미지마다 UUID(`clientImageId`)를 만들어 본문에 `![설명](knockdog-upload://clientImageId)` 형태로 넣습니다.
+        3. 공지를 저장할 때 `pendingImages`에 `clientImageId`, 응답의 `tempKey`, 원본 파일명을 함께 보냅니다. 저장하면 이미지가 확정됩니다.
+        저장하지 않고 나간 업로드는 확정되지 않습니다.
+        JPEG·PNG만 가능하고, 파일당 20MB 이하로 한 번에 10개까지 올릴 수 있습니다.
       requestBody:
         required: true
         content:
@@ -1068,7 +1073,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/TermsVersion'
         '400':
-          $ref: '#/components/responses/ValidationFailed'
+          description: 입력값 또는 시행일 형식 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsInputError'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1138,7 +1147,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/TermsVersion'
         '400':
-          $ref: '#/components/responses/ValidationFailed'
+          description: 입력값 또는 시행일 형식 오류
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TermsInputError'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1246,7 +1259,7 @@ paths:
       summary: 내 알림 목록
       description: |-
         내 알림을 최근순으로 반환합니다. 읽음 여부는 사람마다 따로 관리되고, 알림 문구는 서버가 만듭니다. 디스코드 발송은 API로 제공하지 않습니다.
-        [확인 필요] 한 번에 보여 줄 건수 기준이 없어 다른 목록처럼 20건씩 나눕니다.
+        기본 페이지 크기는 20건입니다.
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
@@ -1257,6 +1270,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationPage'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1311,6 +1326,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Notification'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
@@ -1346,6 +1363,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceOverview'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1355,7 +1374,8 @@ paths:
       operationId: listServiceMembers
       summary: 서비스 회원 목록
       description: |-
-        서비스 회원 목록을 반환합니다. 최신 가입순이며, 이메일·전화번호는 마스킹됩니다. 아이디, 이름, 이메일, 전화번호로 검색합니다.
+        서비스 회원 목록을 반환합니다. 최신 가입순이며, 이메일·전화번호는 마스킹됩니다.
+        검색어(`keyword`)는 아이디와 이름은 부분 일치로 찾고, 이메일과 전화번호는 전체가 일치할 때만 찾습니다. 마스킹된 값을 부분 검색으로 추측하지 못하게 하기 위해서입니다. 전화번호는 `-` 없이 입력해도 됩니다.
       parameters:
         - name: type
           in: query
@@ -1372,6 +1392,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceMemberPage'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1398,6 +1420,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceSchoolPage'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1424,6 +1448,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceVerificationPage'
+        '400':
+          $ref: '#/components/responses/ValidationFailed'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -2171,7 +2197,7 @@ components:
           properties:
             code:
               type: string
-              enum: [NOTICE_NOT_DRAFT]
+              enum: [NOTICE_NOT_DRAFT, NOTICE_VERSION_CONFLICT]
       example:
         code: NOTICE_NOT_DRAFT
         message: 초안만 삭제할 수 있습니다.
@@ -2184,7 +2210,7 @@ components:
           properties:
             code:
               type: string
-              enum: [NOTICE_NOT_PUBLISHED]
+              enum: [NOTICE_NOT_PUBLISHED, NOTICE_VERSION_CONFLICT]
       example:
         code: NOTICE_NOT_PUBLISHED
         message: 게시 중인 공지가 아닙니다.
@@ -2249,10 +2275,24 @@ components:
           properties:
             code:
               type: string
-              enum: [TERMS_VERSION_NOT_DRAFT]
+              enum: [TERMS_VERSION_NOT_DRAFT, TERMS_VERSION_CONFLICT]
       example:
         code: TERMS_VERSION_NOT_DRAFT
         message: 초안이 아닌 버전은 수정하거나 삭제할 수 없습니다.
+
+    TermsInputError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required: [code]
+          properties:
+            code:
+              type: string
+              enum: [VALIDATION_FAILED, TERMS_EFFECTIVE_DATE_INVALID_FORMAT]
+            details:
+              type: array
+              items:
+                $ref: '#/components/schemas/ValidationErrorDetail'
 
     TermsEffectiveDateError:
       allOf:
@@ -2307,7 +2347,7 @@ components:
           properties:
             code:
               type: string
-              enum: [TERMS_WITHDRAW_NOT_ALLOWED]
+              enum: [TERMS_WITHDRAW_NOT_ALLOWED, TERMS_VERSION_CONFLICT]
       example:
         code: TERMS_WITHDRAW_NOT_ALLOWED
         message: 시행 전 예정 버전만 철회할 수 있습니다.
@@ -2376,7 +2416,9 @@ components:
 
     ChangeLogTarget:
       type: object
-      description: 변경 대상입니다. `label`에는 기록 당시의 문의·공지 제목, 약관 종류와 버전, 계정 이메일이 들어갑니다.
+      description: |-
+        변경 대상입니다. `label`에는 기록 당시의 문의·공지 제목, 약관 종류와 시행일(예: `서비스 이용약관 (시행 2026-11-20)`), 계정 이메일이 들어갑니다.
+        약관은 공개한 버전의 시행일을 고칠 수 없어서 한 버전의 이력은 항상 같은 `label`로 남습니다.
       required: [id, label]
       properties:
         id:
@@ -2465,8 +2507,20 @@ components:
       allOf:
         - $ref: '#/components/schemas/NoticeSummary'
         - type: object
-          required: [body, version]
+          required: [body, version, images]
           properties:
+            images:
+              type: array
+              description: 본문의 이미지 ID에 대응하는 임시 조회 URL입니다. 본문은 저장용 상대 경로를 유지합니다.
+              items:
+                type: object
+                required: [imageId, previewUrl]
+                properties:
+                  imageId:
+                    type: integer
+                  previewUrl:
+                    type: string
+                    nullable: true
             body:
               type: string
               description: 마크다운 본문입니다. 게시하려면 1~5,000자여야 하고, 초안은 비어 있어도 됩니다.
@@ -2495,6 +2549,12 @@ components:
         body:
           type: string
           maxLength: 5000
+        pendingImages:
+          type: array
+          maxItems: 10
+          description: 본문에 새로 넣은 이미지. 본문의 `knockdog-upload://` 표식과 일대일로 대응해야 합니다.
+          items:
+            $ref: '#/components/schemas/NoticePendingImage'
 
     UpdateNoticeRequest:
       type: object
@@ -2506,6 +2566,12 @@ components:
         body:
           type: string
           maxLength: 5000
+        pendingImages:
+          type: array
+          maxItems: 10
+          description: 본문에 새로 넣은 이미지. 본문의 `knockdog-upload://` 표식과 일대일로 대응해야 합니다.
+          items:
+            $ref: '#/components/schemas/NoticePendingImage'
         version:
           type: integer
           minimum: 0
@@ -2551,16 +2617,28 @@ components:
 
     NoticeImageUploadUrl:
       type: object
-      required: [uploadUrl, imageUrl]
+      required: [uploadUrl, tempKey]
       properties:
         uploadUrl:
           type: string
           format: uri
           description: 파일을 직접 올릴 주소(유효시간이 짧습니다)
-        imageUrl:
+        tempKey:
           type: string
-          format: uri
-          description: 업로드가 끝난 뒤 이미지를 불러올 최종 주소입니다. 마크다운 본문에 이 주소를 넣습니다.
+          description: 업로드한 임시 파일의 키입니다. 공지를 저장할 때 `pendingImages`에 담아 보냅니다.
+
+    NoticePendingImage:
+      type: object
+      required: [clientImageId, tempKey, originalFilename]
+      properties:
+        clientImageId:
+          type: string
+          description: 본문의 `knockdog-upload://` 표식에 쓴 UUID
+        tempKey:
+          type: string
+          description: 업로드 주소 발급 응답의 `tempKey`
+        originalFilename:
+          type: string
 
     TermsKind:
       type: string
@@ -2577,7 +2655,8 @@ components:
     TermsEffectiveStatus:
       type: string
       description: 시행 상태(공개된 버전만). `CURRENT` 현행, `SCHEDULED` 예정, `PAST` 과거
-      enum: [CURRENT, SCHEDULED, PAST]
+      enum: [CURRENT, SCHEDULED, PAST, null]
+      nullable: true
 
     TermsVersionSummary:
       type: object
@@ -2585,17 +2664,18 @@ components:
       properties:
         id:
           type: integer
-          description: 약관 버전 ID입니다. 화면의 버전 번호로 씁니다.
+          description: 약관 버전 식별자입니다. 종류와 관계없이 하나씩 늘어나므로 종류별로 이어지는 번호가 아닙니다.
         kind:
           $ref: '#/components/schemas/TermsKind'
         effectiveDate:
           type: string
           format: date
-          description: 시행일(KST 날짜)
+          description: 시행일(KST 날짜). 기존 초안은 없을 수 있습니다.
+          nullable: true
         publishStatus:
           $ref: '#/components/schemas/TermsPublishStatus'
         effectiveStatus:
-          type: object
+          type: string
           allOf:
             - $ref: '#/components/schemas/TermsEffectiveStatus'
           nullable: true
@@ -2758,12 +2838,17 @@ components:
 
     SchoolStatus:
       type: string
-      description: 유치원 상태(`ACTIVE`, `CLOSED`). [확인 필요] 각 값의 의미
+      description: 유치원 상태. `ACTIVE` 운영 중, `CLOSED` 폐업
       enum: [ACTIVE, CLOSED]
 
     VerificationStatus:
       type: string
-      description: 원장 인증 상태. [확인 필요] 각 값의 의미
+      description: |-
+        원장 인증 상태.
+        - `KINDERGARTEN_INFO_COMPLETED`: 유치원 정보 입력을 마친 단계. 현재 서비스 코드에는 이 값으로 바뀌는 경로가 없고, 진행 중 상태로만 취급됩니다.
+        - `BUSINESS_REGISTRATION_PENDING`: 유치원·대표자 정보를 입력했고 사업자등록번호 제출을 기다리는 단계
+        - `SUBMITTED`: 사업자등록번호를 제출해 인증을 신청한 상태
+        - `REVOKED`: 인증이 철회·해지된 상태
       enum: [KINDERGARTEN_INFO_COMPLETED, BUSINESS_REGISTRATION_PENDING, SUBMITTED, REVOKED]
 
     ServiceOverviewStats:
@@ -2933,10 +3018,10 @@ components:
           type: string
           nullable: true
         schoolStatus:
-          type: object
-          allOf:
-            - $ref: '#/components/schemas/SchoolStatus'
+          type: string
           nullable: true
+          enum: [ACTIVE, CLOSED, null]
+          description: 연결된 유치원의 상태. `ACTIVE` 운영 중, `CLOSED` 폐업. 연결된 유치원이 없으면 `null`
 
     ServiceMemberPage:
       allOf:
@@ -3056,7 +3141,7 @@ components:
         kindergartenType:
           type: string
           nullable: true
-          enum: [SELECTED, MANUAL]
+          enum: [SELECTED, MANUAL, null]
           description: 유치원 입력 방식
         status:
           $ref: '#/components/schemas/VerificationStatus'

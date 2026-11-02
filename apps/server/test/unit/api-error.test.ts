@@ -2,7 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { expect, test } from 'vitest';
 import { z } from 'zod';
 import { ApiException, ValidationFailedException } from '../../src/common/api-error.js';
-import { toErrorResponse } from '../../src/common/api-exception.filter.js';
+import { causeChain, toErrorResponse } from '../../src/common/api-exception.filter.js';
 import { ZodValidationPipe } from '../../src/common/zod-validation.pipe.js';
 
 test('domain exception keeps its status and code', () => {
@@ -62,4 +62,15 @@ test('client errors from outside Nest keep their 4xx status', () => {
     status: 413,
     body: { code: 'BAD_REQUEST', message: '잘못된 요청입니다.' },
   });
+});
+
+test('causeChain lists wrapped causes with their codes', () => {
+  const db = Object.assign(new Error("Table 'bo.notification' doesn't exist"), { code: 'ER_NO_SUCH_TABLE' });
+  const query = new Error('Failed query', { cause: db });
+  expect(causeChain(query)).toEqual(["Table 'bo.notification' doesn't exist (ER_NO_SUCH_TABLE)"]);
+});
+test('causeChain is empty without a cause and tolerates non-error causes', () => {
+  expect(causeChain(new Error('x'))).toEqual([]);
+  expect(causeChain('text')).toEqual([]);
+  expect(causeChain(new Error('x', { cause: 'plain' }))).toEqual(['plain']);
 });

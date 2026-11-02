@@ -83,3 +83,20 @@ describe('JavaApiClient failures', () => {
     await expect(client.release(7, 2)).rejects.toThrow('fetch failed');
   });
 });
+
+test('shared transport forwards the path, credentials, and body and uses domain-specific errors', async () => {
+  respond(409, { code: 'PLATFORM-409-1', message: '내부 메시지' });
+  const failure = () => new ApiException(409, 'NOTICE_VERSION_CONFLICT', '충돌');
+
+  await expect(
+    client.requestJava('PATCH', '/api/v0/platform-admin/notices/7', { rowVersion: 2 }, { 'PLATFORM-409-1': failure })
+  ).rejects.toMatchObject({ response: { code: 'NOTICE_VERSION_CONFLICT' } });
+  expect(fetch).toHaveBeenCalledWith(
+    'http://java.test/api/v0/platform-admin/notices/7',
+    expect.objectContaining({
+      method: 'PATCH',
+      headers: { 'X-Backoffice-Api-Key': 'k', 'content-type': 'application/json' },
+      body: JSON.stringify({ rowVersion: 2 }),
+    })
+  );
+});

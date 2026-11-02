@@ -29,3 +29,4 @@ updated: 2026-10-26
 | [0014](0014-auth-details.md)                   | 인증 세부 결정                               | 확정 |
 | [0015](0015-spec-contract-tests.md)            | 서버 응답은 테스트에서 명세로 검증           | 확정 |
 | [0016](0016-dev-login.md)                      | 개발용 로그인                                | 확정 |
+| [0017](0017-bo-notification-delivery.md)       | BO 알림의 수신 시점과 이벤트 전달            | 확정 |
