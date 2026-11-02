@@ -3,12 +3,12 @@ import { and, asc, count, desc, eq, inArray, isNull, like, or, sql, type SQL } f
 import { escapeLike } from '../common/sql.js';
 import { kstToIso } from '../common/time.js';
 import { ServiceDatabaseService } from '../service-database/service-database.service.js';
+import { userEmailSql, userNameSql } from '../service-database/service-queries.js';
 import {
   serviceInquiries,
   serviceInquiryImages,
   serviceInquiryMessages,
   serviceUsers,
-  socialUsers,
   type ServiceInquiryStatus,
 } from '../service-database/service-schema.js';
 
@@ -49,16 +49,6 @@ export interface InquiryMessageRow {
 export interface InquiryDetailRow extends InquiryRow {
   messages: InquiryMessageRow[];
 }
-
-// 문의자 이름·이메일은 소셜 가입 정보에서 가져온다. 이름이 없으면 닉네임을 쓴다.
-const userNameSql = () =>
-  sql<
-    string | null
-  >`coalesce((select ${socialUsers.name} from ${socialUsers} where ${socialUsers.userId} = ${serviceUsers.userId} order by ${socialUsers.id} limit 1), ${serviceUsers.nickname})`;
-const userEmailSql = () =>
-  sql<
-    string | null
-  >`(select ${socialUsers.email} from ${socialUsers} where ${socialUsers.userId} = ${serviceUsers.userId} order by ${socialUsers.id} limit 1)`;
 
 /** 서비스 DB를 읽기 전용으로 조회한다(ADR 0009). */
 @Injectable()

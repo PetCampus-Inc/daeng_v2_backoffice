@@ -46,3 +46,11 @@ export const serviceInquiryImages = mysqlTable('inquiry_image', {
   originalFilename: varchar('original_filename', { length: 255 }),
   displayOrder: int('display_order').notNull(),
 });
+
+export const serviceIdeas = mysqlTable('idea_suggestion', {
+  id: bigint('id', { mode: 'number' }).primaryKey(),
+  userId: bigint('user_id', { mode: 'number' }).notNull(),
+  inquirerType: varchar('inquirer_type', { length: 20 }).notNull(),
+  content: text('content').notNull(),
+  createdAt: datetime('created_at', { fsp: 6, mode: 'string' }).notNull(),
+});
