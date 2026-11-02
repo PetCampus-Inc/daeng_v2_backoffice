@@ -1,0 +1,45 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**"]
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "test": {
+      "dependsOn": ["^test"]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "passThroughEnv": [
+        "PORT",
+        "API_DOCS_ENABLED",
+        "DB_HOST",
+        "DB_PORT",
+        "DB_NAME",
+        "DB_USER",
+        "DB_PASSWORD",
+        "SERVICE_DB_HOST",
+        "SERVICE_DB_PORT",
+        "SERVICE_DB_NAME",
+        "SERVICE_DB_USER",
+        "SERVICE_DB_PASSWORD",
+        "JAVA_API_BASE_URL",
+        "JAVA_API_KEY",
+        "NOTIFICATION_POLL_ENABLED",
+        "INQUIRY_IMAGE_BASE_URL",
+        "INITIAL_SUPER_ADMIN_EMAIL",
+        "GOOGLE_CLIENT_ID",
+        "ALLOWED_ORIGINS",
+        "COOKIE_SECURE",
+        "DEV_LOGIN_ENABLED"
+      ],
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

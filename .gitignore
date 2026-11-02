@@ -1,0 +1,10 @@
+.local
+node_modules/
+dist/
+.DS_Store
+.turbo/
+.playwright-mcp/
+AGENTS.local.md
+.env
+.env.*
+!.env.example

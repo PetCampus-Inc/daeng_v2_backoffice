@@ -1,0 +1,107 @@
+import { createBrowserRouter, redirect } from 'react-router';
+
+import { loadSession } from './api/auth.ts';
+import RootLayout from './root-layout.tsx';
+import AppLayout, { type AppRouteHandle } from './routes/app/route.tsx';
+import HistoryRoute from './routes/history/route.tsx';
+import HomeRoute from './routes/home/route.tsx';
+import IdeasRoute from './routes/ideas/route.tsx';
+import IdeaDetailRoute from './routes/ideas/detail/route.tsx';
+import InquiryDetailRoute from './routes/inquiries/detail/route.tsx';
+import InquiriesRoute from './routes/inquiries/route.tsx';
+import KindergartensRoute from './routes/kindergartens/route.tsx';
+import LoginRoute from './routes/login/route.tsx';
+import MembersRoute from './routes/members/route.tsx';
+import NotFoundRoute from './routes/not-found/route.tsx';
+import OwnerVerificationsRoute from './routes/owner-verifications/route.tsx';
+import ProfileSetupRoute from './routes/profile-setup/route.tsx';
+import TeamMembersRoute from './routes/settings/members/route.tsx';
+import { PAGES, type PageInfo } from './util/page-config.ts';
+
+/** 메뉴 화면의 handle. AppLayout이 이 page로 역할을 검사한다. */
+function createPageHandle(page: PageInfo): AppRouteHandle {
+  return { page };
+}
+
+export const router = createBrowserRouter([
+  {
+    // 앱을 처음 열 때 한 번 서버에 세션을 묻고, 결과에 따라 로그인 화면·BO 화면으로 나뉜다.
+    // 묻는 동안은 짧게 지나가므로 아무것도 그리지 않는다.
+    Component: RootLayout,
+    loader: loadSession,
+    HydrateFallback: () => null,
+    children: [
+      { path: '/login', Component: LoginRoute },
+      {
+        Component: AppLayout,
+        children: [
+          { index: true, loader: () => redirect(PAGES.home.path) },
+          { path: '/profile-setup', Component: ProfileSetupRoute },
+          { path: PAGES.home.path, Component: HomeRoute, handle: createPageHandle(PAGES.home) },
+          { path: PAGES.members.path, Component: MembersRoute, handle: createPageHandle(PAGES.members) },
+          {
+            path: PAGES.kindergartens.path,
+            Component: KindergartensRoute,
+            handle: createPageHandle(PAGES.kindergartens),
+          },
+          {
+            path: PAGES.ownerVerifications.path,
+            Component: OwnerVerificationsRoute,
+            handle: createPageHandle(PAGES.ownerVerifications),
+          },
+          { path: PAGES.inquiries.path, Component: InquiriesRoute, handle: createPageHandle(PAGES.inquiries) },
+          {
+            path: `${PAGES.inquiries.path}/:inquiryId`,
+            Component: InquiryDetailRoute,
+            handle: createPageHandle(PAGES.inquiries),
+          },
+          { path: PAGES.ideas.path, Component: IdeasRoute, handle: createPageHandle(PAGES.ideas) },
+          { path: `${PAGES.ideas.path}/:ideaId`, Component: IdeaDetailRoute, handle: createPageHandle(PAGES.ideas) },
+          {
+            path: PAGES.notices.path,
+            lazy: async () => ({ Component: (await import('./routes/notices/route.tsx')).default }),
+            handle: createPageHandle(PAGES.notices),
+          },
+          {
+            path: `${PAGES.notices.path}/new`,
+            lazy: async () => ({ Component: (await import('./routes/notices/write/route.tsx')).default }),
+            handle: createPageHandle(PAGES.notices),
+          },
+          {
+            path: `${PAGES.notices.path}/:noticeId`,
+            lazy: async () => ({ Component: (await import('./routes/notices/detail/route.tsx')).default }),
+            handle: createPageHandle(PAGES.notices),
+          },
+          {
+            path: `${PAGES.notices.path}/:noticeId/edit`,
+            lazy: async () => ({ Component: (await import('./routes/notices/detail/route.tsx')).NoticeEditRoute }),
+            handle: createPageHandle(PAGES.notices),
+          },
+          {
+            path: PAGES.terms.path,
+            lazy: async () => ({ Component: (await import('./routes/terms/route.tsx')).default }),
+            handle: createPageHandle(PAGES.terms),
+          },
+          {
+            path: '/terms/:kind/new',
+            lazy: async () => ({ Component: (await import('./routes/terms/write/route.tsx')).default }),
+            handle: createPageHandle(PAGES.terms),
+          },
+          {
+            path: '/terms/:kind/:version',
+            lazy: async () => ({ Component: (await import('./routes/terms/detail/route.tsx')).default }),
+            handle: createPageHandle(PAGES.terms),
+          },
+          {
+            path: '/terms/:kind/:version/edit',
+            lazy: async () => ({ Component: (await import('./routes/terms/detail/route.tsx')).TermEditRoute }),
+            handle: createPageHandle(PAGES.terms),
+          },
+          { path: PAGES.history.path, Component: HistoryRoute, handle: createPageHandle(PAGES.history) },
+          { path: PAGES.teamMembers.path, Component: TeamMembersRoute, handle: createPageHandle(PAGES.teamMembers) },
+          { path: '*', Component: NotFoundRoute },
+        ],
+      },
+    ],
+  },
+]);
