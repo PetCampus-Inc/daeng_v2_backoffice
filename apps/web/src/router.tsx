@@ -1,6 +1,7 @@
 import { createBrowserRouter, redirect } from 'react-router';
 
 import { loadSession } from './api/auth.ts';
+import RootErrorBoundary from './root-error-boundary.tsx';
 import RootLayout from './root-layout.tsx';
 import AppLayout, { type AppRouteHandle } from './routes/app/route.tsx';
 import HistoryRoute from './routes/history/route.tsx';
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
     Component: RootLayout,
     loader: loadSession,
     HydrateFallback: () => null,
+    ErrorBoundary: RootErrorBoundary,
     children: [
       { path: '/login', Component: LoginRoute },
       {

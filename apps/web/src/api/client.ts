@@ -4,6 +4,7 @@ import { useAuthStore, type LoginNotice } from '@/store/auth';
 import { useLeaveGuardStore } from '@/store/leave-guard';
 import type { ApiError } from '@/type/api';
 import { UnauthorizedErrorCode } from '@/type/unauthorized-error-code';
+import { captureApiError } from '@/util/sentry';
 
 /**
  * 관리자 API(`/api/v0/admin`) 공용 axios 인스턴스.
@@ -35,5 +36,6 @@ apiClient.interceptors.response.use(undefined, (error: unknown) => {
       endSession(getSessionEndNotice(code));
     }
   }
+  captureApiError(error);
   return Promise.reject(error);
 });
