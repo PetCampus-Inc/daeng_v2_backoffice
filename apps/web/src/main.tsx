@@ -5,6 +5,10 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 
 import './index.css';
+import { initSentry } from './util/sentry.ts';
+
+// 라우터와 첫 요청보다 먼저 켜야 시작 단계의 에러도 잡힌다.
+initSentry();
 
 const queryClient = new QueryClient();
 

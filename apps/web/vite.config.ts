@@ -1,20 +1,36 @@
 /// <reference types="vitest/config" />
+import { sentryVitePlugin } from '@sentry/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { msw } from 'msw/vite';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 
+// 소스맵은 업로드 토큰이 있는 배포 build에서만 만든다. 토큰이 없으면 맵 파일이 배포물에 남지 않는다.
+const isSourceMapUploadEnabled = Boolean(process.env.SENTRY_AUTH_TOKEN);
+
 // https://vite.dev/config/
 export default defineConfig({
   // msw(): 개발 서버에서만 MSW worker 파일을 건네준다. build에는 virtual:msw를 쓰는 코드가 남을 때만 넣는다.
-  plugins: [react(), tailwindcss(), msw()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    msw(),
+    // Sentry 플러그인은 다른 플러그인보다 뒤에 둔다. org·project는 SENTRY_ORG·SENTRY_PROJECT 환경 변수에서 읽는다.
+    sentryVitePlugin({
+      disable: !isSourceMapUploadEnabled,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      // 업로드한 맵은 배포물에서 지운다.
+      sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
+    }),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   build: {
+    sourcemap: isSourceMapUploadEnabled ? 'hidden' : false,
     rolldownOptions: {
       preserveEntrySignatures: false,
       output: {
