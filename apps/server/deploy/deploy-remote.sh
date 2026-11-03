@@ -21,7 +21,7 @@ HOST_PORT="$7"
 
 REGISTRY="${IMAGE%%/*}"
 NAME="daeng_bo_server"
-APP_HOME="${APP_HOME:-/home/ec2-user/daeng-bo}"
+APP_HOME="${APP_HOME:-/home/ec2-user/daeng-backoffice}"
 ENV_FILE="$APP_HOME/.env"
 WORK="$(mktemp -d /tmp/deploy-bo.XXXXXX)"
 
