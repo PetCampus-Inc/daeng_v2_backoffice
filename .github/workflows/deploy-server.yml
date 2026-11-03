@@ -1,6 +1,17 @@
 name: Deploy Server
 
+# main에 서버 이미지에 영향을 주는 파일이 머지되면 자동 배포하고, 필요하면 수동으로도 실행한다.
 on:
+  push:
+    branches: [main]
+    paths:
+      - apps/server/**
+      - packages/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .dockerignore
+      - .github/workflows/deploy-server.yml
   workflow_dispatch:
 
 # 배포가 겹치면 서버에서 컨테이너 교체가 충돌하므로 순서대로 하나씩 실행
