@@ -38,9 +38,9 @@ pnpm db:migrate  # 대상 DB에 새 마이그레이션 적용
 
 ## 배포
 
-운영 배포는 GitHub Actions의 `Deploy Server`를 `main` 브랜치로 수동 실행해서 한다. 방식과 이유는
-[ADR 0018](../../docs/adr/0018-bo-server-deploy.md)에 있다. 환경 변수는 Infisical `prod` 값을 쓰고, 필수 이름은
-`deploy/prepare-env.mjs`가 배포 전에 검증한다.
+운영 배포는 `main`에 서버 관련 파일이 머지되면 GitHub Actions의 `Deploy Server`가 자동으로 하고, 같은 워크플로를 `main`
+브랜치로 수동 실행할 수도 있다. 방식과 이유는 [ADR 0018](../../docs/adr/0018-bo-server-deploy.md)에 있다. 환경 변수는
+Infisical `prod` 값을 쓰고, 필수 이름은 `deploy/prepare-env.mjs`가 배포 전에 검증한다.
 
 ## 검사
 
