@@ -36,6 +36,12 @@ pnpm db:migrate  # 대상 DB에 새 마이그레이션 적용
 새 API의 인증·권한 규칙은 [ADR 0014](../../docs/adr/0014-auth-details.md)와 `src/auth/decorators.ts`, 명세 일치 검사는
 [ADR 0015](../../docs/adr/0015-spec-contract-tests.md)를 참고한다.
 
+## 배포
+
+운영 배포는 GitHub Actions의 `Deploy Server`를 `main` 브랜치로 수동 실행해서 한다. 방식과 이유는
+[ADR 0018](../../docs/adr/0018-bo-server-deploy.md)에 있다. 환경 변수는 Infisical `prod` 값을 쓰고, 필수 이름은
+`deploy/prepare-env.mjs`가 배포 전에 검증한다.
+
 ## 검사
 
 저장소 루트에서 `pnpm build && pnpm lint && pnpm test && pnpm format:check`를 실행한다.
