@@ -24,12 +24,18 @@ NAME="daeng_bo_server"
 APP_HOME="${APP_HOME:-/home/ec2-user/daeng-backoffice}"
 ENV_FILE="$APP_HOME/.env"
 WORK="$(mktemp -d /tmp/deploy-bo.XXXXXX)"
+REPO="${IMAGE%:*}"
 
 mkdir -p "$APP_HOME"
 exec > >(tee -a "$APP_HOME/deploy.log") 2>&1
-trap 'rm -rf "$WORK"' EXIT
 
 log() { echo "[deploy-bo $(date '+%H:%M:%S')] $*"; }
+
+# 마이그레이션 이미지는 커서(1GB 이상) 쓰고 나면 바로 지운다. 서버 디스크 여유가 적어서 실패해 끝날 때도 지운다.
+remove_migrate_images() {
+  docker images --format '{{.Repository}}:{{.Tag}}' | grep -E "^${REPO}:.*-migrate$" | xargs -r docker rmi >/dev/null || true
+}
+trap 'rm -rf "$WORK"; remove_migrate_images' EXIT
 
 # 1) .env 받기. 시크릿이 들어 있으므로 받자마자 S3에서 삭제한다.
 log "환경 변수 파일 내려받기"
@@ -51,9 +57,7 @@ docker pull "$MIGRATE_IMAGE"
 log "마이그레이션 실행"
 docker run --rm --network "$NETWORK" --env-file "$ENV_FILE" --memory 400m "$MIGRATE_IMAGE"
 
-# 마이그레이션 이미지는 커서(1GB 이상) 쓰고 나면 바로 지운다. 서버 디스크 여유가 적다.
-REPO="${IMAGE%:*}"
-docker images --format '{{.Repository}}:{{.Tag}}' | grep -E "^${REPO}:.*-migrate$" | xargs -r docker rmi >/dev/null || true
+remove_migrate_images
 
 # 4) 컨테이너 교체
 PREV_IMAGE="$(docker inspect -f '{{.Config.Image}}' "$NAME" 2>/dev/null || true)"
