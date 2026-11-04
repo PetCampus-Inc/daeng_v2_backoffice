@@ -38,7 +38,7 @@ async function scenario(
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__termsQA = { delay, delays: {}, failGet: false, mutationDelay: 0, mutationStatus: 0, requests: [] };
       network.use(
-        http.all('/api/v0/admin/terms/*', async ({ request }) => {
+        http.all(/\/api\/v0\/admin\/term(s|-versions)\//, async ({ request }) => {
           const qa = window.__termsQA;
           const method = request.method;
           qa.requests.push({ method, url: request.url });
@@ -46,7 +46,8 @@ async function scenario(
             setTimeout(
               resolve,
               method === 'GET'
-                ? (qa.delays[new URL(request.url).pathname.split('/').at(-1)!] ?? qa.delay)
+                ? (qa.delays[new URL(request.url).pathname.match(/terms\/([A-Z]+)_/)?.[1]?.toLowerCase() ?? ''] ??
+                    qa.delay)
                 : qa.mutationDelay
             )
           );
@@ -54,8 +55,22 @@ async function scenario(
           if (status === -1) return Response.error();
           if (status) {
             return new Response(
-              JSON.stringify({ status, code: 'QA_ERROR', errorMessage: '검증 오류', message: '검증 오류' }),
-              { status, headers: { 'Content-Type': 'application/json' } }
+              JSON.stringify({
+                code:
+                  // 서버가 거절할 때 주는 코드와 같은 값. 브라우저 안에서 실행되므로 바깥 상수를 쓰지 않는다.
+                  (
+                    {
+                      400: 'TERMS_EFFECTIVE_DATE_TOO_SOON',
+                      404: 'TERMS_VERSION_NOT_FOUND',
+                      409: 'TERMS_VERSION_CONFLICT',
+                    } as Record<number, string>
+                  )[status] ?? 'QA_ERROR',
+                message: '검증 오류',
+              }),
+              {
+                status,
+                headers: { 'Content-Type': 'application/json' },
+              }
             );
           }
         })
@@ -94,10 +109,10 @@ async function openSavedPrivacyDraft(page: Page) {
   await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
   await page.getByLabel('시행일 *', { exact: true }).fill('2026. 10. 01.');
   await page.getByRole('button', { name: '초안 저장', exact: true }).click();
-  await page.getByRole('heading', { name: '개인정보 처리방침 버전 #3 초안 수정', exact: true }).waitFor();
+  await page.getByRole('heading', { name: '개인정보 처리방침 버전 #7 초안 수정', exact: true }).waitFor();
   await page.goBack();
   await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
-  await page.getByRole('button', { name: '#3', exact: true }).click();
+  await page.getByRole('button', { name: '#7', exact: true }).click();
   await page.getByLabel('시행일 *', { exact: true }).waitFor();
 }
 async function confirm(page: Page, label: string) {
@@ -114,7 +129,8 @@ async function api(page: Page, method: string, url: string, body?: unknown) {
         headers: { 'Content-Type': 'application/json' },
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
-      return { status: response.status, body: await response.json() };
+      const text = await response.text();
+      return { status: response.status, body: text ? JSON.parse(text) : null };
     },
     { method, url, body }
   );
@@ -127,10 +143,10 @@ test('최초 로딩 뒤 서비스 약관 목록과 상태를 표시한다', asyn
       await page.getByRole('status').filter({ hasText: '불러오는 중입니다' }).waitFor();
       await page.getByRole('button', { name: '#4', exact: true }).waitFor();
       assert.deepEqual(await page.locator('tbody tr').allTextContents(), [
-        '#4초안',
         '#3예정2026. 10. 20.2026. 10. 01.',
         '#2현행2026. 09. 01.2026. 08. 20.',
         '#1과거2026. 03. 01.2026. 02. 20.',
+        '#4초안',
       ]);
     },
     { initialDelay: 1500 }
@@ -179,13 +195,13 @@ test('약관 상세에서 목록으로 돌아오면 종류와 초점을 유지�
   scenario('kind-return', async (page) => {
     await page.getByRole('tab', { name: '개인정보 처리방침', exact: true }).click();
     await text(page, '철회');
-    await page.getByRole('button', { name: '#1', exact: true }).click();
-    await page.getByRole('heading', { name: '개인정보 처리방침 버전 #1', exact: true }).waitFor();
+    await page.getByRole('button', { name: '#5', exact: true }).click();
+    await page.getByRole('heading', { name: '개인정보 처리방침 버전 #5', exact: true }).waitFor();
     await page.getByRole('link', { name: '이용약관', exact: true }).last().click();
-    await page.getByRole('button', { name: '#1', exact: true }).waitFor();
+    await page.getByRole('button', { name: '#5', exact: true }).waitFor();
     assert.match(page.url(), /kind=privacy/);
     assert.equal(
-      await page.getByRole('button', { name: '#1', exact: true }).evaluate((el) => el === document.activeElement),
+      await page.getByRole('button', { name: '#5', exact: true }).evaluate((el) => el === document.activeElement),
       true
     );
   }));
@@ -197,9 +213,10 @@ test('새 버전을 초안 저장하고 생성된 주소로 교체한다', async
     await page
       .getByLabel('본문 *', { exact: true })
       .fill('제1조 목적\n' + (await page.getByLabel('본문 *', { exact: true }).innerText()));
+    await validDate(page);
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
-    await page.getByRole('heading', { name: '서비스 이용약관 버전 #5 초안 수정', exact: true }).waitFor();
-    assert.match(page.url(), /service\/5$/);
+    await page.getByRole('heading', { name: '서비스 이용약관 버전 #7 초안 수정', exact: true }).waitFor();
+    await page.waitForURL(/service\/7$/);
     assert.equal(await page.getByRole('button', { name: '초안 저장', exact: true }).isDisabled(), true);
   }));
 
@@ -217,8 +234,8 @@ test('새 버전 공개에서 날짜를 검증하고 치환된 본문을 표시�
     await page.getByRole('button', { name: '공개하기', exact: true }).click();
     await confirm(page, '공개하기');
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
-    await page.getByRole('button', { name: '#5', exact: true }).click();
-    await page.getByRole('heading', { name: '서비스 이용약관 버전 #5', exact: true }).waitFor();
+    await page.getByRole('button', { name: '#7', exact: true }).click();
+    await page.getByRole('heading', { name: '서비스 이용약관 버전 #7', exact: true }).waitFor();
     await text(page, '공개 철회');
     assert.equal(await page.getByRole('button', { name: '초안 저장', exact: true }).count(), 0);
     assert.match(await page.locator('main').innerText(), /2026년 11월 10일/);
@@ -251,7 +268,7 @@ test('새 버전을 초안 저장 없이 직접 공개한다', async () =>
     await page.getByLabel('시행일 *', { exact: true }).fill('2026. 10. 14.');
     await page.getByRole('button', { name: '공개하기', exact: true }).click();
     await confirm(page, '공개하기');
-    await page.getByRole('button', { name: '#1', exact: true }).waitFor();
+    await page.getByRole('button', { name: '#7', exact: true }).waitFor();
     await text(page, '예정');
     assert.match(page.url(), /kind=location/);
   }));
@@ -411,7 +428,7 @@ test('초안 저장 뒤 교체된 주소에서 뒤로 이동한다', async () =>
     await page.getByRole('link', { name: '새 버전 작성', exact: true }).click();
     await page.getByLabel('시행일 *', { exact: true }).fill('2026. 10. 01.');
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
-    await page.getByRole('heading', { name: '개인정보 처리방침 버전 #3 초안 수정', exact: true }).waitFor();
+    await page.getByRole('heading', { name: '개인정보 처리방침 버전 #7 초안 수정', exact: true }).waitFor();
     await page.goBack();
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
   }));
@@ -455,9 +472,10 @@ for (const role of ['운영자', '조회자'] as const) {
       `role-write-denied-${role}`,
       async (page) => {
         for (const [method, url, body] of [
-          ['POST', '/terms/service', { action: 'save', body: 'a', effectiveDate: '' }],
-          ['PATCH', '/terms/service/4', { action: 'publish', revision: 1, body: 'a', effectiveDate: '2026-11-10' }],
-          ['DELETE', '/terms/service/4', { revision: 1 }],
+          ['POST', '/terms/SERVICE_TERMS/versions', { content: 'a', effectiveDate: '2026-11-10' }],
+          ['PATCH', '/term-versions/4', { version: 1, content: 'a', effectiveDate: '2026-11-10' }],
+          ['PUT', '/term-versions/4/publication', { version: 1 }],
+          ['DELETE', '/term-versions/4', undefined],
         ] as const) {
           assert.equal((await api(page, method, url, body)).status, 403);
         }
@@ -471,27 +489,16 @@ for (const role of ['운영자', '조회자'] as const) {
 }
 
 for (const [name, method, url, body, status] of [
-  ['현행 버전 철회', 'PATCH', '/terms/service/2', { action: 'withdraw', revision: 1 }, 409],
+  ['현행 버전 철회', 'DELETE', '/term-versions/2/publication', undefined, 409],
+  ['철회한 버전의 공개', 'PUT', '/term-versions/6/publication', { version: 1 }, 409],
+  ['낡은 version 저장', 'PATCH', '/term-versions/4', { version: 0, content: 'x' }, 409],
+  ['공개 버전 삭제', 'DELETE', '/term-versions/2', undefined, 409],
+  ['시행일 없는 초안 공개', 'PUT', '/term-versions/4/publication', { version: 1 }, 400],
   [
-    '예정 버전이 있는 종류의 공개',
-    'PATCH',
-    '/terms/privacy/2',
-    { action: 'publish', revision: 1, body: 'x', effectiveDate: '2026-12-10' },
-    409,
-  ],
-  [
-    '낡은 revision 저장',
-    'PATCH',
-    '/terms/service/4',
-    { action: 'save', revision: 0, body: 'x', effectiveDate: '' },
-    409,
-  ],
-  ['공개 버전 삭제', 'DELETE', '/terms/service/2', { revision: 1 }, 409],
-  [
-    '과거 시행일 직접 공개',
+    '형식이 틀린 시행일 저장',
     'POST',
-    '/terms/privacy',
-    { action: 'publish', body: 'x', effectiveDate: '2026-10-13' },
+    '/terms/PRIVACY_POLICY/versions',
+    { content: 'x', effectiveDate: '2026-10-1' },
     400,
   ],
 ] as const) {
@@ -503,23 +510,18 @@ for (const [name, method, url, body, status] of [
 
 test('삭제한 초안 번호를 다음 버전에서 재사용하지 않는다', async () =>
   scenario('api-version-sequence', async (page) => {
-    const saved = await api(page, 'POST', '/terms/location', {
-      action: 'save',
-      body: { schemaVersion: 1, blocks: [{ type: 'paragraph', children: [{ text: '' }] }] },
-      effectiveDate: 'abc',
+    const saved = await api(page, 'POST', '/terms/LOCATION_TERMS/versions', {
+      content: 'x',
+      effectiveDate: '2026-12-01',
     });
     assert.equal(saved.status, 201);
-    assert.equal((await api(page, 'DELETE', '/terms/location/1', { revision: 1 })).status, 200);
-    assert.equal(
-      (
-        await api(page, 'POST', '/terms/location', {
-          action: 'save',
-          body: { schemaVersion: 1, blocks: [{ type: 'paragraph', children: [{ text: '' }] }] },
-          effectiveDate: '',
-        })
-      ).body.data.version,
-      2
-    );
+    assert.equal(saved.body.id, 7);
+    assert.equal((await api(page, 'DELETE', '/term-versions/7')).status, 204);
+    const next = await api(page, 'POST', '/terms/LOCATION_TERMS/versions', {
+      content: 'x',
+      effectiveDate: '2026-12-01',
+    });
+    assert.equal(next.body.id, 8);
   }));
 
 test('KST 날짜 경계의 철회 경합에서 최신 현행 상태를 표시한다', async () =>
@@ -535,7 +537,7 @@ test('KST 날짜 경계의 철회 경합에서 최신 현행 상태를 표시한
       localStorage.setItem(key, JSON.stringify(session));
     });
     await confirm(page, '공개 철회');
-    await text(page, '약관 상태가 변경되어 요청을 완료하지 못했습니다. 최신 상태를 확인해 주세요.');
+    await text(page, '시행일이 지났거나 이미 철회되어 공개를 철회할 수 없습니다. 최신 상태를 확인해 주세요.');
     await text(page, '현행');
     assert.equal(await page.getByRole('button', { name: '공개 철회', exact: true }).count(), 0);
   }));
@@ -606,7 +608,10 @@ for (const width of [1440, 1200, 1199, 390] as const) {
         );
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         await page.locator('summary').click();
-        await text(page, '초안 저장 시에는 시행일을 검증하지 않습니다.');
+        await text(
+          page,
+          '초안 저장에도 시행일 형식(예: 2026. 10. 20.)이 필요합니다. 과거 날짜는 저장할 수 있고 공개할 때 검증합니다.'
+        );
       },
       { width }
     ));

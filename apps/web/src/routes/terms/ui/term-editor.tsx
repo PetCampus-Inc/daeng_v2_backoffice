@@ -1,9 +1,8 @@
-import { useRef, useState } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { Tabs } from 'radix-ui';
 import { useIsMutating } from '@tanstack/react-query';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
@@ -11,6 +10,7 @@ import { Button } from '@/ui/atoms/button';
 import { Card, CardContent } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
 import { RichContentEditor, RichContentView } from '@/ui/organisms/rich-content-editor';
+import type { RichContent } from '@/type/rich-content';
 import { getRichText, sameRichContent } from '@/util/rich-content';
 import { Label } from '@/ui/atoms/label';
 import {
@@ -23,21 +23,67 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/ui/atoms/alert-dialog';
-import { formatDate } from '@/util/date-format';
+import { formatDate, formatTime } from '@/util/date-format';
+import { useAutoSave } from '@/util/use-auto-save';
 import { formatDocumentTitle } from '@/util/page-config';
-import { useChangeTerm } from '../api/terms';
-import { TERM_KIND_LABELS, type Term, type TermKind } from '../type/term';
-import { displayTermDate, getInitialTermBody, parseTermDate, validateEffectiveDate } from '../util/term-policy';
+import {
+  getTermChangeMutationKey,
+  toServerTermKind,
+  toTerm,
+  toTermSaveRequest,
+  useTermChangeOptions,
+} from '../api/term-query';
+import type { TermsVersion as ServerTerm } from '../type';
+import { useCreateTermsVersion, usePublishTermsVersion, useUpdateTermsVersion } from '../api/use-terms';
+import { TERM_KIND_LABELS, type Term, type TermKind, type TermSummary } from '../type/term-ui';
+import { getTermErrorGuide, readTermError } from '../util/term-error';
+import {
+  displayTermDate,
+  getInitialTermBody,
+  parseTermDate,
+  TERM_DATE_FORMAT_MESSAGE,
+  validateEffectiveDate,
+} from '../util/term-policy';
 import { termListPath, termPath } from '../util/term-navigation';
 import { TermBreadcrumb, TermStatusBadge } from '../ui/term-common';
 import { TermConfirm } from './term-confirm';
 
-export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Term; versions: Term[] }) {
+/**
+ * 탭 전환처럼 본문과 상관없는 다시 그리기에는 편집기를 다시 그리지 않는다.
+ * 편집기는 다시 그릴 때 자기가 아는 선택 위치를 화면에 덮어쓰는데, 방금 바꾼 선택이 아직 편집기에 전해지기 전이면 선택이 글 끝으로 돌아간다.
+ */
+const BodyEditor = memo(RichContentEditor);
+
+const SAVE_ERROR_TITLE = '저장하지 못했습니다.';
+const PUBLISH_ERROR_TITLE = '약관을 공개하지 못했습니다.';
+
+/**
+ * 새 버전 작성·초안 수정 화면. 서버는 저장(초안)과 공개가 따로라서 공개는 저장 → 공개를 이어서 부른다.
+ * 저장은 됐는데 공개만 실패하면 저장된 초안(새 번호·`revision`)을 화면 상태로 삼아, 다시 눌러도 새 초안을 만들지 않는다.
+ * 새 버전의 처음 본문(`startBody`)은 호출한 쪽이 가져온다.
+ */
+export function TermEditor({
+  kind,
+  term,
+  versions,
+  startBody,
+}: {
+  kind: TermKind;
+  term?: Term;
+  versions: TermSummary[];
+  startBody?: RichContent;
+}) {
   const email = useAuthStore((state) => state.user?.email) ?? '';
-  const mutation = useChangeTerm(email);
-  const isPending = useIsMutating({ mutationKey: ['terms', email, 'change'] }) > 0;
+  const changeOptions = useTermChangeOptions(email);
+  const createMutation = useCreateTermsVersion(changeOptions);
+  const updateMutation = useUpdateTermsVersion(changeOptions);
+  const publishMutation = usePublishTermsVersion(changeOptions);
+  // 저장과 공개는 이어서 부르므로, 두 요청 사이에도 처리 중으로 본다.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isMutating = useIsMutating({ mutationKey: getTermChangeMutationKey(email) }) > 0;
+  const isPending = isSubmitting || isMutating;
   const navigate = useNavigate();
-  const [initialBody] = useState(() => term?.body ?? getInitialTermBody(versions));
+  const [initialBody] = useState(() => term?.body ?? startBody ?? getInitialTermBody([]));
   const [saved, setSaved] = useState(term);
   const [date, setDate] = useState(term?.effectiveDate ? displayTermDate(term.effectiveDate) : '');
   const [body, setBody] = useState(initialBody);
@@ -67,10 +113,12 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
     flushSync(() => setIsDiscarded(true));
     action();
   };
-  const showPublishError = (description: string, field: 'date' | 'body' = 'date') => {
-    flushSync(() => setError({ title: '약관을 공개하지 못했습니다.', description, field }));
+  const showFieldError = (title: string, description: string, field: 'date' | 'body' = 'date') => {
+    flushSync(() => setError({ title, description, field }));
     (field === 'date' ? dateRef.current : bodyRef.current)?.focus();
   };
+  const showPublishError = (description: string, field: 'date' | 'body' = 'date') =>
+    showFieldError(PUBLISH_ERROR_TITLE, description, field);
   const preparePublish = () => {
     const validation = validateEffectiveDate(date, versions);
     if (validation) {
@@ -84,50 +132,109 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
     setError(null);
     setPublishOpen(true);
   };
+  /** 저장 응답을 화면 상태로 바꾼다. 방금 저장한 본문을 기준으로 삼아, 저장 직후에는 변경 없음으로 본다. */
+  const toSavedTerm = (response: ServerTerm): Term => ({ ...toTerm(response), body });
+
+  /** 초안이 없으면 새로 만들고, 있으면 그 초안을 수정한다(서버 저장은 항상 초안). */
+  const saveTerm = async (target: Term | undefined, effectiveDate: string) => {
+    const data = toTermSaveRequest(effectiveDate, body);
+    // 화면의 버전 번호(`version`)가 서버 `id`, 동시 수정 값(`revision`)이 서버 `version`이다.
+    const response = target
+      ? await updateMutation.mutateAsync({ id: target.version, data: { ...data, version: target.revision } })
+      : await createMutation.mutateAsync({ kind: toServerTermKind(kind), data });
+    return toSavedTerm(response);
+  };
+
   const handleSave = async (action: 'save' | 'publish') => {
     if (busy.current || isPending) return;
-    busy.current = true;
-    setError(null);
-    try {
-      const updated = await mutation.mutateAsync({
-        kind,
-        version: saved?.version,
-        revision: saved?.revision,
-        action,
-        input: { effectiveDate: date, body },
-      });
-      if (!updated) return;
+    const errorTitle = action === 'publish' ? PUBLISH_ERROR_TITLE : SAVE_ERROR_TITLE;
+    // 서버는 초안 저장부터 시행일(YYYY-MM-DD)이 필요하다. 서버가 비우기를 허락하기 전까지(OQ-P10) 저장 단계에서 형식을 검사한다.
+    const effectiveDate = parseTermDate(date);
+    if (!effectiveDate) {
       setPublishOpen(false);
-      if (action === 'publish') {
-        toast.success(`약관을 공개했습니다. 시행일 ${displayTermDate(updated.effectiveDate)}부터 적용됩니다.`);
-        leave(() => void navigate(termListPath(kind)));
-      } else {
+      showFieldError(errorTitle, TERM_DATE_FORMAT_MESSAGE);
+      return;
+    }
+    busy.current = true;
+    setIsSubmitting(true);
+    setError(null);
+    let target = saved;
+    let isSavedNow = false;
+    try {
+      if (action === 'save' || !target || hasChanged) {
+        target = await saveTerm(target, effectiveDate);
+        isSavedNow = true;
+        const savedTerm = target;
         flushSync(() => {
-          setSaved(updated);
-          setDate(updated.effectiveDate ? displayTermDate(updated.effectiveDate) : '');
+          setSaved(savedTerm);
+          setDate(displayTermDate(savedTerm.effectiveDate));
         });
-        toast.success('초안을 저장했습니다.');
-        if (!saved) leave(() => void navigate(termPath(kind, updated.version), { replace: true }));
       }
+      if (action === 'publish') {
+        try {
+          const response = await publishMutation.mutateAsync({
+            id: target!.version,
+            data: { version: target!.revision },
+          });
+          const published = toTerm(response);
+          setPublishOpen(false);
+          toast.success(`약관을 공개했습니다. 시행일 ${displayTermDate(published.effectiveDate)}부터 적용됩니다.`);
+          leave(() => void navigate(termListPath(kind)));
+        } catch (publishError) {
+          if (!isSavedNow) throw publishError;
+          setPublishOpen(false);
+          toast.error('임시저장은 됐지만 공개하지 못했어요. 다시 공개해 주세요.');
+        }
+        return;
+      }
+      toast.success('초안을 저장했습니다.');
+      if (!saved) leave(() => void navigate(termPath(kind, target!.version), { replace: true }));
     } catch (caught) {
       setPublishOpen(false);
-      const status = axios.isAxiosError(caught) ? caught.response?.status : undefined;
-      if (status === 400 && axios.isAxiosError(caught)) {
-        showPublishError(caught.response?.data?.errorMessage ?? '입력 내용을 확인해 주세요.');
-      } else if (status === 404 || status === 409) {
-        setError({
-          title: action === 'publish' ? '약관을 공개하지 못했습니다.' : '저장하지 못했습니다.',
-          description:
-            status === 404
-              ? '다른 팀원이 삭제한 초안입니다. 입력한 내용이 필요하면 복사해 둔 뒤 목록으로 이동해 주세요.'
-              : '다른 팀원이 먼저 저장한 내용이 있습니다. 입력한 내용을 복사해 둔 뒤 새로고침해 최신 내용을 불러와 주세요.',
-          missing: status === 404,
-        });
-      } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
+      const { status, code } = readTermError(caught);
+      const guide = getTermErrorGuide(status, code);
+      if (guide?.field) showFieldError(errorTitle, guide.description, guide.field);
+      else if (guide) setError({ title: errorTitle, description: guide.description, missing: guide.isMissing });
+      else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
+    } finally {
+      busy.current = false;
+      setIsSubmitting(false);
+    }
+  };
+  /**
+   * 작성 중 자동 임시저장. 기존 저장 함수(`saveTerm`)를 그대로 쓰되 토스트·이동·오류 박스는 쓰지 않는다.
+   * 처음 한 번만 만들고 이후에는 받은 번호·`revision`으로 같은 초안을 저장한다. 시행일 형식이 맞을 때만 부른다.
+   */
+  const autoSaveTerm = async () => {
+    const effectiveDate = parseTermDate(date);
+    if (busy.current || !effectiveDate) return;
+    busy.current = true;
+    try {
+      const savedTerm = await saveTerm(saved, effectiveDate);
+      const typedDate = date;
+      // 저장하는 사이 시행일을 더 고쳤다면 사용자가 쓴 값을 덮어쓰지 않는다.
+      flushSync(() => {
+        setSaved(savedTerm);
+        setDate((current) => (current === typedDate ? displayTermDate(savedTerm.effectiveDate) : current));
+      });
     } finally {
       busy.current = false;
     }
   };
+  const contentKey = useMemo(() => ({ date, body }), [date, body]);
+  const autoSave = useAutoSave({
+    // 이 화면은 초안만 다루고, 공개 성공 뒤에는 화면을 떠나므로(`isDiscarded`) 그때부터 멈춘다.
+    enabled: !isDiscarded,
+    hasChanged,
+    canSave: !!parseTermDate(date) && !isSubmitting && !isMutating && !publishOpen,
+    contentKey,
+    save: autoSaveTerm,
+    isPermanentError: (caught) => {
+      const { status, code } = readTermError(caught);
+      return !!getTermErrorGuide(status, code);
+    },
+  });
+  const isAutoSaving = autoSave.status === 'saving';
   return (
     <>
       <title>{formatDocumentTitle(title)}</title>
@@ -137,20 +244,24 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
           {title}
         </h1>
         <div className='flex flex-wrap gap-2'>
+          {autoSave.status === 'saved' && (
+            <span role='status' className='self-center text-kd-caption text-kd-foreground-muted'>
+              임시저장됨 {formatTime(autoSave.savedAt)}
+            </span>
+          )}
+          {autoSave.status === 'failed' && hasChanged && (
+            <span role='status' className='self-center text-kd-caption text-kd-error-foreground'>
+              임시저장하지 못했습니다.
+            </span>
+          )}
           {saved && (
             <TermConfirm
               term={saved}
               action='delete'
-              onFailed={(status) => {
-                if (status === 404 || status === 409) {
-                  setError({
-                    title: '삭제하지 못했습니다.',
-                    description:
-                      status === 404
-                        ? '다른 팀원이 삭제한 초안입니다. 입력한 내용이 필요하면 복사해 둔 뒤 목록으로 이동해 주세요.'
-                        : '다른 팀원이 먼저 저장한 내용이 있습니다. 입력한 내용을 복사해 둔 뒤 새로고침해 최신 내용을 불러와 주세요.',
-                    missing: status === 404,
-                  });
+              onFailed={(status, code) => {
+                const guide = status === 404 || status === 409 ? getTermErrorGuide(status, code) : null;
+                if (guide) {
+                  setError({ title: '삭제하지 못했습니다.', description: guide.description, missing: guide.isMissing });
                 } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
               }}
               onDeleted={() => leave(() => void navigate(termListPath(kind)))}
@@ -186,7 +297,7 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
         <TermStatusBadge status='초안' />
         <span>{saved ? formatDate(saved.updatedAt, true) : '저장 전'}</span>
         {hasChanged && <span>저장하지 않은 변경</span>}
-        <span role='status'>{isPending ? '처리 중… 입력은 처리 후 수정할 수 있습니다.' : ''}</span>
+        <span role='status'>{isPending && !isAutoSaving ? '처리 중… 입력은 처리 후 수정할 수 있습니다.' : ''}</span>
         <span className='ml-auto'>* 공개할 때 필수</span>
       </div>
       <Tabs.Root value={activeTab} onValueChange={setActiveTab} className='mt-4 min-w-0'>
@@ -216,13 +327,13 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
                     id='term-date'
                     placeholder='2026. 11. 10.'
                     value={date}
-                    readOnly={isPending}
+                    readOnly={isPending && !isAutoSaving}
                     aria-invalid={error?.field === 'date'}
                     aria-describedby={error?.field === 'date' ? 'term-error term-date-help' : 'term-date-help'}
                     onChange={(event) => setDate(event.target.value)}
                   />
                   <p id='term-date-help' className='text-kd-caption text-kd-foreground-muted'>
-                    공개한 날로부터 7일 뒤부터 고를 수 있어요.
+                    공개한 날로부터 7일 뒤부터 고를 수 있어요. 초안 저장에도 시행일이 필요해요.
                   </p>
                   <details className='text-kd-sub'>
                     <summary className='w-fit cursor-pointer rounded-kd-2 focus-visible:outline-2 focus-visible:outline-kd-primary'>
@@ -232,7 +343,10 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
                       <li>과거 날짜는 지정할 수 없습니다.</li>
                       <li>공개일로부터 7일 이후 날짜를 선택해 주세요.</li>
                       <li>같은 약관의 가장 최근 공개 시행일보다 이후여야 합니다. 초안·철회 버전은 제외합니다.</li>
-                      <li>초안 저장 시에는 시행일을 검증하지 않습니다.</li>
+                      <li>
+                        초안 저장에도 시행일 형식(예: 2026. 10. 20.)이 필요합니다. 과거 날짜는 저장할 수 있고 공개할 때
+                        검증합니다.
+                      </li>
                     </ul>
                   </details>
                 </div>
@@ -240,11 +354,11 @@ export function TermEditor({ kind, term, versions }: { kind: TermKind; term?: Te
                   <Label htmlFor='term-body' onClick={() => bodyRef.current?.focus()}>
                     본문 *
                   </Label>
-                  <RichContentEditor
+                  <BodyEditor
                     ref={bodyRef}
                     id='term-body'
                     value={body}
-                    readOnly={isPending}
+                    readOnly={isPending && !isAutoSaving}
                     aria-invalid={error?.field === 'body'}
                     aria-describedby='term-body-help'
                     onChange={setBody}

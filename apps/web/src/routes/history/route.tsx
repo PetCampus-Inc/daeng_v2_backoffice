@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { Forbidden } from '@/routes/app/ui/forbidden';
+import { getListTeamMembersQueryKey, useListTeamMembers } from '@/routes/settings/members/api/use-team-members';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
 import { Card } from '@/ui/atoms/card';
@@ -20,14 +20,22 @@ import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { formatProfileName } from '@/util/profile';
-import { historiesQueryOptions, historyActorsQueryOptions, isForbiddenError } from './api/histories';
+import {
+  historyListQueryOptions,
+  isForbiddenError,
+  retryUnlessForbidden,
+  toHistoryActorOptions,
+  toHistoryListRequest,
+} from './api/history-query';
+import { useListChangeLogs } from './api/use-history';
 import {
   HISTORY_ACTION_LABELS,
+  HISTORY_TARGET_TYPE_FROM_SERVER,
   HISTORY_TARGET_TYPE_LABELS,
   HISTORY_TARGET_TYPES,
   type HistoryListParams,
   type HistoryPeriod,
-} from './type/history';
+} from './type/history-ui';
 import { formatHistoryChange, formatHistoryTarget } from './util/history-format';
 import { useHistoryListSearchParams, type HistorySearchCondition } from './util/list-search-params';
 
@@ -41,19 +49,32 @@ export default function HistoryRoute() {
   const periodTriggerRef = useRef<HTMLButtonElement>(null);
   const actorTriggerRef = useRef<HTMLButtonElement>(null);
   const { listParams, page, setSearchParams } = useHistoryListSearchParams();
-  const historiesQuery = useQuery(historiesQueryOptions(currentEmail, listParams, page - 1));
-  const actorsQuery = useQuery(historyActorsQueryOptions(currentEmail));
-  const records = historiesQuery.data?.items ?? [];
-  const totalPages = historiesQuery.data?.totalPages ?? 0;
+  // 행위자 선택지는 팀원 목록(최고 관리자 전용 API)으로 채운다. 변경 이력도 최고 관리자 전용이라 함께 쓸 수 있다.
+  const actorsQuery = useListTeamMembers({
+    query: { queryKey: [...getListTeamMembersQueryKey(), currentEmail], retry: retryUnlessForbidden },
+  });
+  const actorOptions = toHistoryActorOptions(actorsQuery.data ?? []);
+  // 주소의 이메일이 선택지에 없으면 '전체'로 취급한다.
+  const selectedActor = actorOptions.find((option) => option.email === listParams.actor);
+  const actorValue = selectedActor?.email ?? 'all';
   const isCustomPeriod = listParams.period === 'custom';
-  const hasCondition = isCustomPeriod || listParams.actor !== 'all' || listParams.targetType !== 'all';
+  const hasCondition = isCustomPeriod || actorValue !== 'all' || listParams.targetType !== 'all';
   // 종료일 선택기는 시작일보다 앞선 날을 막지만(PRD 7.12) 키보드 입력·주소로는 들어올 수 있다.
   // 확정: 칸 값을 지우지 않고 종료일 칸에 빨간 테두리와 그 아래 오류 문장을 둔다.
-  // 그 사이에 드는 기록이 없으므로 결과는 '검색 결과 없음'이 된다.
+  // 거꾸로 된 기간은 요청을 보내지 않고 빈 결과('검색 결과 없음')를 보여 준다.
   const isRangeReversed =
     isCustomPeriod && listParams.from !== '' && listParams.to !== '' && listParams.to < listParams.from;
-  const isListShown = historiesQuery.isSuccess;
-  const isPageOutOfRange = isListShown && !historiesQuery.isPlaceholderData && page > Math.max(totalPages, 1);
+  // 주소에 행위자 이메일이 있으면 팀원 목록이 올 때까지 기다려 팀원 ID로 바꿔 보낸다.
+  const isWaitingActors = listParams.actor !== 'all' && actorsQuery.isPending;
+  const request = toHistoryListRequest(listParams, page, selectedActor?.id);
+  const historiesQuery = useListChangeLogs(request, {
+    query: historyListQueryOptions(currentEmail, request, !isRangeReversed && !isWaitingActors),
+  });
+  const records = isRangeReversed ? [] : (historiesQuery.data?.items ?? []);
+  const totalPages = isRangeReversed ? 0 : (historiesQuery.data?.totalPages ?? 0);
+  const isTransitioning = !isRangeReversed && historiesQuery.isPlaceholderData;
+  const isListShown = isRangeReversed || historiesQuery.isSuccess;
+  const isPageOutOfRange = isListShown && !isTransitioning && page > Math.max(totalPages, 1);
 
   // 주소에 없는 페이지(예: ?page=1e3)가 들어오면 1페이지로 돌린다. 개발 판단(PRD에 없음).
   useEffect(() => {
@@ -80,7 +101,7 @@ export default function HistoryRoute() {
     void historiesQuery.refetch();
   };
   const handleChangePage = (nextPage: number) => {
-    if (historiesQuery.isPlaceholderData || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    if (isTransitioning || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
     void setSearchParams({ page: nextPage === 1 ? null : nextPage });
   };
 
@@ -129,17 +150,21 @@ export default function HistoryRoute() {
               </Field>
             </div>
           )}
-          <Select value={listParams.actor} onValueChange={(value) => handleChangeCondition({ actor: value })}>
+          <Select value={actorValue} onValueChange={(value) => handleChangeCondition({ actor: value })}>
             <SelectTrigger ref={actorTriggerRef} aria-label='행위자' className='w-52'>
               <SelectValue>
-                {actorsQuery.isPending ? '행위자 불러오는 중…' : listParams.actor === 'all' ? '행위자 전체' : undefined}
+                {actorsQuery.isPending
+                  ? '행위자 불러오는 중…'
+                  : actorValue === 'all'
+                    ? '행위자 전체'
+                    : selectedActor?.label}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='all'>전체</SelectItem>
-              {actorsQuery.data?.map((actor) => (
+              {actorOptions.map((actor) => (
                 <SelectItem key={actor.email} value={actor.email}>
-                  {formatProfileName(actor)}
+                  {actor.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -188,15 +213,15 @@ export default function HistoryRoute() {
               role='status'
               className='ml-auto flex h-kd-control items-center text-kd-sub text-kd-foreground-muted tabular-nums'
             >
-              {historiesQuery.isPlaceholderData ? '조회 중…' : `총 ${historiesQuery.data.totalElements}건`}
+              {isTransitioning ? '조회 중…' : `총 ${isRangeReversed ? 0 : historiesQuery.data?.totalItems}건`}
             </p>
           )}
         </div>
-        {historiesQuery.isPending ? (
+        {!isRangeReversed && historiesQuery.isPending ? (
           <ListState kind='loading' />
-        ) : historiesQuery.isError ? (
+        ) : !isRangeReversed && historiesQuery.isError ? (
           <ListState kind='error' onAction={handleRetry} />
-        ) : (historiesQuery.isPlaceholderData || isPageOutOfRange) && records.length === 0 ? (
+        ) : (isTransitioning || isPageOutOfRange) && records.length === 0 ? (
           <p
             role='status'
             className='flex min-h-48 items-center justify-center px-4 py-14 text-center text-kd-foreground-muted'
@@ -232,14 +257,18 @@ export default function HistoryRoute() {
                       <p className='font-semibold'>{formatProfileName(record.actor)}</p>
                       <p className='text-kd-caption text-kd-foreground-muted'>{record.actor.email}</p>
                     </TableCell>
-                    <TableCell>{HISTORY_TARGET_TYPE_LABELS[record.target.type]}</TableCell>
+                    <TableCell>
+                      {HISTORY_TARGET_TYPE_LABELS[HISTORY_TARGET_TYPE_FROM_SERVER[record.targetType]]}
+                    </TableCell>
                     <TableCell className='max-w-96 min-w-60 whitespace-normal [overflow-wrap:anywhere]'>
-                      {formatHistoryTarget(record.target)}
+                      {formatHistoryTarget(record)}
                     </TableCell>
                     <TableCell>
                       <span className='font-semibold'>{HISTORY_ACTION_LABELS[record.action]}</span>
                       {record.change && (
-                        <span className='ml-2 text-kd-foreground-muted'>{formatHistoryChange(record.change)}</span>
+                        <span className='ml-2 text-kd-foreground-muted'>
+                          {formatHistoryChange(record.action, record.change)}
+                        </span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -252,7 +281,7 @@ export default function HistoryRoute() {
                   <PaginationItem>
                     <PaginationPrevious
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page <= 1 || historiesQuery.isPlaceholderData}
+                      aria-disabled={page <= 1 || isTransitioning}
                       onClick={() => handleChangePage(page - 1)}
                     />
                   </PaginationItem>
@@ -261,7 +290,7 @@ export default function HistoryRoute() {
                       <PaginationButton
                         isActive={pageNumber === page}
                         className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                        aria-disabled={historiesQuery.isPlaceholderData}
+                        aria-disabled={isTransitioning}
                         onClick={() => handleChangePage(pageNumber)}
                       >
                         {pageNumber}
@@ -271,7 +300,7 @@ export default function HistoryRoute() {
                   <PaginationItem>
                     <PaginationNext
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page >= totalPages || historiesQuery.isPlaceholderData}
+                      aria-disabled={page >= totalPages || isTransitioning}
                       onClick={() => handleChangePage(page + 1)}
                     />
                   </PaginationItem>

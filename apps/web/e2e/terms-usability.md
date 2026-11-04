@@ -22,7 +22,7 @@ rtk proxy env PLAYWRIGHT_MODULE_PATH=/absolute/path/to/playwright PLAYWRIGHT_EXE
 - 20개 시나리오: 목록·종류·역순 응답·재시도·초안/공개/삭제/철회·권한·경합·전송 오류·KST
   경계·이탈·beforeunload·1440/1200/1199/390px·키보드·CDP 조합 입력.
 - CDP 조합 검사는 실제 OS IME·모바일 키보드 검증을 대신하지 않는다.
-- 종류별 버전 번호와 일반 텍스트 본문은 개발용 계약이다. S-약관-008, S-약관-032(OQ-P4), S-약관-038 실제 앱 반영은 이
-  검사로 확정하지 않는다.
+- 버전 번호는 서버 번호(종류와 관계없이 이어짐)이고, 본문은 서버 마크다운 자리에 블록 JSON을 담는 임시 계약이다.
+  S-약관-032(OQ-P4), S-약관-038 실제 앱 반영은 이 검사로 확정하지 않는다.
 
 규칙 검사는 `rtk proxy pnpm --filter @daeng/web test`로 실행한다.

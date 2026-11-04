@@ -11,4 +11,5 @@ export type NoticeNotDraftErrorCode = (typeof NoticeNotDraftErrorCode)[keyof typ
 
 export const NoticeNotDraftErrorCode = {
   NOTICE_NOT_DRAFT: 'NOTICE_NOT_DRAFT',
+  NOTICE_VERSION_CONFLICT: 'NOTICE_VERSION_CONFLICT',
 } as const;

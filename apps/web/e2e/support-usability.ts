@@ -328,16 +328,16 @@ for (const [resource, firstTerm, lastTerm, lastIds, total] of [
 }
 const INQUIRIES_25 = Array.from({ length: 25 }, (_, i) => ({
   id: 1001 + i,
-  status: 'waiting',
+  status: 'WAITING',
   title: `문의 ${String(i + 1).padStart(2, '0')}`,
-  user: { type: 'guardian', name: '홍길동', email: 'hong@example.com' },
-  assigneeEmail: null,
+  user: { type: 'GUARDIAN', name: '홍길동', email: 'hong@example.com' },
+  assigneeId: null,
   createdAt: new Date(Date.UTC(2026, 9, 7, 0, i + 1)).toISOString(),
   lastActivityAt: new Date(Date.UTC(2026, 9, 7, 0, i + 1)).toISOString(),
   messages: [
     {
       id: `message-${i}`,
-      author: 'user',
+      author: 'USER',
       authorName: '홍길동',
       body: '문의 본문',
       images: [],
@@ -348,11 +348,11 @@ const INQUIRIES_25 = Array.from({ length: 25 }, (_, i) => ({
 const IDEAS_25 = Array.from({ length: 25 }, (_, i) => ({
   id: 301 + i,
   content: `제안 ${String(i + 1).padStart(2, '0')}`,
-  user: { type: 'guardian', name: '홍길동', email: 'hong@example.com' },
+  user: { type: 'GUARDIAN', name: '홍길동', email: 'hong@example.com' },
   submittedAt: new Date(Date.UTC(2026, 9, 7, 0, i + 1)).toISOString(),
 }));
 for (const [resource, fixtures, firstId, secondId, label, title] of [
-  ['inquiries', { key: 'daeng-bo-mock-inquiries-v2', items: INQUIRIES_25 }, '#1025', '#1005', '1:1 문의', '문의 15'],
+  ['inquiries', { key: 'daeng-bo-mock-inquiries-v3', items: INQUIRIES_25 }, '#1025', '#1005', '1:1 문의', '문의 15'],
   ['ideas', { key: 'daeng-bo-mock-ideas', items: IDEAS_25 }, '#325', '#305', '아이디어 제안', '제안 15'],
 ] as const) {
   test(`${resource}: pagination progress and duplicate prevention`, () =>
@@ -537,7 +537,7 @@ for (const resource of ['inquiries', 'ideas'] as const) {
 async function changeStoredInquiry(page: Page, id: number, change: Record<string, unknown>) {
   await page.evaluate(
     ({ id, change }) => {
-      const items = JSON.parse(localStorage.getItem('daeng-bo-mock-inquiries-v2')!) as {
+      const items = JSON.parse(localStorage.getItem('daeng-bo-mock-inquiries-v3')!) as {
         id: number;
         [key: string]: unknown;
       }[];
@@ -545,7 +545,7 @@ async function changeStoredInquiry(page: Page, id: number, change: Record<string
         items.find((item) => item.id === id)!,
         change
       );
-      localStorage.setItem('daeng-bo-mock-inquiries-v2', JSON.stringify(items));
+      localStorage.setItem('daeng-bo-mock-inquiries-v3', JSON.stringify(items));
     },
     { id, change }
   );
@@ -590,17 +590,10 @@ for (const mode of ['assignee', 'resolved'] as const) {
       // mock은 첫 변경 때 기본 데이터를 저장하므로 기본 응답을 저장 형태로 먼저 복제한다.
       await page.evaluate(async () => {
         const response = await fetch('/api/v0/admin/inquiries/1043');
-        const { data } = await response.json();
-        localStorage.setItem(
-          'daeng-bo-mock-inquiries-v2',
-          JSON.stringify([{ ...data, assigneeEmail: data.assignee.email }])
-        );
+        const data = await response.json();
+        localStorage.setItem('daeng-bo-mock-inquiries-v3', JSON.stringify([{ ...data, assigneeId: data.assignee.id }]));
       });
-      await changeStoredInquiry(
-        page,
-        1043,
-        mode === 'assignee' ? { assigneeEmail: 'ops2@knockdog.test' } : { status: 'resolved' }
-      );
+      await changeStoredInquiry(page, 1043, mode === 'assignee' ? { assigneeId: 3 } : { status: 'RESOLVED' });
       await configure(page, { rules: [{ path: '/inquiries/1043/replies', delay: 1500 }] });
       await page.getByRole('button', { name: '답변 저장', exact: true }).click();
       if (mode === 'assignee') {
@@ -619,15 +612,12 @@ test('inquiry attachment loading and failure do not shift reply', () =>
     await page.locator('table').waitFor();
     await page.evaluate(async () => {
       const response = await fetch('/api/v0/admin/inquiries/1041');
-      const { data } = await response.json();
+      const data = await response.json();
       data.messages[0].images = [
-        { id: 'good', url: '/qa-images/good.svg', fileName: 'good.svg', originalUrl: null },
-        { id: 'bad', url: '/qa-images/bad.svg', fileName: 'bad.heic', originalUrl: '/qa-original.heic' },
+        { id: 'good', url: '/qa-images/good.svg', fileName: 'good.svg' },
+        { id: 'bad', url: '/qa-images/bad.svg', fileName: 'bad.heic' },
       ];
-      localStorage.setItem(
-        'daeng-bo-mock-inquiries-v2',
-        JSON.stringify([{ ...data, assigneeEmail: 'ops@knockdog.test' }])
-      );
+      localStorage.setItem('daeng-bo-mock-inquiries-v3', JSON.stringify([{ ...data, assigneeId: 2 }]));
     });
     await page.evaluate(async () => {
       const { network } = await import('/@id/__x00__virtual:msw');
@@ -663,9 +653,6 @@ test('inquiry attachment loading and failure do not shift reply', () =>
     const after = await reply.boundingBox();
     assert.ok(after, '검사 대상 요소가 표시되어야 한다');
     assert.equal(after.y, before.y);
-    const original = page.getByRole('link', { name: '원본 다운로드', exact: true });
-    await original.focus();
-    assert.equal(await original.evaluate((el) => el === document.activeElement), true);
     return { before, after };
   }));
 
@@ -704,11 +691,8 @@ test('inquiry takeover conflict refreshes confirmation before change', () =>
     await assign.waitFor();
     await page.evaluate(async () => {
       const response = await fetch('/api/v0/admin/inquiries/1045');
-      const { data } = await response.json();
-      localStorage.setItem(
-        'daeng-bo-mock-inquiries-v2',
-        JSON.stringify([{ ...data, assigneeEmail: 'inactive@knockdog.test' }])
-      );
+      const data = await response.json();
+      localStorage.setItem('daeng-bo-mock-inquiries-v3', JSON.stringify([{ ...data, assigneeId: 5 }]));
     });
     await assign.click();
     await configure(page, { rules: [{ path: '/inquiries/1045/assignee', method: 'POST', delay: 1500 }] });
@@ -725,7 +709,7 @@ test('inquiry undo conflict keeps latest assignee', () =>
     await page.getByRole('button', { name: '담당 해제', exact: true }).click();
     const undo = page.getByRole('button', { name: '실행 취소', exact: true });
     await undo.waitFor();
-    await changeStoredInquiry(page, 1043, { assigneeEmail: 'ops2@knockdog.test' });
+    await changeStoredInquiry(page, 1043, { assigneeId: 3 });
     await configure(page, { rules: [{ path: '/inquiries/1043/assignee/restore', delay: 1500 }] });
     await undo.focus();
     await page.keyboard.press('Enter');
@@ -736,9 +720,9 @@ test('inquiry undo conflict keeps latest assignee', () =>
       await page.evaluate(
         () =>
           (
-            JSON.parse(localStorage.getItem('daeng-bo-mock-inquiries-v2')!) as { id: number; assigneeEmail: string }[]
-          ).find((item) => item.id === 1043)!.assigneeEmail
+            JSON.parse(localStorage.getItem('daeng-bo-mock-inquiries-v3')!) as { id: number; assigneeId: number }[]
+          ).find((item) => item.id === 1043)!.assigneeId
       ),
-      'ops2@knockdog.test'
+      3
     );
   }));

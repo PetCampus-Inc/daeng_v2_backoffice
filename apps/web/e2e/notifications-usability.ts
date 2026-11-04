@@ -74,7 +74,7 @@ async function post<Result = unknown>(page: Page, endpoint: string, body: unknow
 }
 async function intercept(
   page: Page,
-  method: 'get' | 'patch',
+  method: 'get' | 'post',
   endpoint: string,
   { delay = 0, fail = false }: { delay?: number; fail?: boolean } = {}
 ) {
@@ -149,7 +149,7 @@ test('모두 읽음 뒤 초점과 새로고침 상태를 유지한다', async ()
   }));
 
 for (const [message, target] of [
-  ['담당 중인 문의', '/inquiries/1050'],
+  ['추가 문의를 남겼습니다', '/inquiries/1050'],
   ['새 아이디어', '/ideas/350'],
   ['이담당', '/inquiries/1045'],
 ]) {
@@ -170,7 +170,7 @@ for (const action of ['one', 'all']) {
     scenario(`read-${action}`, async (page) => {
       await login(page);
       await open(page);
-      await intercept(page, 'patch', action === 'all' ? '/notifications/read-all' : '/notifications/fixture-1/read', {
+      await intercept(page, 'post', action === 'all' ? '/notifications/read-all' : '/notifications/:id/read', {
         delay: 1500,
         fail: true,
       });
@@ -239,7 +239,7 @@ for (const denied of ['role', 'missing']) {
     scenario(`denied-${denied}`, async (page) => {
       await login(page, denied === 'role' ? '조회자' : '운영자');
       if (denied === 'missing') {
-        await page.evaluate(() => localStorage.setItem('daeng-bo-mock-inquiries-v2', '[]'));
+        await page.evaluate(() => localStorage.setItem('daeng-bo-mock-inquiries-v3', '[]'));
       }
       await open(page);
       await item(page, '새 1:1 문의').click();
@@ -285,11 +285,14 @@ for (const width of [1440, 390]) {
             'daeng-bo-mock-notifications',
             JSON.stringify(
               Array.from({ length: 18 }, (_, index) => ({
-                id: `long-${index}`,
+                id: index + 1,
                 recipientEmail: 'ops@knockdog.test',
-                inquiryId: 1041,
+                kind: 'NEW_INQUIRY',
+                targetType: 'INQUIRY',
+                targetId: 1041,
                 message: `새 문의 ${index} ` + '아주 긴 알림 문구입니다. '.repeat(20),
-                createdAt: '2026-10-07T09:30:00+09:00',
+                createdAt: '2026-10-07T00:30:00.000Z',
+                readAt: null,
               }))
             )
           )
@@ -331,7 +334,7 @@ for (const width of [1440, 390]) {
     ));
 }
 
-test('새 문의 수신→맡기→추가 문의→해제 후 추가 문의는 수신 안 함', async () =>
+test('새 문의 수신→맡기→추가 문의→해제 후 추가 문의도 서버 규칙대로 수신(OQ-D30)', async () =>
   scenario('flow-new-follow-up', async (page) => {
     await login(page);
     await page.evaluate(() => localStorage.setItem('daeng-bo-mock-notifications', '[]'));
@@ -348,26 +351,27 @@ test('새 문의 수신→맡기→추가 문의→해제 후 추가 문의는 �
     await page.reload();
     await page.getByRole('button', { name: '알림 1건 안 읽음' }).waitFor();
     await open(page);
-    await item(page, '^안 읽음: 담당 중인 문의에 추가 문의').waitFor();
+    await item(page, '^안 읽음: 문의에 사용자가 추가 문의를 남겼습니다. 문의 #1051').waitFor();
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: '담당 해제', exact: true }).click();
     await page.getByRole('button', { name: '내가 맡기', exact: true }).waitFor();
+    // 서버는 담당자와 관계없이 활성 최고 관리자·운영자 모두에게 보낸다(기획과 다름, OQ-D30).
     await post(page, '/dev/inquiries/1051/user-messages', { body: '담당 없는 추가 질문' });
     await page.reload();
-    await page.getByRole('button', { name: '알림 1건 안 읽음' }).waitFor();
+    await page.getByRole('button', { name: '알림 2건 안 읽음' }).waitFor();
     await open(page);
-    assert.equal(await list(page).getByRole('button').count(), 2);
+    assert.equal(await list(page).getByRole('button').count(), 3);
     await page.keyboard.press('Escape');
     await switchAccount(page, '김운영', '운영자2');
-    await page.getByRole('button', { name: '알림 1건 안 읽음' }).waitFor();
+    await page.getByRole('button', { name: '알림 3건 안 읽음' }).waitFor();
     await open(page);
-    assert.equal(await list(page).getByRole('button').count(), 1);
+    assert.equal(await list(page).getByRole('button').count(), 3);
   }));
 
 test('담당자 변경 알림을 변경된 문의에 연결한다', async () =>
   scenario('assignee-event', async (page) => {
     await login(page, '운영자');
-    await post(page, '/inquiries/1045/assignee', { expectedAssigneeEmail: 'ops2@knockdog.test' });
+    await post(page, '/inquiries/1045/assignee', { expectedAssigneeId: 3 });
     await switchAccount(page, '김운영', '운영자2');
     await page.getByRole('button', { name: '알림 4건 안 읽음' }).waitFor();
     await open(page);
@@ -387,7 +391,7 @@ test('새 제안 알림을 조회자도 수신한다', async () =>
     await switchAccount(page, '김운영', '조회자');
     await page.getByRole('button', { name: '알림 4건 안 읽음' }).waitFor();
     await open(page);
-    await item(page, '새 아이디어 제안이 등록되었습니다. 제안 #351').click();
+    await item(page, '새 아이디어 제안이 접수되었습니다. 제안 #351').click();
     await page.waitForURL('**/ideas/351');
   }));
 
@@ -413,7 +417,9 @@ test('비로그인 알림 API 요청을 거부한다', async () =>
   scenario('authorization-guest', async (page) => {
     await page.goto(`${BASE}/login`);
     await page.getByRole('button', { name: '개발용 계정으로 로그인', exact: true }).waitFor();
-    assert.equal(await page.evaluate(async () => (await fetch('/api/v0/admin/notifications')).status), 401);
+    for (const url of ['/notifications', '/notifications/unread-count']) {
+      assert.equal(await page.evaluate(async (url) => (await fetch(`/api/v0/admin${url}`)).status, url), 401);
+    }
   }));
 
 test('다른 수신자의 알림 읽음 요청을 거부한다', async () =>
@@ -424,18 +430,21 @@ test('다른 수신자의 알림 읽음 요청을 거부한다', async () =>
         'daeng-bo-mock-notifications',
         JSON.stringify([
           {
-            id: 'foreign',
+            id: 9001,
             recipientEmail: 'ops2@knockdog.test',
-            inquiryId: 1041,
+            kind: 'NEW_INQUIRY',
+            targetType: 'INQUIRY',
+            targetId: 1041,
             message: '다른 수신자',
-            createdAt: '2026-10-07T09:30:00+09:00',
+            createdAt: '2026-10-07T00:30:00.000Z',
+            readAt: null,
           },
         ])
       )
     );
     assert.equal(
       await page.evaluate(
-        async () => (await fetch('/api/v0/admin/notifications/foreign/read', { method: 'PATCH' })).status
+        async () => (await fetch('/api/v0/admin/notifications/9001/read', { method: 'POST' })).status
       ),
       404
     );
@@ -451,17 +460,15 @@ for (const [id, title, question, answer] of [
       await page.evaluate((id) => {
         const key = 'daeng-bo-mock-notifications';
         const notifications = JSON.parse(localStorage.getItem(key) ?? '[]') as {
-          id: string;
           recipientEmail: string;
+          kind: string;
           targetId: number;
-          message: string;
         }[];
         const notification = notifications.find(
-          (item) => item.id === 'fixture-1' && item.recipientEmail === 'ops@knockdog.test'
+          (item) => item.kind === 'NEW_INQUIRY' && item.recipientEmail === 'ops@knockdog.test'
         );
-        if (!notification) throw new Error('알림 fixture-1을 찾을 수 없습니다.');
+        if (!notification) throw new Error('새 문의 알림 기본 데이터를 찾을 수 없습니다.');
         notification.targetId = id;
-        notification.message = `새 1:1 문의가 등록되었습니다. 문의 #${id}`;
         localStorage.setItem(key, JSON.stringify(notifications));
       }, id);
       await page.reload();
@@ -480,7 +487,7 @@ for (const [id, title, question, answer] of [
       }
       await page.getByRole('button', { name: '알림 2건 안 읽음' }).waitFor();
       await open(page);
-      await item(page, `^읽음: 새 1:1 문의가 등록되었습니다. 문의 #${id}`).waitFor();
+      await item(page, `^읽음: 새 1:1 문의가 접수되었습니다. 문의 #${id}`).waitFor();
       await page.keyboard.press('Escape');
       await page.reload();
       await page.getByRole('heading', { name: title, exact: true }).waitFor();

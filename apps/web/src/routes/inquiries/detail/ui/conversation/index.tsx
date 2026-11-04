@@ -2,9 +2,11 @@ import { ImageOffIcon } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/util/cn';
 import { formatDate } from '@/util/date-format';
-import type { InquiryImage, InquiryMessage } from '../../../type/inquiry';
+import { getDisplayUserName } from '@/util/display-user-name';
+import type { InquiryImage } from '../../../type';
+import type { InquiryMessage } from '../../../type/inquiry-ui';
 
-/** 썸네일 하나(96×72). 못 불러오면 그 자리에 회색 칸 + 깨진 이미지 아이콘을 두고, HEIC 등 원본이 따로 있으면 원본 다운로드를 단다. */
+/** 썸네일 하나(96×72). 못 불러오면 그 자리에 회색 칸 + 깨진 이미지 아이콘을 둔다. */
 function InquiryImageThumbnail({ image }: { image: InquiryImage }) {
   const [hasError, setHasError] = useState(false);
   return (
@@ -24,15 +26,6 @@ function InquiryImageThumbnail({ image }: { image: InquiryImage }) {
           className='h-18 w-24 rounded-kd-2 border border-kd-border object-cover'
           onError={() => setHasError(true)}
         />
-      )}
-      {image.originalUrl && (
-        <a
-          href={image.originalUrl}
-          download={image.fileName}
-          className='rounded-kd-2 text-kd-caption font-semibold text-kd-primary underline-offset-4 outline-none hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kd-primary focus-visible:outline-solid'
-        >
-          원본 다운로드
-        </a>
       )}
     </li>
   );
@@ -56,7 +49,7 @@ export function Conversation({ messages }: { messages: InquiryMessage[] }) {
             )}
           >
             <p className='text-kd-caption text-kd-foreground-muted tabular-nums'>
-              {message.authorName} · {formatDate(message.createdAt, true)}
+              {getDisplayUserName(message.authorName)} · {formatDate(message.createdAt, true)}
             </p>
             <div
               className={cn(

@@ -5,6 +5,8 @@ import type { MyAccount } from '@/type/my-account';
 import type { Role } from '@/type/role';
 
 type SessionUserBase = {
+  /** 서버의 내 팀원 번호. 문의 담당자가 나인지 가릴 때 쓴다. */
+  id: number;
   role: Role;
   email: string;
   googleName: string;
@@ -56,7 +58,7 @@ type AuthState = {
 
 /** 서버의 내 계정 정보를 화면이 쓰는 세션 팀원 모양으로 바꾼다. */
 function toSessionUser(account: MyAccount): SessionUser {
-  const base = { role: account.role, email: account.email, googleName: account.googleName };
+  const base = { id: account.id, role: account.role, email: account.email, googleName: account.googleName };
   if (account.isProfileCompleted && account.displayName && account.jobRole) {
     return { ...base, profileCompleted: true, displayName: account.displayName, jobRole: account.jobRole };
   }

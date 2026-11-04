@@ -7,7 +7,7 @@ import {
   type inferParserType,
   type Nullable,
 } from 'nuqs';
-import { HISTORY_PERIODS, HISTORY_TARGET_TYPES, type HistoryListParams } from '../type/history';
+import { HISTORY_PERIODS, HISTORY_TARGET_TYPES, type HistoryListParams } from '../type/history-ui';
 
 /** 주소의 날짜는 실제로 있는 `YYYY-MM-DD`만 받는다. 그 밖의 값은 비운 것으로 본다. */
 const parseAsDateText = createParser({

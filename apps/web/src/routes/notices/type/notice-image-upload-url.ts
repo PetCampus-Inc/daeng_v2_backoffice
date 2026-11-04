@@ -10,6 +10,6 @@
 export interface NoticeImageUploadUrl {
   /** 파일을 직접 올릴 주소(유효시간이 짧습니다) */
   uploadUrl: string;
-  /** 업로드가 끝난 뒤 이미지를 불러올 최종 주소입니다. 마크다운 본문에 이 주소를 넣습니다. */
-  imageUrl: string;
+  /** 업로드한 임시 파일의 키입니다. 공지를 저장할 때 `pendingImages`에 담아 보냅니다. */
+  tempKey: string;
 }

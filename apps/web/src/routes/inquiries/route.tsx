@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useListReturnPosition } from '@/util/use-list-return-position';
@@ -18,16 +17,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/atoms/table';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
+import { KEYWORD_MAX_LENGTH } from '@/util/keyword-max-length';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { formatProfileName } from '@/util/profile';
-import { inquiriesQueryOptions, inquiryAssigneesQueryOptions } from './api/inquiries/index';
+import {
+  inquiryAssigneesQueryOptions,
+  inquiryListQueryOptions,
+  toInquiryListRequest,
+  toInquirySummary,
+} from './api/inquiry-query';
+import { useListInquiries, useListInquiryAssignees } from './api/use-inquiries';
 import {
   INQUIRY_STATUS_LABELS,
   INQUIRY_STATUSES,
   INQUIRY_USER_TYPE_LABELS,
   INQUIRY_USER_TYPES,
   type InquiryListParams,
-} from './type/inquiry';
+} from './type/inquiry-ui';
 import { InquiryAssigneeName } from './ui/inquiry-assignee-name';
 import { InquiryStatusBadge } from './ui/inquiry-status-badge';
 import { formatInquiryUser } from './util/inquiry-format';
@@ -40,12 +46,13 @@ export default function InquiriesRoute() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const assigneeTriggerRef = useRef<HTMLButtonElement>(null);
   const { listParams, page, listSearch, setSearchParams } = useInquiryListSearchParams();
-  const inquiriesQuery = useQuery(inquiriesQueryOptions(currentEmail, listParams, page - 1));
-  const assigneesQuery = useQuery(inquiryAssigneesQueryOptions(currentEmail));
-  const inquiries = inquiriesQuery.data?.items ?? [];
+  const request = toInquiryListRequest(listParams, page);
+  const inquiriesQuery = useListInquiries(request, { query: inquiryListQueryOptions(currentEmail, request) });
+  const assigneesQuery = useListInquiryAssignees({ query: inquiryAssigneesQueryOptions(currentEmail) });
+  const inquiries = (inquiriesQuery.data?.items ?? []).map(toInquirySummary);
   const totalPages = inquiriesQuery.data?.totalPages ?? 0;
   const hasCondition =
-    listParams.keyword !== '' ||
+    listParams.keyword.trim() !== '' ||
     listParams.status !== 'all' ||
     listParams.userType !== 'all' ||
     listParams.assignee !== 'all';
@@ -89,6 +96,7 @@ export default function InquiriesRoute() {
             type='search'
             aria-label='검색'
             placeholder='제목, 사용자, 문의 번호, 대화 내용'
+            maxLength={KEYWORD_MAX_LENGTH}
             className='w-72 max-[767px]:w-full'
             value={listParams.keyword}
             onChange={(event) => handleChangeCondition({ keyword: event.target.value })}
@@ -144,7 +152,7 @@ export default function InquiriesRoute() {
               <SelectItem value='me'>내 담당</SelectItem>
               <SelectItem value='unassigned'>미배정</SelectItem>
               {assigneesQuery.data?.map((assignee) => (
-                <SelectItem key={assignee.email} value={assignee.email}>
+                <SelectItem key={assignee.id} value={String(assignee.id)}>
                   {formatProfileName(assignee)}
                   {!assignee.isActive && ' (비활성)'}
                 </SelectItem>
@@ -174,7 +182,7 @@ export default function InquiriesRoute() {
           )}
           {isListShown && (
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              {inquiriesQuery.isPlaceholderData ? '조회 중…' : `총 ${inquiriesQuery.data.totalElements}건`}
+              {inquiriesQuery.isPlaceholderData ? '조회 중…' : `총 ${inquiriesQuery.data.totalItems}건`}
             </p>
           )}
         </div>

@@ -12,4 +12,5 @@ export type NoticeNotPublishedErrorCode =
 
 export const NoticeNotPublishedErrorCode = {
   NOTICE_NOT_PUBLISHED: 'NOTICE_NOT_PUBLISHED',
+  NOTICE_VERSION_CONFLICT: 'NOTICE_VERSION_CONFLICT',
 } as const;

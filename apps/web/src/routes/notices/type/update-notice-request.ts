@@ -6,12 +6,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { NoticePendingImage } from './notice-pending-image';
 
 export interface UpdateNoticeRequest {
   /** @maxLength 50 */
   title?: string;
   /** @maxLength 5000 */
   body?: string;
+  /**
+   * 본문에 새로 넣은 이미지. 본문의 `knockdog-upload://` 표식과 일대일로 대응해야 합니다.
+   * @maxItems 10
+   */
+  pendingImages?: NoticePendingImage[];
   /**
    * 화면을 열 때 받은 `version`
    * @minimum 0

@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { Card } from '@/ui/atoms/card';
-import { VERIFICATION_STATUS_LABELS } from '@/type/overview';
+import { VERIFICATION_STATUS_LABELS } from '@/type/verification-status-ui';
 import { cn } from '@/util/cn';
 import { formatDate } from '@/util/date-format';
-import type { OwnerVerification } from '../type/owner-verification';
+import type { ServiceVerification } from '../type';
 
 /** 서버가 가린 값이 비었으면 '미등록'(service-admin.html 기준, S-인증-006). */
 const orUnregistered = (value: string | null) => value || '미등록';
@@ -18,7 +18,7 @@ export function VerificationDetailPanel({
   isLoadError = false,
   className,
 }: {
-  item: OwnerVerification | undefined;
+  item: ServiceVerification | undefined;
   isLoadError?: boolean;
   className?: string;
 }) {
@@ -34,7 +34,7 @@ export function VerificationDetailPanel({
     >
       {item ? (
         <div className='p-5'>
-          <h2 className='text-kd-title-2 break-words'>{item.userName || '—'}</h2>
+          <h2 className='text-kd-title-2 break-words'>{item.representativeName || '—'}</h2>
           <p className='mt-1 text-kd-caption text-kd-foreground-muted break-words'>
             {item.kindergartenName || '—'} 원장 인증 현황 · 조회 전용
           </p>

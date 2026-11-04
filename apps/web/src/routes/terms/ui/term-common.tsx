@@ -8,7 +8,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/ui/atoms/breadcrumb';
-import type { TermKind, TermDisplayStatus } from '../type/term';
+import type { TermKind, TermDisplayStatus } from '../type/term-ui';
 import { termListPath } from '../util/term-navigation';
 
 export function TermStatusBadge({ status }: { status: TermDisplayStatus }) {

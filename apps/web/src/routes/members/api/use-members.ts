@@ -20,7 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type { ListServiceMembersParams, ServiceMemberPage } from '@/routes/members/type';
-import type { UnauthorizedResponse } from '@/type';
+import type { UnauthorizedResponse, ValidationFailedResponse } from '@/type';
 
 import { customInstance } from '@/api/mutator';
 import type { ErrorType } from '@/api/mutator';
@@ -43,7 +43,8 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * 서비스 회원 목록을 반환합니다. 최신 가입순이며, 이메일·전화번호는 마스킹됩니다. 아이디, 이름, 이메일, 전화번호로 검색합니다.
+ * 서비스 회원 목록을 반환합니다. 최신 가입순이며, 이메일·전화번호는 마스킹됩니다.
+ * 검색어(`keyword`)는 아이디와 이름은 부분 일치로 찾고, 이메일과 전화번호는 전체가 일치할 때만 찾습니다. 마스킹된 값을 부분 검색으로 추측하지 못하게 하기 위해서입니다. 전화번호는 `-` 없이 입력해도 됩니다.
  * @summary 서비스 회원 목록
  */
 export const listServiceMembers = (
@@ -60,7 +61,7 @@ export const getListServiceMembersQueryKey = (params?: ListServiceMembersParams)
 
 export const getListServiceMembersQueryOptions = <
   TData = Awaited<ReturnType<typeof listServiceMembers>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceMembersParams,
   options?: {
@@ -83,11 +84,11 @@ export const getListServiceMembersQueryOptions = <
 };
 
 export type ListServiceMembersQueryResult = NonNullable<Awaited<ReturnType<typeof listServiceMembers>>>;
-export type ListServiceMembersQueryError = ErrorType<UnauthorizedResponse>;
+export type ListServiceMembersQueryError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>;
 
 export function useListServiceMembers<
   TData = Awaited<ReturnType<typeof listServiceMembers>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params: undefined | ListServiceMembersParams,
   options: {
@@ -106,7 +107,7 @@ export function useListServiceMembers<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListServiceMembers<
   TData = Awaited<ReturnType<typeof listServiceMembers>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceMembersParams,
   options?: {
@@ -125,7 +126,7 @@ export function useListServiceMembers<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListServiceMembers<
   TData = Awaited<ReturnType<typeof listServiceMembers>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceMembersParams,
   options?: {
@@ -140,7 +141,7 @@ export function useListServiceMembers<
 
 export function useListServiceMembers<
   TData = Awaited<ReturnType<typeof listServiceMembers>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceMembersParams,
   options?: {

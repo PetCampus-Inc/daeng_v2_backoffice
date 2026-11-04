@@ -1,12 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import type { LoadState } from '../type/load-state';
-import type { Overview } from '@/type/overview';
+import type { ServiceOverview } from '../type';
 import { formatCount } from '@/util/count-format';
 import { getVerificationSummary } from '@/util/verification-summary';
 import { Skeleton } from './skeleton';
 
 /** 원장 인증 구성 4칸의 이름과 숫자. 실패하면 숫자를 '—'로 둔다(S-홈-012). */
-const getFlowSteps = (overview: Overview | undefined) => {
+const getFlowSteps = (overview: ServiceOverview | undefined) => {
   const stats = overview?.stats;
   const counts = stats?.verificationCounts;
   /** 서버 값이 있을 때만 숫자를 보여 준다. */
@@ -20,7 +20,7 @@ const getFlowSteps = (overview: Overview | undefined) => {
 };
 
 /** 원장 인증 구성 카드. 821px 이상 4칸을 화살표로 잇고, 그 아래 2칸씩, 560px 이하 1칸씩(service-admin.html 기준). */
-export function VerificationFlowCard({ overview, state }: { overview: Overview | undefined; state: LoadState }) {
+export function VerificationFlowCard({ overview, state }: { overview: ServiceOverview | undefined; state: LoadState }) {
   return (
     <Card className='min-[821px]:col-span-2'>
       <CardHeader>

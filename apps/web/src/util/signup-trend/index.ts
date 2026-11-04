@@ -1,4 +1,4 @@
-import type { SignupTrendItem } from '@/type/overview';
+import type { ServiceSignupTrendPoint } from '@/routes/home/type';
 import { toCount } from '@/util/count-format';
 
 /** 신규 가입 추이 기간(오늘 포함). */
@@ -25,7 +25,10 @@ const getKstDate = (now: Date, daysAgo: number) => {
  * 오늘(KST) 포함 30일을 하루 한 칸으로 채운다. 서버가 빼고 준 날·이상한 건수는 0으로 둔다(S-홈-006).
  * 기간 밖 날짜와 날짜를 읽을 수 없는 줄은 버린다.
  */
-export const fillSignupTrend = (rows: SignupTrendItem[] | null | undefined, now: Date): SignupTrendItem[] => {
+export const fillSignupTrend = (
+  rows: ServiceSignupTrendPoint[] | null | undefined,
+  now: Date
+): ServiceSignupTrendPoint[] => {
   const countByDate = new Map<string, number>();
   (Array.isArray(rows) ? rows : []).forEach((row) => {
     const date = typeof row?.date === 'string' && DATE_PATTERN.test(row.date) ? row.date.slice(0, 10) : null;

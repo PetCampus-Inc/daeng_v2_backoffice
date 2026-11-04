@@ -20,7 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type { Idea, IdeaNotFoundError, IdeaPage, ListIdeasParams } from '@/routes/ideas/type';
-import type { UnauthorizedResponse } from '@/type';
+import type { ForbiddenResponse, UnauthorizedResponse, ValidationFailedResponse } from '@/type';
 
 import { customInstance } from '@/api/mutator';
 import type { ErrorType } from '@/api/mutator';
@@ -43,7 +43,10 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 };
 
 /**
- * 아이디어 제안 목록을 반환합니다. 최근 제출순이며, 내용과 사용자 이름·이메일로 검색합니다.
+ * 아이디어 제안 목록을 반환합니다.
+ * - 검색: 내용, 사용자 이름·이메일
+ * - 정렬: 제출일시 순(기본 최근순), 같으면 ID 내림차순
+ * - 조회 전용입니다. 처리 상태, 담당자, 분류는 없습니다.
  * @summary 아이디어 제안 목록
  */
 export const listIdeas = (
@@ -60,7 +63,7 @@ export const getListIdeasQueryKey = (params?: ListIdeasParams) => {
 
 export const getListIdeasQueryOptions = <
   TData = Awaited<ReturnType<typeof listIdeas>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
 >(
   params?: ListIdeasParams,
   options?: {
@@ -83,9 +86,12 @@ export const getListIdeasQueryOptions = <
 };
 
 export type ListIdeasQueryResult = NonNullable<Awaited<ReturnType<typeof listIdeas>>>;
-export type ListIdeasQueryError = ErrorType<UnauthorizedResponse>;
+export type ListIdeasQueryError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>;
 
-export function useListIdeas<TData = Awaited<ReturnType<typeof listIdeas>>, TError = ErrorType<UnauthorizedResponse>>(
+export function useListIdeas<
+  TData = Awaited<ReturnType<typeof listIdeas>>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
+>(
   params: undefined | ListIdeasParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof listIdeas>>, TError, TData>> &
@@ -97,7 +103,10 @@ export function useListIdeas<TData = Awaited<ReturnType<typeof listIdeas>>, TErr
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListIdeas<TData = Awaited<ReturnType<typeof listIdeas>>, TError = ErrorType<UnauthorizedResponse>>(
+export function useListIdeas<
+  TData = Awaited<ReturnType<typeof listIdeas>>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
+>(
   params?: ListIdeasParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listIdeas>>, TError, TData>> &
@@ -113,7 +122,10 @@ export function useListIdeas<TData = Awaited<ReturnType<typeof listIdeas>>, TErr
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListIdeas<TData = Awaited<ReturnType<typeof listIdeas>>, TError = ErrorType<UnauthorizedResponse>>(
+export function useListIdeas<
+  TData = Awaited<ReturnType<typeof listIdeas>>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
+>(
   params?: ListIdeasParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listIdeas>>, TError, TData>>;
@@ -125,7 +137,10 @@ export function useListIdeas<TData = Awaited<ReturnType<typeof listIdeas>>, TErr
  * @summary 아이디어 제안 목록
  */
 
-export function useListIdeas<TData = Awaited<ReturnType<typeof listIdeas>>, TError = ErrorType<UnauthorizedResponse>>(
+export function useListIdeas<
+  TData = Awaited<ReturnType<typeof listIdeas>>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
+>(
   params?: ListIdeasParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listIdeas>>, TError, TData>>;
@@ -156,7 +171,7 @@ export const getGetIdeaQueryKey = (id: number) => {
 
 export const getGetIdeaQueryOptions = <
   TData = Awaited<ReturnType<typeof getIdea>>,
-  TError = ErrorType<UnauthorizedResponse | IdeaNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | IdeaNotFoundError>,
 >(
   id: number,
   options?: {
@@ -179,11 +194,13 @@ export const getGetIdeaQueryOptions = <
 };
 
 export type GetIdeaQueryResult = NonNullable<Awaited<ReturnType<typeof getIdea>>>;
-export type GetIdeaQueryError = ErrorType<UnauthorizedResponse | IdeaNotFoundError>;
+export type GetIdeaQueryError = ErrorType<
+  ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | IdeaNotFoundError
+>;
 
 export function useGetIdea<
   TData = Awaited<ReturnType<typeof getIdea>>,
-  TError = ErrorType<UnauthorizedResponse | IdeaNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | IdeaNotFoundError>,
 >(
   id: number,
   options: {
@@ -198,7 +215,7 @@ export function useGetIdea<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetIdea<
   TData = Awaited<ReturnType<typeof getIdea>>,
-  TError = ErrorType<UnauthorizedResponse | IdeaNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | IdeaNotFoundError>,
 >(
   id: number,
   options?: {
@@ -213,7 +230,7 @@ export function useGetIdea<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetIdea<
   TData = Awaited<ReturnType<typeof getIdea>>,
-  TError = ErrorType<UnauthorizedResponse | IdeaNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | IdeaNotFoundError>,
 >(
   id: number,
   options?: {
@@ -228,7 +245,7 @@ export function useGetIdea<
 
 export function useGetIdea<
   TData = Awaited<ReturnType<typeof getIdea>>,
-  TError = ErrorType<UnauthorizedResponse | IdeaNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | IdeaNotFoundError>,
 >(
   id: number,
   options?: {

@@ -26,6 +26,7 @@ import type {
   CreateTermsVersionRequest,
   TermsDraftTemplate,
   TermsEffectiveDateError,
+  TermsInputError,
   TermsKindSummary,
   TermsVersion,
   TermsVersionConflictResponse,
@@ -36,7 +37,7 @@ import type {
   TermsWithdrawNotAllowedError,
   UpdateTermsVersionRequest,
 } from '@/routes/terms/type';
-import type { ForbiddenResponse, UnauthorizedResponse, ValidationFailedResponse } from '@/type';
+import type { ForbiddenResponse, UnauthorizedResponse } from '@/type';
 
 import { customInstance } from '@/api/mutator';
 import type { ErrorType, BodyType } from '@/api/mutator';
@@ -289,7 +290,7 @@ export const createTermsVersion = (
 export const getCreateTermsVersionMutationKey = () => ['createTermsVersion'] as const;
 
 export const getCreateTermsVersionMutationOptions = <
-  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
+  TError = ErrorType<TermsInputError | UnauthorizedResponse | ForbiddenResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -326,9 +327,7 @@ export const getCreateTermsVersionMutationOptions = <
 
 export type CreateTermsVersionMutationResult = NonNullable<Awaited<ReturnType<typeof createTermsVersion>>>;
 export type CreateTermsVersionMutationBody = BodyType<CreateTermsVersionRequest>;
-export type CreateTermsVersionMutationError = ErrorType<
-  ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse
->;
+export type CreateTermsVersionMutationError = ErrorType<TermsInputError | UnauthorizedResponse | ForbiddenResponse>;
 export type CreateTermsVersionMutationVariables = {
   kind: 'SERVICE_TERMS' | 'PRIVACY_POLICY' | 'LOCATION_TERMS';
   data: BodyType<CreateTermsVersionRequest>;
@@ -338,7 +337,7 @@ export type CreateTermsVersionMutationVariables = {
  * @summary 약관 새 버전 초안 저장
  */
 export const useCreateTermsVersion = <
-  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
+  TError = ErrorType<TermsInputError | UnauthorizedResponse | ForbiddenResponse>,
   TContext = unknown,
 >(
   options?: {
@@ -614,7 +613,7 @@ export const getUpdateTermsVersionMutationKey = () => ['updateTermsVersion'] as 
 
 export const getUpdateTermsVersionMutationOptions = <
   TError = ErrorType<
-    | ValidationFailedResponse
+    | TermsInputError
     | UnauthorizedResponse
     | ForbiddenResponse
     | TermsVersionNotFoundResponse
@@ -657,7 +656,7 @@ export const getUpdateTermsVersionMutationOptions = <
 export type UpdateTermsVersionMutationResult = NonNullable<Awaited<ReturnType<typeof updateTermsVersion>>>;
 export type UpdateTermsVersionMutationBody = BodyType<UpdateTermsVersionRequest>;
 export type UpdateTermsVersionMutationError = ErrorType<
-  | ValidationFailedResponse
+  | TermsInputError
   | UnauthorizedResponse
   | ForbiddenResponse
   | TermsVersionNotFoundResponse
@@ -670,7 +669,7 @@ export type UpdateTermsVersionMutationVariables = { id: number; data: BodyType<U
  */
 export const useUpdateTermsVersion = <
   TError = ErrorType<
-    | ValidationFailedResponse
+    | TermsInputError
     | UnauthorizedResponse
     | ForbiddenResponse
     | TermsVersionNotFoundResponse

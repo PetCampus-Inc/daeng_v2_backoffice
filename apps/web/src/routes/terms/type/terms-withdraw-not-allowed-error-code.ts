@@ -12,4 +12,5 @@ export type TermsWithdrawNotAllowedErrorCode =
 
 export const TermsWithdrawNotAllowedErrorCode = {
   TERMS_WITHDRAW_NOT_ALLOWED: 'TERMS_WITHDRAW_NOT_ALLOWED',
+  TERMS_VERSION_CONFLICT: 'TERMS_VERSION_CONFLICT',
 } as const;

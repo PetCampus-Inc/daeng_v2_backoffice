@@ -12,6 +12,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright')
 const BASE_URL = process.env.BO_QA_BASE_URL || 'http://localhost:5173';
 const OUTPUT_DIR = process.env.BO_QA_OUTPUT_DIR || path.resolve('.local/test-results/members');
 const FIXTURES_25 = Array.from({ length: 25 }, (_, index) => ({
+  id: 101 + index,
   userId: `U${101 + index}`,
   name: `회원 ${String(index + 1).padStart(2, '0')}`,
   email: `user${String(index + 1).padStart(2, '0')}@example.com`,
@@ -19,6 +20,7 @@ const FIXTURES_25 = Array.from({ length: 25 }, (_, index) => ({
   status: 'ACTIVE',
   petCount: 1,
   ownerRole: null,
+  schoolId: null,
   schoolName: null,
   createdAt: new Date(Date.UTC(2026, 8, 13 + index)).toISOString(),
 }));
@@ -61,10 +63,9 @@ async function scenario(
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__memberQA = { delay, delays: {}, fail: false, started: [], completed: [] };
       network.use(
-        http.get('/api/v0/admin/members', async ({ request }) => {
+        http.get('/api/v0/admin/service-admin/members', async ({ request }) => {
           const params = new URL(request.url).searchParams;
-          const key =
-            params.get('joinedWithin') || params.get('type') || params.get('keyword') || `page:${params.get('page')}`;
+          const key = params.get('type') || params.get('keyword') || `page:${params.get('page')}`;
           const { delay: fallback, delays, fail } = window.__memberQA;
           window.__memberQA.started.push(key);
           await new Promise((resolve) => setTimeout(resolve, delays[key] ?? fallback));
@@ -102,15 +103,6 @@ async function scenario(
 }
 
 const total = (page: Page, count: number) => page.getByText(`총 ${count}건`, { exact: true }).waitFor();
-const PERIOD_LABELS: Record<string, string> = { all: '가입일 전체', '7d': '최근 7일', '30d': '최근 30일' };
-async function choosePeriod(page: Page, value: string) {
-  await page.getByRole('combobox', { name: '가입일' }).click();
-  await page.getByRole('option', { name: PERIOD_LABELS[value], exact: true }).click();
-}
-async function selectedPeriod(page: Page) {
-  const label = await page.getByRole('combobox', { name: '가입일' }).innerText();
-  return Object.keys(PERIOD_LABELS).find((value) => PERIOD_LABELS[value] === label);
-}
 
 const search = (page: Page) => page.getByRole('searchbox', { name: '회원 검색' });
 const tab = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
@@ -166,10 +158,10 @@ test('S001 회원 목록의 기본 칸과 값을 표시한다', async () => {
   await scenario('render-columns', async (page) => {
     assert.deepEqual(await names(page), ['김견주', '이원장', '박원장', '최해지', '정탈퇴', '이름 미등록']);
     const text = await page.locator('tbody').innerText();
-    for (const value of ['원장 · 견주', '2026. 10. 06.', '1마리 · 햇살유치원'] as const) {
+    for (const value of ['원장 · 견주', '2026. 10. 06.', '1마리', '햇살유치원'] as const) {
       assert.ok(text.includes(value), value);
     }
-    assert.equal(await page.locator('thead th').count(), 6);
+    assert.equal(await page.locator('thead th').count(), 7);
   });
 });
 
@@ -188,7 +180,8 @@ test('S002 회원 개인정보를 가려 표시한다', async () => {
 test('S009 회원 목록은 조회 전용으로 동작한다', async () => {
   await scenario('render-readonly', async (page) => {
     await page.getByText('운영 DB · 읽기 전용', { exact: true }).waitFor();
-    assert.equal(await page.getByRole('combobox', { name: '가입일' }).isDisabled(), false);
+    // 서버가 가입일 조건을 받지 않아 가입일 필터를 두지 않는다(PRD OQ-F5, 2026-11-04).
+    assert.equal(await page.getByRole('combobox', { name: '가입일' }).count(), 0);
     assert.equal(await page.getByRole('button', { name: /추가 메뉴/ }).count(), 0);
     assert.equal(await page.getByRole('button', { name: /내보내기/ }).count(), 0);
     const url = page.url();
@@ -202,11 +195,11 @@ test('S010 회원 API 응답에서 개인정보를 가린다', async () => {
   await scenario('render-api-masking', async (page) => {
     // 가림은 DOM 치환이 아니라 응답 계약에서 수행되어야 한다.
     const payload = await page.evaluate(async () => {
-      const response = await fetch('/api/v0/admin/members');
+      const response = await fetch('/api/v0/admin/service-admin/members');
       if (!response.ok) throw new Error(`회원 조회 ${response.status}`);
       return response.json();
     });
-    assert.equal(payload.data.items.length, 6);
+    assert.equal(payload.items.length, 6);
     const serialized = JSON.stringify(payload);
     for (const raw of ['dog.owner@example.com', 'director@example.com', '01098765432'] as const) {
       assert.ok(!serialized.includes(raw));
@@ -233,14 +226,19 @@ test('S004 회원 유형 탭의 결과와 건수를 표시한다', async () => {
 
 test('S005 회원 검색 결과와 건수를 표시한다', async () => {
   await scenario('search', async (page) => {
+    // 아이디·이름은 부분 일치, 이메일·전화번호는 전체가 같을 때만 찾는다(R-회원목록).
     for (const [term, expected] of [
-      ['DIRECTOR', '이원장'],
-      ['5432', '박원장'],
+      ['DIRECTOR@EXAMPLE.COM', '이원장'],
+      ['010-9876-5432', '박원장'],
       ['u003', '박원장'],
     ] as const) {
       await search(page).fill(term);
       await total(page, 1);
       await page.getByText(expected, { exact: true }).waitFor();
+    }
+    for (const term of ['director', '5432', '9876', '%'] as const) {
+      await search(page).fill(term);
+      await total(page, 0);
     }
   });
 });
@@ -274,7 +272,7 @@ for (const label of ['견주', '원장', '탈퇴'] as const) {
 
 test('S020 빠른 탭 전환에서 마지막 선택을 유지한다', async () => {
   await scenario('rapid-tab', async (page) => {
-    await configure(page, { delays: { owner: 2000, guardian: 1000 } });
+    await configure(page, { delays: { OWNER: 2000, GUARDIAN: 1000 } });
     await tab(page, '원장').click();
     await page.waitForTimeout(100);
     await tab(page, '견주').click();
@@ -435,9 +433,9 @@ for (const width of [390, 768, 1440] as const) {
         // 조회 전용 열도 좁은 화면에서 0폭으로 찌그러지지 않아야 한다.
         const activityWidth = await page
           .locator('thead th')
-          .nth(5)
+          .nth(6)
           .evaluate((el) => el.getBoundingClientRect().width);
-        assert.ok(activityWidth >= 160, `최근 활동 열 폭 ${activityWidth}`);
+        assert.ok(activityWidth >= 160, `유치원 열 폭 ${activityWidth}`);
         const scroll = await table.evaluate((el) => el.scrollLeft);
         await configure(page, { delay: 1000 });
         await search(page).fill('회원');
@@ -485,101 +483,6 @@ test('S019 다른 메뉴에서 뒤로 복귀할 때 조건·읽던 스크롤 유
       assert.equal(await tab(page, '견주').getAttribute('aria-pressed'), 'true');
       await page.waitForTimeout(100);
       assert.equal(await page.evaluate(() => window.scrollY), before);
-    },
-    { fixtures: FIXTURES_25 }
-  );
-});
-
-test('가입일 7일 전환의 중간 상태와 초점을 유지한다', async () => {
-  await scenario('joined-period-transition', async (page) => {
-    const period = page.getByRole('combobox', { name: '가입일' });
-    await configure(page, { delay: 1200 });
-    await period.focus();
-    await watchTransition(page);
-    await period.press('Space');
-    await page.waitForFunction(() => document.activeElement?.getAttribute('role') === 'option');
-    await page.keyboard.press('ArrowDown');
-    await page.waitForFunction(() => document.activeElement?.textContent === '최근 7일');
-    await page.keyboard.press('Enter');
-    await page.getByText('조회 중…', { exact: true }).waitFor();
-    assert.equal(await selectedPeriod(page), '7d');
-    await total(page, 2);
-    await assertStable(page);
-    assert.deepEqual(await names(page), ['김견주', '이원장']);
-    assert.equal(await period.evaluate((el) => document.activeElement === el), true);
-  });
-});
-
-test('가입일을 다른 조건과 결합하고 새로고침해도 유지한다', async () => {
-  await scenario('joined-period-combined', async (page) => {
-    await configure(page, { delay: 0 });
-    await choosePeriod(page, '30d');
-    await total(page, 4);
-    await tab(page, '원장').click();
-    await total(page, 2);
-    await search(page).fill('이');
-    await total(page, 1);
-    await choosePeriod(page, '7d');
-    await total(page, 1);
-    await page.reload();
-    await total(page, 1);
-    assert.equal(await selectedPeriod(page), '7d');
-    assert.equal(await search(page).inputValue(), '이');
-  });
-});
-
-test('가입일 조건의 빈 결과를 초기화한다', async () => {
-  await scenario('joined-period-empty-reset', async (page) => {
-    await choosePeriod(page, '7d');
-    await tab(page, '탈퇴').click();
-    await total(page, 0);
-    await page.getByRole('button', { name: '필터 초기화', exact: true }).click();
-    await total(page, 6);
-    assert.equal(await selectedPeriod(page), 'all');
-    assert.equal(await search(page).inputValue(), '');
-  });
-});
-
-test('가입일을 빠르게 전환하면 마지막 선택을 유지한다', async () => {
-  await scenario('joined-race', async (page) => {
-    await configure(page, { delays: { '7d': 2000, '30d': 1000 } });
-    await choosePeriod(page, '7d');
-    await page.waitForTimeout(100);
-    await choosePeriod(page, '30d');
-    await total(page, 4);
-    await page.waitForTimeout(1100);
-    assert.equal(await selectedPeriod(page), '30d');
-    assert.equal((await names(page)).length, 4);
-  });
-});
-
-test('가입일 조회 실패 후 마지막 선택으로 복구한다', async () => {
-  await scenario('joined-recovery', async (page) => {
-    await configure(page, { fail: true, delays: {} });
-    await choosePeriod(page, '7d');
-    await page.getByRole('button', { name: '다시 시도', exact: true }).waitFor();
-    assert.equal(await selectedPeriod(page), '7d');
-    await configure(page, { fail: false, delay: 1000 });
-    await page.getByRole('button', { name: '다시 시도', exact: true }).click();
-    await total(page, 2);
-    assert.equal(await selectedPeriod(page), '7d');
-  });
-});
-
-test('가입일 변경은 1페이지로 이동하고 메뉴 복귀 조건 유지', async () => {
-  await scenario(
-    'joined-page-reset',
-    async (page) => {
-      await page.getByRole('button', { name: '2', exact: true }).click();
-      await page.waitForFunction(() => document.querySelector('tbody tr td p')?.textContent === '회원 05');
-      await choosePeriod(page, '7d');
-      await total(page, 7);
-      assert.equal((await names(page))[0], '회원 25');
-      assert.equal(new URL(page.url()).searchParams.get('page'), null);
-      await page.getByRole('link', { name: '홈', exact: true }).click();
-      await page.goBack();
-      await total(page, 7);
-      assert.equal(await selectedPeriod(page), '7d');
     },
     { fixtures: FIXTURES_25 }
   );

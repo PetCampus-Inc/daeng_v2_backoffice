@@ -163,7 +163,7 @@ const rejectStateChanged = () =>
   rejectMemberRequest(
     409,
     TeamMemberConflictErrorCode.TEAM_MEMBER_STATE_CHANGED,
-    '계정 상태가 변경되었습니다. 목록을 다시 확인해 주세요.'
+    '계정 상태가 변경됐습니다. 다시 확인해 주세요.'
   );
 
 /**

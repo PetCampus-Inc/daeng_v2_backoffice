@@ -45,6 +45,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 /**
  * 변경 이력을 최신순으로 반환합니다. 기간은 KST 날짜 기준이며 `to`일도 포함합니다.
  * 이력은 쓰기 작업이 성공하면 서버가 자동으로 남기고, 접속 기록은 API로 제공하지 않습니다.
+ * `from`이 `to`보다 늦으면 400입니다. 최고 관리자만 조회할 수 있습니다.
  * @summary 변경 이력 목록
  */
 export const listChangeLogs = (

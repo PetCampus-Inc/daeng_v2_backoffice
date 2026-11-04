@@ -6,7 +6,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SchoolStatus } from '@/type/school-status';
+import type { ServiceMemberSchoolStatus } from './service-member-school-status';
 import type { ServiceUserStatus } from './service-user-status';
 
 export interface ServiceMember {
@@ -41,6 +41,9 @@ export interface ServiceMember {
   schoolId: number | null;
   /** @nullable */
   schoolName: string | null;
-  /** @nullable */
-  schoolStatus: SchoolStatus | null;
+  /**
+   * 연결된 유치원의 상태. `ACTIVE` 운영 중, `CLOSED` 폐업. 연결된 유치원이 없으면 `null`
+   * @nullable
+   */
+  schoolStatus: ServiceMemberSchoolStatus;
 }

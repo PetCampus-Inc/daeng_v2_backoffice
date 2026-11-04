@@ -1,11 +1,10 @@
 import { parseAsInteger, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
 import { useEffect, useState } from 'react';
-import { MEMBER_FILTERS, MEMBER_JOINED_PERIODS } from '../type/member';
+import { MEMBER_FILTERS } from '../type/service-member-type-ui';
 
 const MEMBER_SEARCH_PARAMS = {
   keyword: parseAsString.withDefault(''),
   type: parseAsStringLiteral(MEMBER_FILTERS).withDefault('all'),
-  joinedWithin: parseAsStringLiteral(MEMBER_JOINED_PERIODS).withDefault('all'),
   page: parseAsInteger.withDefault(1),
 };
 

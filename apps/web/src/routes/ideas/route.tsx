@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useListReturnPosition } from '@/util/use-list-return-position';
@@ -18,8 +17,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/atoms/table';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
+import { getDisplayUserName } from '@/util/display-user-name';
+import { KEYWORD_MAX_LENGTH } from '@/util/keyword-max-length';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
-import { ideasQueryOptions } from './api/ideas/index';
+import { ideaListQueryOptions, toIdea, toIdeaListRequest } from './api/idea-query';
+import { useListIdeas } from './api/use-ideas';
 import { IDEA_USER_TYPE_LABELS, IDEA_USER_TYPES, type IdeaListParams } from './type/idea-ui';
 import { useIdeaListSearchParams } from './util/list-search-params';
 
@@ -29,10 +31,11 @@ export default function IdeasRoute() {
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { listParams, page, listSearch, setSearchParams } = useIdeaListSearchParams();
-  const ideasQuery = useQuery(ideasQueryOptions(currentEmail, listParams, page - 1));
-  const ideas = ideasQuery.data?.items ?? [];
+  const request = toIdeaListRequest(listParams, page);
+  const ideasQuery = useListIdeas(request, { query: ideaListQueryOptions(currentEmail, request) });
+  const ideas = (ideasQuery.data?.items ?? []).map(toIdea);
   const totalPages = ideasQuery.data?.totalPages ?? 0;
-  const hasCondition = listParams.keyword !== '' || listParams.userType !== 'all';
+  const hasCondition = listParams.keyword.trim() !== '' || listParams.userType !== 'all';
   const isListShown = ideasQuery.isSuccess;
   const saveReturnPosition = useListReturnPosition(
     `ideas:${currentEmail}:${listSearch}`,
@@ -72,7 +75,8 @@ export default function IdeasRoute() {
             ref={searchInputRef}
             type='search'
             aria-label='검색'
-            placeholder='내용, 사용자 계정'
+            placeholder='내용, 사용자 이름·이메일'
+            maxLength={KEYWORD_MAX_LENGTH}
             className='w-72 max-[767px]:w-full'
             value={listParams.keyword}
             onChange={(event) => handleChangeCondition({ keyword: event.target.value })}
@@ -102,7 +106,7 @@ export default function IdeasRoute() {
           )}
           {isListShown && (
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              {ideasQuery.isPlaceholderData ? '조회 중…' : `총 ${ideasQuery.data.totalElements}건`}
+              {ideasQuery.isPlaceholderData ? '조회 중…' : `총 ${ideasQuery.data.totalItems}건`}
             </p>
           )}
         </div>
@@ -160,7 +164,7 @@ export default function IdeasRoute() {
                       </button>
                     </TableCell>
                     <TableCell>
-                      {IDEA_USER_TYPE_LABELS[idea.user.type]} · {idea.user.name}
+                      {IDEA_USER_TYPE_LABELS[idea.user.type]} · {getDisplayUserName(idea.user.name)}
                     </TableCell>
                     <TableCell className='tabular-nums'>{formatDate(idea.submittedAt, true)}</TableCell>
                   </TableRow>

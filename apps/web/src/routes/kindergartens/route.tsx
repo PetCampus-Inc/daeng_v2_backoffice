@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
@@ -16,9 +15,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ListState } from '@/ui/molecules/list-state';
 import { ReadOnlyDbBadge } from '@/ui/molecules/read-only-db-badge';
 import { cn } from '@/util/cn';
+import { KEYWORD_MAX_LENGTH } from '@/util/keyword-max-length';
 import { formatDocumentTitle } from '@/util/page-config';
-import { kindergartensQueryOptions } from './api/kindergartens/index';
-import type { KindergartenListParams } from './type/kindergarten';
+import { kindergartenListQueryOptions, toKindergartenListRequest } from './api/kindergarten-list-query';
+import { useListServiceSchools } from './api/use-kindergartens';
+import type { KindergartenListParams } from './type/school-status-ui';
 import { useKindergartenListParams } from './util/list-search-params';
 
 const STATUS_FILTERS = [
@@ -34,7 +35,8 @@ export default function KindergartensRoute() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const paginationRef = useRef<HTMLElement>(null);
   const pageTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const kindergartensQuery = useQuery(kindergartensQueryOptions(email, queryParams, page - 1));
+  const request = toKindergartenListRequest(queryParams, page);
+  const kindergartensQuery = useListServiceSchools(request, { query: kindergartenListQueryOptions(email, request) });
   useEffect(() => {
     if (kindergartensQuery.isFetching || !pageTriggerRef.current) return;
     // 비활성화·제거된 버튼에서 초점을 잃은 경우만 복구한다. 사용자가 다른 곳으로 이동했다면 유지한다.
@@ -99,6 +101,7 @@ export default function KindergartensRoute() {
             ref={searchInputRef}
             type='search'
             aria-label='유치원 검색'
+            maxLength={KEYWORD_MAX_LENGTH}
             placeholder='유치원명, 원장명 또는 지역 검색'
             className='w-80 max-[767px]:w-full'
             value={listParams.keyword}
@@ -108,7 +111,7 @@ export default function KindergartensRoute() {
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
               {kindergartensQuery.isPlaceholderData
                 ? '조회 중…'
-                : `총 ${kindergartensQuery.data.totalElements.toLocaleString('ko-KR')}건`}
+                : `총 ${kindergartensQuery.data.totalItems.toLocaleString('ko-KR')}건`}
             </p>
           )}
         </div>

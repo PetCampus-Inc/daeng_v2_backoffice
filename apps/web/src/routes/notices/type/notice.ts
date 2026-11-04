@@ -6,9 +6,12 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { NoticeImagesItem } from './notice-images-item';
 import type { NoticeSummary } from './notice-summary';
 
 export type Notice = NoticeSummary & {
+  /** 본문의 이미지 ID에 대응하는 임시 조회 URL입니다. 본문은 저장용 상대 경로를 유지합니다. */
+  images: NoticeImagesItem[];
   /** 마크다운 본문입니다. 게시하려면 1~5,000자여야 하고, 초안은 비어 있어도 됩니다. */
   body: string;
   /** 동시 수정을 막기 위한 값입니다. 수정·게시 요청에 그대로 보냅니다. */

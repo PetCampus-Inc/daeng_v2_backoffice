@@ -1,7 +1,7 @@
-import { http } from 'msw';
-import { mockUrl, okResponse } from '../util/response';
+import { http, HttpResponse } from 'msw';
+import { mockUrl } from '../util/response';
 import { authenticateMockRequest } from '../util/session';
-import type { Overview, SignupTrendItem } from '@/type/overview';
+import type { ServiceOverview, ServiceSignupTrendPoint } from '@/routes/home/type';
 import { fillSignupTrend } from '@/util/signup-trend';
 
 /**
@@ -11,21 +11,29 @@ import { fillSignupTrend } from '@/util/signup-trend';
 const SIGNUP_COUNTS = [1, 2, 1, 1, 3, 1, 1, 2, 1, 1, 1, 2, 1, 1, 4, 1, 1, 1, 2, 1, 1, 1, 3, 1, 1, 1, 2, 1, 1, 1];
 
 /** 오늘 기준 최근 30일 가입 추이를 만든다. */
-const createSignupTrend = (): SignupTrendItem[] =>
+const createSignupTrend = (): ServiceSignupTrendPoint[] =>
   fillSignupTrend([], new Date()).map((item, index) => ({ ...item, count: SIGNUP_COUNTS[index] }));
 
-/** fixtures.md `홈-기본`. 최근 원장 인증은 `인증-기본` 5건(제출일 최신순). */
-const createDefaultOverview = (): Overview => ({
+/**
+ * fixtures.md `홈-기본`. 최근 원장 인증은 `인증-기본` 5건(제출일 최신순).
+ * `activeUsers`·`withdrawnUsers`·`newUsers7d`·`closedSchools`는 fixtures에 없고 화면이 쓰지 않아 앞뒤가 맞는 값으로 둔다.
+ */
+const createDefaultOverview = (): ServiceOverview => ({
   stats: {
     totalUsers: 1284,
-    newUsers30d: 42,
+    activeUsers: 1250,
+    withdrawnUsers: 34,
     guardians: 1137,
+    // 가입 추이 마지막 7일의 합
+    newUsers7d: 8,
+    newUsers30d: 42,
     activeOwners: 147,
-    newOwners7d: 5,
     revokedOwners: 1,
-    managedSchools: 132,
+    newOwners7d: 5,
     totalSchools: 140,
     activeSchools: 124,
+    closedSchools: 16,
+    managedSchools: 132,
     verificationCounts: {
       KINDERGARTEN_INFO_COMPLETED: 3,
       BUSINESS_REGISTRATION_PENDING: 9,
@@ -78,7 +86,13 @@ const createDefaultOverview = (): Overview => ({
   ],
 });
 
-/** 홈 데이터 가짜 API. 모든 역할이 볼 수 있고, 세션이 없거나 만료·비활성이면 요청을 거부한다. */
+/**
+ * 홈 데이터 가짜 API(`GET /service-admin/overview`). 모든 역할이 볼 수 있고, 세션이 없거나 만료·비활성이면 요청을 거부한다.
+ * 명세대로 응답을 `data`로 감싸지 않는다. `days`는 화면이 보내지 않아 기본 30일만 흉내 낸다.
+ */
 export const OVERVIEW_HANDLERS = [
-  http.get(mockUrl('/overview'), () => authenticateMockRequest().denied ?? okResponse(createDefaultOverview())),
+  http.get(
+    mockUrl('/service-admin/overview'),
+    () => authenticateMockRequest().denied ?? HttpResponse.json(createDefaultOverview())
+  ),
 ];

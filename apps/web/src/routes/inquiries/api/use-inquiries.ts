@@ -37,7 +37,7 @@ import type {
   ListInquiriesParams,
   ReplyInquiryRequest,
 } from '@/routes/inquiries/type';
-import type { ForbiddenResponse, UnauthorizedResponse } from '@/type';
+import type { ForbiddenResponse, UnauthorizedResponse, ValidationFailedResponse } from '@/type';
 
 import { customInstance } from '@/api/mutator';
 import type { ErrorType, BodyType } from '@/api/mutator';
@@ -80,7 +80,7 @@ export const getListInquiriesQueryKey = (params?: ListInquiriesParams) => {
 
 export const getListInquiriesQueryOptions = <
   TData = Awaited<ReturnType<typeof listInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
 >(
   params?: ListInquiriesParams,
   options?: {
@@ -103,11 +103,11 @@ export const getListInquiriesQueryOptions = <
 };
 
 export type ListInquiriesQueryResult = NonNullable<Awaited<ReturnType<typeof listInquiries>>>;
-export type ListInquiriesQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse>;
+export type ListInquiriesQueryError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>;
 
 export function useListInquiries<
   TData = Awaited<ReturnType<typeof listInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
 >(
   params: undefined | ListInquiriesParams,
   options: {
@@ -126,7 +126,7 @@ export function useListInquiries<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListInquiries<
   TData = Awaited<ReturnType<typeof listInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
 >(
   params?: ListInquiriesParams,
   options?: {
@@ -145,7 +145,7 @@ export function useListInquiries<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListInquiries<
   TData = Awaited<ReturnType<typeof listInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
 >(
   params?: ListInquiriesParams,
   options?: {
@@ -160,7 +160,7 @@ export function useListInquiries<
 
 export function useListInquiries<
   TData = Awaited<ReturnType<typeof listInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse>,
 >(
   params?: ListInquiriesParams,
   options?: {
@@ -298,7 +298,7 @@ export const getGetInquiryQueryKey = (id: number) => {
 
 export const getGetInquiryQueryOptions = <
   TData = Awaited<ReturnType<typeof getInquiry>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   options?: {
@@ -321,11 +321,13 @@ export const getGetInquiryQueryOptions = <
 };
 
 export type GetInquiryQueryResult = NonNullable<Awaited<ReturnType<typeof getInquiry>>>;
-export type GetInquiryQueryError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>;
+export type GetInquiryQueryError = ErrorType<
+  ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse
+>;
 
 export function useGetInquiry<
   TData = Awaited<ReturnType<typeof getInquiry>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   options: {
@@ -344,7 +346,7 @@ export function useGetInquiry<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetInquiry<
   TData = Awaited<ReturnType<typeof getInquiry>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   options?: {
@@ -363,7 +365,7 @@ export function useGetInquiry<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetInquiry<
   TData = Awaited<ReturnType<typeof getInquiry>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   options?: {
@@ -378,7 +380,7 @@ export function useGetInquiry<
 
 export function useGetInquiry<
   TData = Awaited<ReturnType<typeof getInquiry>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   options?: {
@@ -415,7 +417,7 @@ export const getGetAdjacentInquiriesQueryKey = (id: number, params?: GetAdjacent
 
 export const getGetAdjacentInquiriesQueryOptions = <
   TData = Awaited<ReturnType<typeof getAdjacentInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   params?: GetAdjacentInquiriesParams,
@@ -440,12 +442,12 @@ export const getGetAdjacentInquiriesQueryOptions = <
 
 export type GetAdjacentInquiriesQueryResult = NonNullable<Awaited<ReturnType<typeof getAdjacentInquiries>>>;
 export type GetAdjacentInquiriesQueryError = ErrorType<
-  UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse
+  ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse
 >;
 
 export function useGetAdjacentInquiries<
   TData = Awaited<ReturnType<typeof getAdjacentInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   params: undefined | GetAdjacentInquiriesParams,
@@ -465,7 +467,7 @@ export function useGetAdjacentInquiries<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetAdjacentInquiries<
   TData = Awaited<ReturnType<typeof getAdjacentInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   params?: GetAdjacentInquiriesParams,
@@ -485,7 +487,7 @@ export function useGetAdjacentInquiries<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetAdjacentInquiries<
   TData = Awaited<ReturnType<typeof getAdjacentInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   params?: GetAdjacentInquiriesParams,
@@ -501,7 +503,7 @@ export function useGetAdjacentInquiries<
 
 export function useGetAdjacentInquiries<
   TData = Awaited<ReturnType<typeof getAdjacentInquiries>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse>,
 >(
   id: number,
   params?: GetAdjacentInquiriesParams,
@@ -548,7 +550,13 @@ export const assignInquiry = (
 export const getAssignInquiryMutationKey = () => ['assignInquiry'] as const;
 
 export const getAssignInquiryMutationOptions = <
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse | InquiryConflictResponse>,
+  TError = ErrorType<
+    | ValidationFailedResponse
+    | UnauthorizedResponse
+    | ForbiddenResponse
+    | InquiryNotFoundResponse
+    | InquiryConflictResponse
+  >,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -580,7 +588,11 @@ export const getAssignInquiryMutationOptions = <
 export type AssignInquiryMutationResult = NonNullable<Awaited<ReturnType<typeof assignInquiry>>>;
 export type AssignInquiryMutationBody = BodyType<AssignInquiryRequest>;
 export type AssignInquiryMutationError = ErrorType<
-  UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse | InquiryConflictResponse
+  | ValidationFailedResponse
+  | UnauthorizedResponse
+  | ForbiddenResponse
+  | InquiryNotFoundResponse
+  | InquiryConflictResponse
 >;
 export type AssignInquiryMutationVariables = { id: number; data: BodyType<AssignInquiryRequest> };
 
@@ -588,7 +600,13 @@ export type AssignInquiryMutationVariables = { id: number; data: BodyType<Assign
  * @summary 내가 맡기
  */
 export const useAssignInquiry = <
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse | InquiryConflictResponse>,
+  TError = ErrorType<
+    | ValidationFailedResponse
+    | UnauthorizedResponse
+    | ForbiddenResponse
+    | InquiryNotFoundResponse
+    | InquiryConflictResponse
+  >,
   TContext = unknown,
 >(
   options?: {
@@ -619,7 +637,13 @@ export const releaseInquiryAssignee = (
 export const getReleaseInquiryAssigneeMutationKey = () => ['releaseInquiryAssignee'] as const;
 
 export const getReleaseInquiryAssigneeMutationOptions = <
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse | InquiryConflictResponse>,
+  TError = ErrorType<
+    | ValidationFailedResponse
+    | UnauthorizedResponse
+    | ForbiddenResponse
+    | InquiryNotFoundResponse
+    | InquiryConflictResponse
+  >,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -657,7 +681,11 @@ export const getReleaseInquiryAssigneeMutationOptions = <
 export type ReleaseInquiryAssigneeMutationResult = NonNullable<Awaited<ReturnType<typeof releaseInquiryAssignee>>>;
 
 export type ReleaseInquiryAssigneeMutationError = ErrorType<
-  UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse | InquiryConflictResponse
+  | ValidationFailedResponse
+  | UnauthorizedResponse
+  | ForbiddenResponse
+  | InquiryNotFoundResponse
+  | InquiryConflictResponse
 >;
 export type ReleaseInquiryAssigneeMutationVariables = { id: number };
 
@@ -665,7 +693,13 @@ export type ReleaseInquiryAssigneeMutationVariables = { id: number };
  * @summary 담당 해제
  */
 export const useReleaseInquiryAssignee = <
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse | InquiryConflictResponse>,
+  TError = ErrorType<
+    | ValidationFailedResponse
+    | UnauthorizedResponse
+    | ForbiddenResponse
+    | InquiryNotFoundResponse
+    | InquiryConflictResponse
+  >,
   TContext = unknown,
 >(
   options?: {
@@ -702,7 +736,13 @@ export const restoreInquiryAssignee = (
 export const getRestoreInquiryAssigneeMutationKey = () => ['restoreInquiryAssignee'] as const;
 
 export const getRestoreInquiryAssigneeMutationOptions = <
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse | InquiryConflictResponse>,
+  TError = ErrorType<
+    | ValidationFailedResponse
+    | UnauthorizedResponse
+    | ForbiddenResponse
+    | InquiryNotFoundResponse
+    | InquiryConflictResponse
+  >,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -740,7 +780,11 @@ export const getRestoreInquiryAssigneeMutationOptions = <
 export type RestoreInquiryAssigneeMutationResult = NonNullable<Awaited<ReturnType<typeof restoreInquiryAssignee>>>;
 
 export type RestoreInquiryAssigneeMutationError = ErrorType<
-  UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse | InquiryConflictResponse
+  | ValidationFailedResponse
+  | UnauthorizedResponse
+  | ForbiddenResponse
+  | InquiryNotFoundResponse
+  | InquiryConflictResponse
 >;
 export type RestoreInquiryAssigneeMutationVariables = { id: number };
 
@@ -748,7 +792,13 @@ export type RestoreInquiryAssigneeMutationVariables = { id: number };
  * @summary 담당 해제 실행 취소
  */
 export const useRestoreInquiryAssignee = <
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryNotFoundResponse | InquiryConflictResponse>,
+  TError = ErrorType<
+    | ValidationFailedResponse
+    | UnauthorizedResponse
+    | ForbiddenResponse
+    | InquiryNotFoundResponse
+    | InquiryConflictResponse
+  >,
   TContext = unknown,
 >(
   options?: {
@@ -889,7 +939,7 @@ export const getDownloadInquiryImageOriginalQueryKey = (id: number, imageId: str
 
 export const getDownloadInquiryImageOriginalQueryOptions = <
   TData = Awaited<ReturnType<typeof downloadInquiryImageOriginal>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
 >(
   id: number,
   imageId: string,
@@ -919,12 +969,12 @@ export type DownloadInquiryImageOriginalQueryResult = NonNullable<
   Awaited<ReturnType<typeof downloadInquiryImageOriginal>>
 >;
 export type DownloadInquiryImageOriginalQueryError = ErrorType<
-  UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError
+  ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError
 >;
 
 export function useDownloadInquiryImageOriginal<
   TData = Awaited<ReturnType<typeof downloadInquiryImageOriginal>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
 >(
   id: number,
   imageId: string,
@@ -944,7 +994,7 @@ export function useDownloadInquiryImageOriginal<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useDownloadInquiryImageOriginal<
   TData = Awaited<ReturnType<typeof downloadInquiryImageOriginal>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
 >(
   id: number,
   imageId: string,
@@ -964,7 +1014,7 @@ export function useDownloadInquiryImageOriginal<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useDownloadInquiryImageOriginal<
   TData = Awaited<ReturnType<typeof downloadInquiryImageOriginal>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
 >(
   id: number,
   imageId: string,
@@ -980,7 +1030,7 @@ export function useDownloadInquiryImageOriginal<
 
 export function useDownloadInquiryImageOriginal<
   TData = Awaited<ReturnType<typeof downloadInquiryImageOriginal>>,
-  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | ForbiddenResponse | InquiryImageNotFoundError>,
 >(
   id: number,
   imageId: string,

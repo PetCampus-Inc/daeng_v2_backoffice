@@ -6,22 +6,24 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { TermsEffectiveStatus } from './terms-effective-status';
 import type { TermsKind } from './terms-kind';
 import type { TermsPublishStatus } from './terms-publish-status';
 
 export interface TermsVersionSummary {
-  /** 약관 버전 ID입니다. 화면의 버전 번호로 씁니다. */
+  /** 약관 버전 식별자입니다. 종류와 관계없이 하나씩 늘어나므로 종류별로 이어지는 번호가 아닙니다. */
   id: number;
   kind: TermsKind;
-  /** 시행일(KST 날짜) */
-  effectiveDate: string;
+  /**
+   * 시행일(KST 날짜). 기존 초안은 없을 수 있습니다.
+   * @nullable
+   */
+  effectiveDate: string | null;
   publishStatus: TermsPublishStatus;
   /**
    * 공개 상태가 아니면 `null`
    * @nullable
    */
-  effectiveStatus: TermsEffectiveStatus | null;
+  effectiveStatus: string | null;
   /**
    * 공개한 시각. 초안은 `null`
    * @nullable

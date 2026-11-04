@@ -1,6 +1,6 @@
 import { countCharacters } from '@/util/profile';
 
-/** 답변 최대 글자 수(PRD 6.2). */
+/** 답변 최대 글자 수(PRD 6.2). 서버와 같은 내부 길이(UTF-16) 기준이라 이모지 하나가 2 이상으로 셈된다. */
 export const REPLY_MAX_LENGTH = 500;
 
 /** 500자를 넘으면 줄일 글자 수 안내를, 아니면 null을 준다. 입력은 자르지 않는다. */

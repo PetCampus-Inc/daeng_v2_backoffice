@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Card } from '@/ui/atoms/card';
 import type { LoadState } from '../type/load-state';
-import type { Overview } from '@/type/overview';
+import type { ServiceOverview } from '../type';
 import { formatCount } from '@/util/count-format';
 import { getVerificationSummary } from '@/util/verification-summary';
 import { Skeleton } from './skeleton';
@@ -9,7 +9,7 @@ import { Skeleton } from './skeleton';
 type StatCard = { label: string; value: string; foot: ReactNode };
 
 /** 응답으로 지표 카드 6개의 숫자와 아래 글자를 만든다. 실패하면 서버 값 자리를 '—'로 둔다. */
-const getStatCards = (overview: Overview | undefined): StatCard[] => {
+const getStatCards = (overview: ServiceOverview | undefined): StatCard[] => {
   const stats = overview?.stats;
   const summary = getVerificationSummary(stats?.verificationCounts, stats?.revokedOwners);
   /** 서버 값이 있을 때만 숫자를 보여 준다. */
@@ -51,7 +51,7 @@ const getStatCards = (overview: Overview | undefined): StatCard[] => {
 };
 
 /** 홈 지표 카드 6개. 1181px 이상 한 줄 6개, 그 아래 3개, 560px 이하 2개(service-admin.html 기준). */
-export function StatCards({ overview, state }: { overview: Overview | undefined; state: LoadState }) {
+export function StatCards({ overview, state }: { overview: ServiceOverview | undefined; state: LoadState }) {
   return (
     <section aria-label='주요 지표' className='grid grid-cols-2 gap-4 min-[561px]:grid-cols-3 min-[1181px]:grid-cols-6'>
       {getStatCards(state === 'success' ? overview : undefined).map((card) => (

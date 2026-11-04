@@ -6,7 +6,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SchoolStatus } from '@/type/school-status';
+import type { SchoolStatus } from './school-status';
 
 export interface ServiceSchool {
   id: number;

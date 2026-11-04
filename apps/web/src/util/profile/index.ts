@@ -6,14 +6,15 @@ import { JOB_ROLE_LABELS, JOB_ROLES } from '@/type/job-role-ui';
 export const DISPLAY_NAME_ERROR = '표시명은 1~10자이며 이미 사용 중인 이름은 사용할 수 없습니다.';
 export const JOB_ROLE_ERROR = '직무를 선택해 주세요.';
 
-const CHARACTER_SEGMENTER = new Intl.Segmenter('ko', { granularity: 'grapheme' });
-
-/** 한글 조합 글자와 이모지를 화면에서 보이는 글자 단위로 센다. */
+/**
+ * 글자 수를 서버와 같은 내부 길이(UTF-16, `string.length`)로 센다. 서버가 같은 기준으로 길이를 검사하므로
+ * 화면에서 보이는 글자 수와 다를 수 있다(예: 이모지 `😀`는 2, 가족 이모지 `👨‍👩‍👧‍👦`는 11).
+ */
 export function countCharacters(value: string) {
-  return [...CHARACTER_SEGMENTER.segment(value)].length;
+  return value.length;
 }
 
-/** 표시명은 공백만인 값을 제외하고 화면에 보이는 글자 기준 1~10자다. */
+/** 표시명은 공백만인 값을 제외하고 서버와 같은 내부 길이 기준 1~10자다. */
 export function isValidDisplayName(value: string) {
   const length = countCharacters(value);
   return value.trim().length > 0 && length >= 1 && length <= 10;

@@ -1,9 +1,9 @@
-import type { OverviewStats } from '@/type/overview';
+import type { ServiceOverviewStats } from '@/routes/home/type';
 import { toCount } from '@/util/count-format';
 
 /** 인증 단계별 건수로 홈 카드 숫자를 계산한다(10-홈.md R-홈인증수). */
 export const getVerificationSummary = (
-  verificationCounts: OverviewStats['verificationCounts'] | null | undefined,
+  verificationCounts: ServiceOverviewStats['verificationCounts'] | null | undefined,
   revokedOwners: unknown
 ) => {
   const counts = verificationCounts ?? {};

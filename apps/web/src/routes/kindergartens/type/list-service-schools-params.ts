@@ -8,8 +8,8 @@
  */
 import type { KeywordParameter } from '@/type/keyword-parameter';
 import type { PageParameter } from '@/type/page-parameter';
-import type { SchoolStatus } from '@/type/school-status';
 import type { SizeParameter } from '@/type/size-parameter';
+import type { SchoolStatus } from './school-status';
 
 export type ListServiceSchoolsParams = {
   /**

@@ -9,6 +9,7 @@
 
 export * from './list-service-members-params';
 export * from './service-member-page';
+export * from './service-member-school-status';
 export * from './service-member-type';
 export * from './service-member';
 export * from './service-user-status';

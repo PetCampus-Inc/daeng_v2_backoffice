@@ -1,4 +1,4 @@
-import { TERM_KINDS, type TermKind } from '../type/term';
+import { TERM_KINDS, type TermKind } from '../type/term-ui';
 export function readTermKind(value: string | null | undefined): TermKind | null {
   return TERM_KINDS.includes(value as TermKind) ? (value as TermKind) : null;
 }

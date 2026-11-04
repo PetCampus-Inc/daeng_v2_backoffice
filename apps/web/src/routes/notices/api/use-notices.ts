@@ -705,8 +705,12 @@ export const useUnpublishNotice = <
   return useMutation(getUnpublishNoticeMutationOptions(options), queryClient);
 };
 /**
- * 공지 본문에 넣을 이미지의 업로드 주소를 발급합니다. `uploadUrl`로 파일을 올린 뒤, `imageUrl`을 본문에 `![설명](imageUrl)` 형태로 넣습니다.
- * JPEG·PNG만 가능하고, 파일당 20MB 이하로 한 번에 10개까지 올릴 수 있습니다. [확인 필요] 용량·개수 기준
+ * 공지 본문에 넣을 이미지의 업로드 주소를 발급합니다. 순서는 다음과 같습니다.
+ * 1. `uploadUrl`로 파일을 올립니다.
+ * 2. 이미지마다 UUID(`clientImageId`)를 만들어 본문에 `![설명](knockdog-upload://clientImageId)` 형태로 넣습니다.
+ * 3. 공지를 저장할 때 `pendingImages`에 `clientImageId`, 응답의 `tempKey`, 원본 파일명을 함께 보냅니다. 저장하면 이미지가 확정됩니다.
+ * 저장하지 않고 나간 업로드는 확정되지 않습니다.
+ * JPEG·PNG만 가능하고, 파일당 20MB 이하로 한 번에 10개까지 올릴 수 있습니다.
  * @summary 공지 이미지 업로드 주소 발급
  */
 export const createNoticeImageUploadUrls = (

@@ -1,10 +1,10 @@
 import { parseAsInteger, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
 import { useEffect, useState } from 'react';
-import { KINDERGARTEN_STATUSES } from '../type/kindergarten';
+import { KINDERGARTEN_STATUS_FILTERS } from '../type/school-status-ui';
 
 const SCHOOL_LIST_SEARCH_PARAMS = {
   keyword: parseAsString.withDefault(''),
-  status: parseAsStringLiteral(['all', ...KINDERGARTEN_STATUSES]).withDefault('all'),
+  status: parseAsStringLiteral(KINDERGARTEN_STATUS_FILTERS).withDefault('all'),
   page: parseAsInteger.withDefault(1),
 };
 

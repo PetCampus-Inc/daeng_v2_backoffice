@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { CircleHelpIcon } from 'lucide-react';
 import { useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { Badge } from '@/ui/atoms/badge';
@@ -13,14 +13,17 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/ui/atoms/pagination';
+import { Popover, PopoverContent, PopoverTrigger } from '@/ui/atoms/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/atoms/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/atoms/select';
 import { ListState } from '@/ui/molecules/list-state';
 import { cn } from '@/util/cn';
 import { formatDate } from '@/util/date-format';
+import { KEYWORD_MAX_LENGTH } from '@/util/keyword-max-length';
 import { formatDocumentTitle } from '@/util/page-config';
-import { membersQueryOptions } from './api/members/index';
-import type { MemberJoinedPeriod, MemberListParams } from './type/member';
+import { useScrollReturnPosition } from '@/util/use-scroll-return-position';
+import { memberListQueryOptions, toMemberListRequest } from './api/member-list-query';
+import { useListServiceMembers } from './api/use-members';
+import type { MemberListParams } from './type/service-member-type-ui';
 import { useMemberListParams } from './util/list-search-params';
 
 const MEMBER_TABS = [
@@ -30,21 +33,46 @@ const MEMBER_TABS = [
   { value: 'withdrawn', label: '탈퇴' },
 ] as const;
 
-/** TC 11의 조회 전용 회원 화면. 미확정 쓰기·내보내기 동작은 제공하지 않는다. */
+/** 열 제목 옆의 작은 '?' 버튼. 키보드로 열고 누르면 설명 팝오버가 뜬다. */
+function ColumnHelp({ label, description }: { label: string; description: string }) {
+  return (
+    <Popover>
+      <PopoverTrigger
+        type='button'
+        aria-label={`${label} 열 설명`}
+        className='inline-flex size-5 shrink-0 items-center justify-center rounded-full text-kd-foreground-muted outline-none hover:text-kd-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kd-primary focus-visible:outline-solid'
+      >
+        <CircleHelpIcon aria-hidden className='size-3.5' />
+      </PopoverTrigger>
+      <PopoverContent align='start' className='w-64! p-4 text-kd-sub font-normal whitespace-normal'>
+        {description}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/**
+ * TC 11의 조회 전용 회원 화면. 미확정 쓰기·내보내기 동작은 제공하지 않는다.
+ * 서버(`GET /service-admin/members`)가 가입일 조건을 받지 않아 가입일 필터는 두지 않는다(PRD OQ-F5, 2026-11-04).
+ */
 export default function MembersRoute() {
   const email = useAuthStore((state) => state.user?.email) ?? '';
   const { listParams, queryParams, page, setSearchParams, setIsComposing } = useMemberListParams();
   const inputRef = useRef<HTMLInputElement>(null);
-  const query = useQuery(membersQueryOptions(email, queryParams, page - 1));
+  const request = toMemberListRequest(queryParams, page);
+  const query = useListServiceMembers(request, { query: memberListQueryOptions(email, request) });
   const items = query.data?.items ?? [];
   const totalPages = query.data?.totalPages ?? 0;
-  const hasCondition =
-    queryParams.keyword.trim() !== '' || queryParams.type !== 'all' || queryParams.joinedWithin !== 'all';
+  const hasCondition = queryParams.keyword.trim() !== '' || queryParams.type !== 'all';
+  useScrollReturnPosition(
+    `members:${email}:${listParams.type}:${listParams.keyword}:${page}`,
+    query.isSuccess && !query.isPlaceholderData
+  );
   const handleChangeCondition = (condition: Partial<MemberListParams>) =>
     void setSearchParams({ ...condition, page: null });
   const handleResetFilters = () => {
     inputRef.current?.focus({ preventScroll: true });
-    void setSearchParams({ keyword: null, type: null, joinedWithin: null, page: null });
+    void setSearchParams({ keyword: null, type: null, page: null });
   };
   const handleRetry = () => {
     inputRef.current?.focus({ preventScroll: true });
@@ -87,6 +115,7 @@ export default function MembersRoute() {
             ref={inputRef}
             type='search'
             aria-label='회원 검색'
+            maxLength={KEYWORD_MAX_LENGTH}
             placeholder='이름, 이메일 또는 회원 ID 검색'
             className='w-80 max-[767px]:w-full'
             value={listParams.keyword}
@@ -94,22 +123,9 @@ export default function MembersRoute() {
             onCompositionEnd={() => setIsComposing(false)}
             onChange={(event) => handleChangeCondition({ keyword: event.target.value })}
           />
-          <Select
-            value={listParams.joinedWithin}
-            onValueChange={(value) => handleChangeCondition({ joinedWithin: value as MemberJoinedPeriod })}
-          >
-            <SelectTrigger aria-label='가입일' className='w-36'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value='all'>가입일 전체</SelectItem>
-              <SelectItem value='7d'>최근 7일</SelectItem>
-              <SelectItem value='30d'>최근 30일</SelectItem>
-            </SelectContent>
-          </Select>
           {query.isSuccess && (
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              {query.isPlaceholderData ? '조회 중…' : `총 ${query.data.totalElements.toLocaleString('ko-KR')}건`}
+              {query.isPlaceholderData ? '조회 중…' : `총 ${query.data.totalItems.toLocaleString('ko-KR')}건`}
             </p>
           )}
         </div>
@@ -129,7 +145,7 @@ export default function MembersRoute() {
           )
         ) : (
           <>
-            <Table className='table-fixed' style={{ minWidth: 1120 }} scrollLabel='회원 목록 가로 스크롤'>
+            <Table className='table-fixed' style={{ minWidth: 1248 }} scrollLabel='회원 목록 가로 스크롤'>
               <caption className='sr-only'>회원 목록</caption>
               <TableHeader>
                 <TableRow>
@@ -138,7 +154,20 @@ export default function MembersRoute() {
                   <TableHead className='w-kd-col-status'>계정 상태</TableHead>
                   <TableHead className='w-kd-col-status'>원장 상태</TableHead>
                   <TableHead className='w-36'>가입일</TableHead>
-                  <TableHead>최근 활동</TableHead>
+                  <TableHead className='w-36'>
+                    반려견 수
+                    <ColumnHelp
+                      label='반려견 수'
+                      description='이 회원이 본인 이름으로 등록한 반려견 수예요. 유치원에 등록된 반려견 수가 아니에요.'
+                    />
+                  </TableHead>
+                  <TableHead>
+                    유치원
+                    <ColumnHelp
+                      label='유치원'
+                      description='이 회원이 원장으로 연결된 유치원이에요. 원장이 아니면 —로 표시돼요.'
+                    />
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -195,13 +224,10 @@ export default function MembersRoute() {
                       )}
                     </TableCell>
                     <TableCell>{formatDate(item.createdAt)}</TableCell>
-                    {/* S-003 보류: 기존 열 제목과 반려견/유치원 표시를 그대로 유지한다. */}
+                    <TableCell>{item.petCount}마리</TableCell>
                     <TableCell>
-                      <p
-                        className='truncate'
-                        title={`${item.petCount}마리${item.schoolName ? ` · ${item.schoolName}` : ''}`}
-                      >
-                        {item.petCount}마리{item.schoolName ? ` · ${item.schoolName}` : ''}
+                      <p className='truncate' title={item.schoolName ?? undefined}>
+                        {item.schoolName || '—'}
                       </p>
                     </TableCell>
                   </TableRow>
