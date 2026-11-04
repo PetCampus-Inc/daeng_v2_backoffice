@@ -22,6 +22,8 @@ export default defineConfig({
       authToken: process.env.SENTRY_AUTH_TOKEN,
       // 업로드한 맵은 배포물에서 지운다.
       sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
+      // 배포 때 릴리스에 커밋 목록을 붙여 Sentry가 용의 커밋을 찾게 한다.
+      release: { setCommits: { auto: true } },
     }),
   ],
   resolve: {

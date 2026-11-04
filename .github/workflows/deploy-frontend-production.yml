@@ -60,6 +60,9 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # 커밋 연결에 전체 커밋 기록이 필요하다.
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
