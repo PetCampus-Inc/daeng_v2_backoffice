@@ -24,6 +24,10 @@ export default defineConfig({
       sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] },
       // 배포 때 릴리스에 커밋 목록을 붙여 Sentry가 용의 커밋을 찾게 한다.
       release: { setCommits: { auto: true } },
+      // 업로드·릴리스 생성이 실패하면 빌드도 실패시켜 배포 알림으로 알 수 있게 한다.
+      errorHandler: (error) => {
+        throw error;
+      },
     }),
   ],
   resolve: {
