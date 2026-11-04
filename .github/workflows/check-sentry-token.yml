@@ -1,0 +1,46 @@
+name: Check Sentry Token
+
+# 배포 때만 알 수 있던 Sentry 토큰 문제(Revoke·권한 변경·만료)를 미리 알기 위한 주 1회 점검이다.
+# 실패하면 GitHub Actions 실패 알림이 간다.
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check-sentry-token:
+    name: Check Sentry auth token
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+    steps:
+      - name: Verify token against Sentry API
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for variable_name in SENTRY_ORG SENTRY_AUTH_TOKEN; do
+            if [[ -z "${!variable_name}" ]]; then
+              echo "::error::GitHub Actions variable or secret ${variable_name} is required."
+              exit 1
+            fi
+          done
+
+          status_code="$(
+            curl --silent --output /dev/null --write-out '%{http_code}' \
+              --retry 3 --retry-delay 5 \
+              --header "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+              "https://sentry.io/api/0/organizations/${SENTRY_ORG}/"
+          )"
+
+          if [[ "${status_code}" != "200" ]]; then
+            echo "::error::Sentry 토큰 점검 실패(HTTP ${status_code}). 토큰이 Revoke됐거나 만료됐거나 권한이 바뀌었는지 Sentry Organization Tokens에서 확인하고 SENTRY_AUTH_TOKEN을 바꾼다."
+            exit 1
+          fi
+
+          echo "Sentry token is valid."
