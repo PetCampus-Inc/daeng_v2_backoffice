@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuthStore } from '@/store/auth';
@@ -18,11 +17,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
-import { noticesQueryOptions } from './api/notices/index';
+import { noticeListQueryOptions, toNoticeListRequest, toNoticeSummary } from './api/notice-query';
+import { useListNotices } from './api/use-notices';
 import { NoticeActions } from './ui/notice-actions';
 import { NoticeStatusBadge } from './ui/notice-status-badge';
 import { NOTICE_STATUS_LABELS, NOTICE_STATUSES, type NoticeListParams } from './type/notice-ui';
 import { useNoticeListSearchParams } from './util/list-search-params';
+import { NOTICE_KEYWORD_MAX_LENGTH } from './util/notice-policy';
 
 /** 앱 공지 목록. 검색·필터·페이지를 주소에 보존한다. */
 export default function NoticesRoute() {
@@ -31,10 +32,11 @@ export default function NoticesRoute() {
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { listParams, page, listSearch, setSearchParams } = useNoticeListSearchParams();
-  const noticesQuery = useQuery(noticesQueryOptions(currentEmail, listParams, page - 1));
-  const notices = noticesQuery.data?.items ?? [];
+  const request = toNoticeListRequest(listParams, page);
+  const noticesQuery = useListNotices(request, { query: noticeListQueryOptions(currentEmail, request) });
+  const notices = (noticesQuery.data?.items ?? []).map(toNoticeSummary);
   const totalPages = noticesQuery.data?.totalPages ?? 0;
-  const hasCondition = listParams.keyword !== '' || listParams.status !== 'all';
+  const hasCondition = listParams.keyword.trim() !== '' || listParams.status !== 'all';
   const isListShown = noticesQuery.isSuccess;
 
   /** 검색·필터를 바꾸면 1페이지로 간다(PRD 4.4). */
@@ -75,6 +77,7 @@ export default function NoticesRoute() {
             type='search'
             aria-label='검색'
             placeholder='제목 검색'
+            maxLength={NOTICE_KEYWORD_MAX_LENGTH}
             className='w-72 max-[767px]:w-full'
             value={listParams.keyword}
             onChange={(event) => handleChangeCondition({ keyword: event.target.value })}
@@ -104,7 +107,7 @@ export default function NoticesRoute() {
           )}
           {isListShown && (
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              {noticesQuery.isPlaceholderData ? '조회 중…' : `총 ${noticesQuery.data.totalElements}건`}
+              {noticesQuery.isPlaceholderData ? '조회 중…' : `총 ${noticesQuery.data.totalItems}건`}
             </p>
           )}
         </div>

@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { Forbidden } from '@/routes/app/ui/forbidden';
@@ -9,13 +7,15 @@ import { Card, CardContent } from '@/ui/atoms/card';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
-import { noticeQueryOptions } from '../api/notices/index';
+import { noticeDetailQueryOptions, toNotice } from '../api/notice-query';
+import { useGetNotice } from '../api/use-notices';
 import { RichContentView } from '@/ui/organisms/rich-content-editor';
 import { useNoticeListSearchParams } from '../util/list-search-params';
 import { NoticeActions } from '../ui/notice-actions';
 import { NoticeBreadcrumb } from '../ui/notice-breadcrumb';
 import { NoticeEditor, NoticePublished } from '../ui/notice-editor';
 import { NoticeStatusBadge } from '../ui/notice-status-badge';
+import { readNoticeError } from '../util/notice-error';
 
 function NoticeMissing() {
   return (
@@ -28,10 +28,15 @@ function NoticeMissing() {
   );
 }
 
+/**
+ * 공지 상세·수정. 주소의 번호가 숫자만이 아니거나(`1e3`, `0x10`, 앞 공백 등) 0이거나 안전한 정수 범위를 넘으면
+ * 서버가 400으로 거절하므로 요청 없이 없는 공지로 본다.
+ */
 export default function NoticeDetailRoute({ edit = false }: { edit?: boolean }) {
   const { noticeId = '' } = useParams();
-  if (!/^\d+$/.test(noticeId) || !Number.isSafeInteger(Number(noticeId))) return <NoticeMissing />;
-  return <NoticeDetailContent key={`${noticeId}:${edit}`} id={Number(noticeId)} edit={edit} />;
+  const id = Number(noticeId);
+  if (!/^\d+$/.test(noticeId) || !Number.isSafeInteger(id) || id < 1) return <NoticeMissing />;
+  return <NoticeDetailContent key={`${noticeId}:${edit}`} id={id} edit={edit} />;
 }
 
 export function NoticeEditRoute() {
@@ -40,7 +45,7 @@ export function NoticeEditRoute() {
 
 function NoticeDetailContent({ id, edit }: { id: number; edit: boolean }) {
   const user = useAuthStore((state) => state.user);
-  const query = useQuery(noticeQueryOptions(user?.email ?? '', id));
+  const query = useGetNotice(id, { query: noticeDetailQueryOptions(user?.email ?? '', id) });
   const { listSearch } = useNoticeListSearchParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,7 +65,7 @@ function NoticeDetailContent({ id, edit }: { id: number; edit: boolean }) {
     );
   }
   if (query.isError) {
-    return axios.isAxiosError(query.error) && query.error.response?.status === 404 ? (
+    return readNoticeError(query.error).status === 404 ? (
       <NoticeMissing />
     ) : (
       <Card>
@@ -68,7 +73,7 @@ function NoticeDetailContent({ id, edit }: { id: number; edit: boolean }) {
       </Card>
     );
   }
-  const notice = query.data;
+  const notice = toNotice(query.data);
   const detailPath = { pathname: `${PAGES.notices.path}/${id}`, search: listSearch };
   // 완료 화면은 현재 탐색 동안만 보여 준다. 새로고침은 읽기 화면으로 시작한다.
   if (isPublished) return <NoticePublished notice={notice} onView={() => setIsPublished(false)} />;
@@ -96,7 +101,9 @@ function NoticeDetailContent({ id, edit }: { id: number; edit: boolean }) {
             <Button variant={notice.status === 'unpublished' ? 'outline' : 'default'} asChild>
               <Link to={{ pathname: `${PAGES.notices.path}/${id}/edit`, search: listSearch }}>수정</Link>
             </Button>
-            {notice.status === 'unpublished' && <NoticeActions notice={notice} showRepublish />}
+            {notice.status === 'unpublished' && (
+              <NoticeActions notice={notice} version={notice.version} showRepublish />
+            )}
           </div>
         )}
       </div>

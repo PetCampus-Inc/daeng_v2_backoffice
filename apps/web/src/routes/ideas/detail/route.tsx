@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
 import { useEffect, useRef } from 'react';
 import { Link, useParams } from 'react-router';
@@ -14,8 +13,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
+import { getDisplayUserName } from '@/util/display-user-name';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
-import { ideaQueryOptions } from '../api/ideas/index';
+import { ideaDetailQueryOptions, toIdea } from '../api/idea-query';
+import { useGetIdea } from '../api/use-ideas';
 import { IDEA_USER_TYPE_LABELS } from '../type/idea-ui';
 import { useIdeaListSearchParams } from '../util/list-search-params';
 
@@ -32,14 +33,16 @@ function IdeaNotFound() {
 
 export default function IdeaDetailRoute() {
   const { ideaId = '' } = useParams();
-  if (!/^\d+$/.test(ideaId) || !Number.isSafeInteger(Number(ideaId))) return <IdeaNotFound />;
-  return <IdeaDetailContent id={Number(ideaId)} />;
+  const id = Number(ideaId);
+  // 서버는 1 이상의 정수만 받는다(0은 404가 아니라 400). 그 밖의 주소는 요청 없이 '찾을 수 없음'을 보여 준다.
+  if (!/^\d+$/.test(ideaId) || !Number.isSafeInteger(id) || id < 1) return <IdeaNotFound />;
+  return <IdeaDetailContent id={id} />;
 }
 
 function IdeaDetailContent({ id }: { id: number }) {
   const email = useAuthStore((state) => state.user?.email) ?? '';
   const { listSearch } = useIdeaListSearchParams();
-  const query = useQuery(ideaQueryOptions(email, id));
+  const query = useGetIdea(id, { query: ideaDetailQueryOptions(email, id) });
   const headingRef = useRef<HTMLHeadingElement>(null);
   const shouldFocusAfterRetryRef = useRef(false);
   useEffect(() => {
@@ -75,7 +78,7 @@ function IdeaDetailContent({ id }: { id: number }) {
       </>
     );
   }
-  const idea = query.data;
+  const idea = toIdea(query.data);
   const title = `제안 #${idea.id}`;
   return (
     <>
@@ -113,8 +116,10 @@ function IdeaDetailContent({ id }: { id: number }) {
               <div className='flex flex-col gap-1'>
                 <dt className='text-kd-sub text-kd-foreground-muted'>사용자</dt>
                 <dd className='text-kd-body [overflow-wrap:anywhere]'>
-                  <span className='font-semibold'>{idea.user.name}</span>
-                  <span className='block text-kd-caption text-kd-foreground-muted'>{idea.user.email}</span>
+                  <span className='font-semibold'>{getDisplayUserName(idea.user.name)}</span>
+                  {idea.user.email && (
+                    <span className='block text-kd-caption text-kd-foreground-muted'>{idea.user.email}</span>
+                  )}
                 </dd>
               </div>
               <div className='flex flex-col gap-1'>

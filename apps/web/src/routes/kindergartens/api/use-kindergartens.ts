@@ -20,7 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type { ListServiceSchoolsParams, ServiceSchoolPage } from '@/routes/kindergartens/type';
-import type { UnauthorizedResponse } from '@/type';
+import type { UnauthorizedResponse, ValidationFailedResponse } from '@/type';
 
 import { customInstance } from '@/api/mutator';
 import type { ErrorType } from '@/api/mutator';
@@ -60,7 +60,7 @@ export const getListServiceSchoolsQueryKey = (params?: ListServiceSchoolsParams)
 
 export const getListServiceSchoolsQueryOptions = <
   TData = Awaited<ReturnType<typeof listServiceSchools>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceSchoolsParams,
   options?: {
@@ -83,11 +83,11 @@ export const getListServiceSchoolsQueryOptions = <
 };
 
 export type ListServiceSchoolsQueryResult = NonNullable<Awaited<ReturnType<typeof listServiceSchools>>>;
-export type ListServiceSchoolsQueryError = ErrorType<UnauthorizedResponse>;
+export type ListServiceSchoolsQueryError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>;
 
 export function useListServiceSchools<
   TData = Awaited<ReturnType<typeof listServiceSchools>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params: undefined | ListServiceSchoolsParams,
   options: {
@@ -106,7 +106,7 @@ export function useListServiceSchools<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListServiceSchools<
   TData = Awaited<ReturnType<typeof listServiceSchools>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceSchoolsParams,
   options?: {
@@ -125,7 +125,7 @@ export function useListServiceSchools<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListServiceSchools<
   TData = Awaited<ReturnType<typeof listServiceSchools>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceSchoolsParams,
   options?: {
@@ -140,7 +140,7 @@ export function useListServiceSchools<
 
 export function useListServiceSchools<
   TData = Awaited<ReturnType<typeof listServiceSchools>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceSchoolsParams,
   options?: {

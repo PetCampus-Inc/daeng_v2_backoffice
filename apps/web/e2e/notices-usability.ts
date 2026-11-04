@@ -254,17 +254,21 @@ test('S-공지-065/066 미방문 페이지의 위치·스크롤·키보드 복�
     await openList(page);
     await page.evaluate(() =>
       localStorage.setItem(
-        'daeng-bo-mock-notices',
+        'daeng-bo-mock-notices-v2',
         JSON.stringify(
           Array.from({ length: 25 }, (_, index) => ({
             id: 101 + index,
-            status: 'published',
+            status: 'PUBLISHED',
             title: `공지 ${String(index + 1).padStart(2, '0')}`,
-            body: { schemaVersion: 1, blocks: [{ type: 'paragraph', children: [{ text: '페이지 검증 본문' }] }] },
+            body: JSON.stringify({
+              schemaVersion: 1,
+              blocks: [{ type: 'paragraph', children: [{ text: '페이지 검증 본문' }] }],
+            }),
+            images: [],
             createdAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
             publishedAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
             updatedAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
-            revision: 1,
+            version: 1,
           }))
         )
       )
@@ -488,8 +492,6 @@ test('S-공지-070 조회자 읽기·작성 주소·변경 API 권한', () =>
           (
             await fetch('/api/v0/admin/notices/14', {
               method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ revision: 1 }),
             })
           ).status
       );
@@ -529,7 +531,7 @@ test('S-공지-069/070 초안 삭제 취소·409/404 입력 보존·이탈', () 
             return new Response(
               JSON.stringify({
                 status,
-                code: status === 409 ? 'NOTICE_CONFLICT' : 'NOTICE_NOT_FOUND',
+                code: status === 409 ? 'NOTICE_VERSION_CONFLICT' : 'NOTICE_NOT_FOUND',
                 message: '검증용 오류',
                 errorMessage: '검증용 오류',
               }),

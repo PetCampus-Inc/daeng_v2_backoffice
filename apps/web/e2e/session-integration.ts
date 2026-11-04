@@ -65,7 +65,7 @@ test('세션 없는 요청은 개발용 관리자 헤더로 우회하지 못한�
   scenario('guest-api', async (page) => {
     await page.goto(`${BASE}/history`);
     await loginButton(page).waitFor();
-    for (const url of ['/terms/service', '/members', '/change-histories'] as const) {
+    for (const url of ['/terms/SERVICE_TERMS/versions', '/service-admin/members', '/change-logs'] as const) {
       assert.equal((await request(page, 'GET', url)).status, 401);
     }
   }));
@@ -95,7 +95,7 @@ test('변경 이력 필터의 지연 전환과 주소를 보존한다', async ()
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__historyQA = { fail: false, delay: 1200 };
       network.use(
-        http.get('/api/v0/admin/change-histories', async () => {
+        http.get('/api/v0/admin/change-logs', async () => {
           await new Promise((resolve) => setTimeout(resolve, window.__historyQA.delay));
           if (window.__historyQA.fail) {
             return new Response(JSON.stringify({ status: 500, code: 'QA_ERROR', message: '조회 실패' }), {
@@ -140,7 +140,7 @@ test('변경 이력 조회 실패 후 다시 시도한다', async () =>
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__recover = false;
       network.use(
-        http.get('/api/v0/admin/change-histories', () => {
+        http.get('/api/v0/admin/change-logs', () => {
           if (!window.__recover) {
             return new Response(JSON.stringify({ status: 500, code: 'QA_ERROR', message: '조회 실패' }), {
               status: 500,
@@ -165,12 +165,13 @@ test('운영자 세션은 관리자 헤더가 있어도 변경 API를 거부한�
     await loginButton(page).waitFor();
     await login(page, '운영자');
     await page.getByRole('heading', { name: '이용약관', exact: true }).waitFor();
-    assert.equal((await request(page, 'GET', '/change-histories')).status, 403);
+    assert.equal((await request(page, 'GET', '/change-logs')).status, 403);
     assert.equal(
-      (await request(page, 'POST', '/terms/service', { action: 'save', body: 'x', effectiveDate: '' })).status,
+      (await request(page, 'POST', '/terms/SERVICE_TERMS/versions', { content: 'x', effectiveDate: '2026-11-10' }))
+        .status,
       403
     );
-    assert.equal((await request(page, 'GET', '/members')).status, 200);
+    assert.equal((await request(page, 'GET', '/service-admin/members')).status, 200);
   }));
 
 test('운영자 세션은 변경 이력 화면 접근을 거부한다', async () =>
@@ -190,6 +191,7 @@ test('약관 작성 중 세션 만료는 이탈 확인 없이 로그인으로 �
     const body = page.getByLabel('본문 *', { exact: true });
     await body.waitFor();
     await body.fill('세션 만료 시 폐기할 초안');
+    await page.getByLabel('시행일 *', { exact: true }).fill('2026. 11. 10.');
     await page.evaluate(() => {
       const key = 'daeng-bo-mock-session';
       const session = JSON.parse(localStorage.getItem(key)!);

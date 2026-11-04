@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query';
 import { formatDocumentTitle } from '@/util/page-config';
-import { overviewQueryOptions } from '@/api/overview';
+import { fillSignupTrend } from '@/util/signup-trend';
+import { useGetServiceOverview } from './api/use-home';
+import type { ServiceOverview } from './type';
 import type { LoadState } from './type/load-state';
 import { ReadOnlyDbBadge } from '@/ui/molecules/read-only-db-badge';
 import { RecentVerificationsCard } from './ui/recent-verifications-card';
@@ -10,9 +11,22 @@ import { VerificationFlowCard } from './ui/verification-flow-card';
 
 const PAGE_TITLE = '서비스 대시보드';
 
-/** 홈(서비스 대시보드). 기존 service-admin.html 대시보드를 옮겼다(10-홈.md). */
+/**
+ * 받은 응답의 가입 추이를 받은 시각(KST) 기준 30일로 채운다(S-홈-006).
+ * 모듈 함수로 두어 응답이 바뀔 때만 다시 계산된다.
+ */
+const selectHomeOverview = (overview: ServiceOverview): ServiceOverview => ({
+  ...overview,
+  signupTrend: fillSignupTrend(overview?.signupTrend, new Date()),
+});
+
+/**
+ * 홈(서비스 대시보드). 기존 service-admin.html 대시보드를 옮겼다(10-홈.md).
+ * 홈은 이 요청 하나만 보내고, 실패하면 홈 전체가 실패로 보인다(S-홈-012·013).
+ * 사이드바 '원장 인증 현황' 배지도 같은 요청(같은 조회 키)을 함께 쓴다(S-인증-012).
+ */
 export default function HomeRoute() {
-  const overviewQuery = useQuery(overviewQueryOptions());
+  const overviewQuery = useGetServiceOverview(undefined, { query: { select: selectHomeOverview } });
   const overview = overviewQuery.data;
   const state: LoadState = overviewQuery.isPending ? 'loading' : overviewQuery.isError ? 'error' : 'success';
 

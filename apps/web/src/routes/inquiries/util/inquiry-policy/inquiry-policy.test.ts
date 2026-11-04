@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { InquiryStatus } from '../../type/inquiry';
+import type { InquiryStatus } from '../../type/inquiry-ui';
 import {
   checkAssignRequest,
   getAssignAction,
@@ -9,11 +9,11 @@ import {
   type InquiryEvent,
 } from '.';
 
-const ME = 'me@example.com';
-const OTHER_A = 'a@example.com';
-const OTHER_B = 'b@example.com';
+const ME = 2;
+const OTHER_A = 3;
+const OTHER_B = 5;
 
-type Row = [string, InquiryStatus, string | null, InquiryEvent, InquiryStatus | null, string | null];
+type Row = [string, InquiryStatus, number | null, InquiryEvent, InquiryStatus | null, number | null];
 
 // R-문의상태 표. 담당자 변경은 다른 팀원 담당 문의를 맡는 것(assign)이다. 다음 상태 null = 해결 완료(거부).
 const TRANSITION_ROWS: Row[] = [
@@ -41,10 +41,10 @@ const TRANSITION_ROWS: Row[] = [
 ];
 
 describe('R-문의상태 문의 상태 전환', () => {
-  it.each(TRANSITION_ROWS)('R-문의상태-%s', (_id, status, assigneeEmail, event, nextStatus, nextAssignee) => {
-    const next = transitionInquiry({ status, assigneeEmail }, event, ME);
+  it.each(TRANSITION_ROWS)('R-문의상태-%s', (_id, status, assigneeId, event, nextStatus, nextAssignee) => {
+    const next = transitionInquiry({ status, assigneeId }, event, ME);
     if (nextStatus === null) expect(next).toBeNull();
-    else expect(next).toEqual({ status: nextStatus, assigneeEmail: nextAssignee });
+    else expect(next).toEqual({ status: nextStatus, assigneeId: nextAssignee });
   });
 });
 
@@ -63,9 +63,9 @@ describe('R-문의상세경우 상세 머리·답변 영역', () => {
 
 describe('R-맡기 내가 맡기 처리', () => {
   /** 화면에서 본 담당자로 판단하고, 서버가 거부하면 실제 담당자로 다시 판단한다. */
-  const resolveAssign = (seen: string | null, actual: string | null) => {
+  const resolveAssign = (seen: number | null, actual: number | null) => {
     const firstAction = getAssignAction(seen, ME);
-    const result = checkAssignRequest({ status: 'checking', assigneeEmail: actual }, seen);
+    const result = checkAssignRequest({ status: 'checking', assigneeId: actual }, seen);
     return { firstAction, result, retryAction: result === 'conflict' ? getAssignAction(actual, ME) : null };
   };
 
@@ -92,7 +92,7 @@ describe('R-맡기 내가 맡기 처리', () => {
       retryAction: 'assign',
     }));
   it('해결 완료 문의는 맡기를 거부한다(FR-BO-059)', () =>
-    expect(checkAssignRequest({ status: 'resolved', assigneeEmail: null }, null)).toBe('resolved'));
+    expect(checkAssignRequest({ status: 'resolved', assigneeId: null }, null)).toBe('resolved'));
 });
 
 describe('R-담당해제 담당 해제 처리', () => {
@@ -100,10 +100,10 @@ describe('R-담당해제 담당 해제 처리', () => {
   it('R-담당해제-02 쓰던 답변이 있으면 확인창', () => expect(needsReleaseConfirm('확인해 보겠습니다')).toBe(true));
   it('R-담당해제-03 공백만 입력해도 확인창', () => expect(needsReleaseConfirm('   ')).toBe(true));
   it('R-담당해제-04 실행 취소 전 아무도 맡지 않았으면 다시 내 담당', () =>
-    expect(transitionInquiry({ status: 'checking', assigneeEmail: null }, 'restore', ME)).toEqual({
+    expect(transitionInquiry({ status: 'checking', assigneeId: null }, 'restore', ME)).toEqual({
       status: 'checking',
-      assigneeEmail: ME,
+      assigneeId: ME,
     }));
   it('R-담당해제-05 실행 취소 전 다른 사람이 맡았으면 실패', () =>
-    expect(transitionInquiry({ status: 'checking', assigneeEmail: OTHER_A }, 'restore', ME)).toBeNull());
+    expect(transitionInquiry({ status: 'checking', assigneeId: OTHER_A }, 'restore', ME)).toBeNull());
 });

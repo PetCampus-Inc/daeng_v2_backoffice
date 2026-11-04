@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/ui/atoms/chart';
 import { ListState } from '@/ui/molecules/list-state';
 import type { LoadState } from '../type/load-state';
-import type { SignupTrendItem } from '@/type/overview';
+import type { ServiceSignupTrendPoint } from '../type';
 import { formatDate } from '@/util/date-format';
 import { Skeleton } from './skeleton';
 
@@ -20,9 +20,15 @@ const formatAxisDate = (value: string) => value.slice(5);
 
 /**
  * 신규 가입 추이 카드. 오늘 포함 30일 일별 가입 수 선 그래프, 가로축 글자는 첫날·가운데·마지막 3개.
- * `trend`는 조회 때 30일로 채운 값(api/overview.ts)이다.
+ * `trend`는 조회 때 30일로 채운 값(route.tsx)이다.
  */
-export function SignupTrendCard({ trend = [], state }: { trend: SignupTrendItem[] | undefined; state: LoadState }) {
+export function SignupTrendCard({
+  trend = [],
+  state,
+}: {
+  trend: ServiceSignupTrendPoint[] | undefined;
+  state: LoadState;
+}) {
   const hasSignup = trend.some((item) => item.count > 0);
   const axisTicks =
     trend.length > 0 ? [trend[0], trend[Math.floor(trend.length / 2)], trend.at(-1)!].map((item) => item.date) : [];

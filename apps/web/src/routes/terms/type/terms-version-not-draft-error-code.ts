@@ -12,4 +12,5 @@ export type TermsVersionNotDraftErrorCode =
 
 export const TermsVersionNotDraftErrorCode = {
   TERMS_VERSION_NOT_DRAFT: 'TERMS_VERSION_NOT_DRAFT',
+  TERMS_VERSION_CONFLICT: 'TERMS_VERSION_CONFLICT',
 } as const;

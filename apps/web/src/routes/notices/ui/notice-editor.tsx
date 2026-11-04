@@ -1,6 +1,5 @@
-import axios from 'axios';
 import { useIsMutating } from '@tanstack/react-query';
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -22,11 +21,16 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/ui/atoms/alert-dialog';
-import { formatDate } from '@/util/date-format';
+import { formatDate, formatTime } from '@/util/date-format';
+import { useAutoSave } from '@/util/use-auto-save';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
-import { useChangeNotice } from '../api/notices/index';
-import type { Notice } from '../type/notice-ui';
-import { createNoticeBody, validateNotice } from '../util/notice-policy';
+import { getNoticeChangeMutationKey, toNotice, useNoticeChangeOptions } from '../api/notice-query';
+import { useCreateNotice, usePublishNotice, useUpdateNotice } from '../api/use-notices';
+import type { Notice as ServerNotice } from '../type';
+import type { Notice, NoticeInput } from '../type/notice-ui';
+import { toNoticeBodyRequest } from '../util/notice-body';
+import { getNoticeErrorGuide, readNoticeError } from '../util/notice-error';
+import { createNoticeBody, getNoticeText, validateNotice } from '../util/notice-policy';
 import { useNoticeListSearchParams } from '../util/list-search-params';
 import { NoticeActions } from './notice-actions';
 import { NoticeBreadcrumb } from './notice-breadcrumb';
@@ -34,8 +38,14 @@ import { NoticeStatusBadge } from './notice-status-badge';
 
 export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPublished: (notice: Notice) => void }) {
   const email = useAuthStore((state) => state.user?.email) ?? '';
-  const mutation = useChangeNotice(email);
-  const isPending = useIsMutating({ mutationKey: ['notices', email, 'change'] }) > 0;
+  const changeOptions = useNoticeChangeOptions(email);
+  const createMutation = useCreateNotice(changeOptions);
+  const updateMutation = useUpdateNotice(changeOptions);
+  const publishMutation = usePublishNotice(changeOptions);
+  // 저장과 게시는 이어서 부르므로, 두 요청 사이에도 처리 중으로 본다.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isMutating = useIsMutating({ mutationKey: getNoticeChangeMutationKey(email) }) > 0;
+  const isPending = isSubmitting || isMutating;
   const navigate = useNavigate();
   const { listSearch } = useNoticeListSearchParams();
   const [savedNotice, setSavedNotice] = useState(notice);
@@ -62,53 +72,118 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
     action();
   };
 
+  /** 저장 응답을 화면 상태로 바꾼다. 방금 저장한 제목·본문을 기준으로 삼아, 저장 직후에는 변경 없음으로 본다. */
+  const toSavedNotice = (response: ServerNotice, saved: NoticeInput): Notice => ({
+    ...toNotice(response),
+    title: saved.title,
+    body: saved.body,
+  });
+
+  /** 초안이 없으면 새로 만들고, 있으면 그 공지를 저장한다(서버 저장은 상태를 바꾸지 않는다). */
+  const saveNotice = async (target: Notice | undefined) => {
+    const data = { title: input.title, body: toNoticeBodyRequest(input.body) };
+    const response = target
+      ? await updateMutation.mutateAsync({ id: target.id, data: { ...data, version: target.version } })
+      : await createMutation.mutateAsync({ data });
+    return toSavedNotice(response, input);
+  };
+
+  /**
+   * 저장하거나 게시한다. 게시는 저장(바뀐 내용이 있거나 아직 저장 전일 때) → 게시를 이어서 부른다.
+   * 저장은 됐는데 게시만 실패하면 저장된 초안(새 번호·version)을 화면 상태로 삼아, 다시 눌러도 새 초안을 만들지 않는다.
+   */
   const handleSave = async (action: 'save' | 'publish') => {
     if (isBusy.current || !validation.canSave || (action === 'publish' && !validation.canPublish)) return;
     isBusy.current = true;
+    setIsSubmitting(true);
     setSaveError(null);
+    let target = savedNotice;
+    let isSavedNow = false;
     try {
-      const updated = await mutation.mutateAsync({
-        id: savedNotice?.id,
-        revision: savedNotice?.revision,
-        action,
-        input,
-      });
-      if (!updated) return;
-      flushSync(() => setSavedNotice(updated));
-      setIsPublishOpen(false);
-      if (action === 'publish') leaveAfterSuccess(() => onPublished(updated));
-      else if (isDraft) {
+      if (action === 'save' || !target || hasChanged) {
+        target = await saveNotice(target);
+        isSavedNow = true;
+        flushSync(() => setSavedNotice(target));
+      }
+      if (action === 'publish') {
+        try {
+          const response = await publishMutation.mutateAsync({ id: target!.id, data: { version: target!.version } });
+          const published = toSavedNotice(response, input);
+          flushSync(() => setSavedNotice(published));
+          setIsPublishOpen(false);
+          leaveAfterSuccess(() => onPublished(published));
+        } catch (error) {
+          if (!isSavedNow) throw error;
+          setIsPublishOpen(false);
+          toast.error('임시저장은 됐지만 게시하지 못했어요. 다시 게시해 주세요.');
+        }
+        return;
+      }
+      if (isDraft) {
         toast.success('초안을 저장했습니다.');
         if (!savedNotice) {
           leaveAfterSuccess(
             () =>
-              void navigate({ pathname: `${PAGES.notices.path}/${updated.id}`, search: listSearch }, { replace: true })
+              void navigate({ pathname: `${PAGES.notices.path}/${target!.id}`, search: listSearch }, { replace: true })
           );
         }
       } else {
         toast.success('변경 내용을 저장했습니다.');
         leaveAfterSuccess(
           () =>
-            void navigate({ pathname: `${PAGES.notices.path}/${updated.id}`, search: listSearch }, { replace: true })
+            void navigate({ pathname: `${PAGES.notices.path}/${target!.id}`, search: listSearch }, { replace: true })
         );
       }
     } catch (error) {
       setIsPublishOpen(false);
-      const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-      if (status === 409 || status === 404) {
+      const { status, code } = readNoticeError(error);
+      const guide = getNoticeErrorGuide(status, code);
+      if (guide) {
         setSaveError({
           title: action === 'publish' ? '공지를 게시하지 못했습니다.' : '저장하지 못했습니다.',
-          description:
-            status === 404
-              ? '다른 팀원이 삭제한 초안입니다. 입력한 내용이 필요하면 복사해 둔 뒤 목록으로 이동해 주세요.'
-              : '다른 팀원이 먼저 저장한 내용이 있습니다. 입력한 내용을 복사해 둔 뒤 새로고침해 최신 내용을 불러와 주세요.',
-          isMissing: status === 404,
+          description: guide.description,
+          isMissing: guide.isMissing,
         });
       } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
     } finally {
       isBusy.current = false;
+      setIsSubmitting(false);
     }
   };
+
+  /**
+   * 작성 중 자동 임시저장. 기존 저장 함수(`saveNotice`)를 그대로 쓰되 토스트·이동·오류 박스는 쓰지 않는다.
+   * 처음 한 번만 만들고 이후에는 받은 번호·version으로 같은 초안을 저장한다.
+   */
+  const autoSaveNotice = async () => {
+    if (isBusy.current) return;
+    isBusy.current = true;
+    try {
+      const saved = await saveNotice(savedNotice);
+      flushSync(() => setSavedNotice(saved));
+    } finally {
+      isBusy.current = false;
+    }
+  };
+  const contentKey = useMemo(() => ({ title, body }), [title, body]);
+  const autoSave = useAutoSave({
+    // 게시된 글·게시 해제된 글은 저장이 앱에 바로 반영되므로 새 글과 초안 수정에서만 쓴다.
+    enabled: isDraft && !isDiscarded,
+    hasChanged,
+    canSave:
+      validation.canSave &&
+      (title.trim().length > 0 || getNoticeText(body).trim().length > 0) &&
+      !isSubmitting &&
+      !isMutating &&
+      !isPublishOpen,
+    contentKey,
+    save: autoSaveNotice,
+    isPermanentError: (error) => {
+      const { status, code } = readNoticeError(error);
+      return !!getNoticeErrorGuide(status, code);
+    },
+  });
+  const isAutoSaving = autoSave.status === 'saving';
 
   const handleCancelEdit = () =>
     void navigate({ pathname: `${PAGES.notices.path}/${savedNotice!.id}`, search: listSearch });
@@ -137,6 +212,16 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
       <div className='flex flex-wrap items-center justify-between gap-3'>
         <h1 className='text-kd-title-1'>{pageTitle}</h1>
         <div className='flex flex-wrap gap-2'>
+          {autoSave.status === 'saved' && (
+            <span role='status' className='self-center text-kd-caption text-kd-foreground-muted'>
+              임시저장됨 {formatTime(autoSave.savedAt)}
+            </span>
+          )}
+          {autoSave.status === 'failed' && hasChanged && (
+            <span role='status' className='self-center text-kd-caption text-kd-error-foreground'>
+              임시저장하지 못했습니다.
+            </span>
+          )}
           {isDraft ? (
             <>
               {savedNotice && (
@@ -220,7 +305,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
         <NoticeStatusBadge status={savedNotice?.status ?? 'draft'} />
         <span>{savedNotice ? formatDate(savedNotice.updatedAt, true) : '저장 전'}</span>
         {hasChanged && <span className='text-kd-warning-foreground'>저장하지 않은 변경</span>}
-        {isPending && <span role='status'>처리 중…</span>}
+        {isPending && !isAutoSaving && <span role='status'>처리 중…</span>}
         <span className='ml-auto'>* {isDraft ? '게시할 때 필수' : '필수 입력'}</span>
       </div>
       <div
@@ -272,7 +357,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
                 aria-invalid={!!titleError}
                 aria-describedby={titleError ? 'notice-title-error' : undefined}
                 onChange={(event) => setTitle(event.target.value)}
-                disabled={isPending}
+                disabled={isPending && !isAutoSaving}
               />
               {titleError && (
                 <p id='notice-title-error' className='text-kd-caption text-kd-error-foreground'>
@@ -296,7 +381,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
                 aria-invalid={!!bodyError}
                 aria-describedby={bodyError ? 'notice-body-error' : undefined}
                 onChange={setBody}
-                readOnly={isPending}
+                readOnly={isPending && !isAutoSaving}
               />
               {bodyError && (
                 <p id='notice-body-error' className='text-kd-caption text-kd-error-foreground'>

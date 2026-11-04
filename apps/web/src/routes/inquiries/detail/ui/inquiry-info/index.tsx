@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Card, CardContent } from '@/ui/atoms/card';
 import { formatDate } from '@/util/date-format';
-import { INQUIRY_USER_TYPE_LABELS, type InquiryDetail } from '../../../type/inquiry';
+import { getDisplayUserName } from '@/util/display-user-name';
+import { INQUIRY_USER_TYPE_LABELS, type InquiryDetail } from '../../../type/inquiry-ui';
 
 /** 정보 칸 하나. 이름은 보조 회색, 값은 본문. */
 function InfoRow({ label, children }: { label: string; children: ReactNode }) {
@@ -23,8 +24,10 @@ export function InquiryInfo({ inquiry }: { inquiry: InquiryDetail }) {
             <span className='tabular-nums'>#{inquiry.id}</span>
           </InfoRow>
           <InfoRow label='사용자'>
-            <span className='font-semibold'>{inquiry.user.name}</span>
-            <span className='block text-kd-caption text-kd-foreground-muted'>{inquiry.user.email}</span>
+            <span className='font-semibold'>{getDisplayUserName(inquiry.user.name)}</span>
+            {inquiry.user.email && (
+              <span className='block text-kd-caption text-kd-foreground-muted'>{inquiry.user.email}</span>
+            )}
           </InfoRow>
           <InfoRow label='사용자 유형'>{INQUIRY_USER_TYPE_LABELS[inquiry.user.type]}</InfoRow>
           <InfoRow label='접수'>

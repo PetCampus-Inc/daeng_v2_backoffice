@@ -5,4 +5,6 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   /** Sentry 프로젝트의 DSN. 배포 build에서만 쓰며, 비어 있으면 Sentry를 켜지 않는다. */
   readonly VITE_SENTRY_DSN?: string;
+  /** 관리자 API 주소(예: `https://bo.knockdog.net/api/v0/admin`). 비어 있으면 화면이 열린 주소와 같은 곳으로 요청한다. */
+  readonly VITE_API_BASE_URL?: string;
 }

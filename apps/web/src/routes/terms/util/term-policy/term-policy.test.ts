@@ -1,8 +1,10 @@
 import { createRichContent, getRichText } from '@/util/rich-content';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TERMS } from '@/api/mocks/handlers/terms';
+import { createDefaultTerms } from '@/api/mocks/handlers/terms';
+import { toTermResponse } from '@/api/mocks/util/term-list';
+import { toTerm } from '../../api/term-query';
+import type { Term } from '../../type/term-ui';
 import {
-  compareTerms,
   displayTermDate,
   fillTermDates,
   getInitialTermBody,
@@ -11,6 +13,9 @@ import {
   validateEffectiveDate,
 } from './index';
 const NOW = new Date('2026-10-07T10:00:00+09:00');
+/** fixtures.md `약관-기본`을 화면이 받는 값으로 바꾼다. 서비스 이용약관은 #1~#4, 개인정보 처리방침은 #5~#6이다. */
+const MOCK_TERMS = createDefaultTerms();
+const DEFAULT_TERMS: Term[] = MOCK_TERMS.map((item) => toTerm(toTermResponse(item, MOCK_TERMS, NOW)));
 const SERVICE = DEFAULT_TERMS.filter((item) => item.kind === 'service');
 const PRIVACY = DEFAULT_TERMS.filter((item) => item.kind === 'privacy');
 
@@ -79,14 +84,14 @@ describe('R-약관판정·정렬·처음본문·자리표시자·날짜채움', 
   ])('KST %s 공개 상태', (now, expected) =>
     expect(SERVICE.map((item) => getTermStatus(item, SERVICE, new Date(now)))).toEqual(expected)
   );
-  it('기본 정렬과 철회 배제를 적용한다', () => {
-    expect([...SERVICE].sort(compareTerms).map((item) => item.version)).toEqual([4, 3, 2, 1]);
-    expect([...PRIVACY].sort(compareTerms).map((item) => item.version)).toEqual([2, 1]);
+  it('철회 배제를 적용한다', () => {
     expect(PRIVACY.map((item) => getTermStatus(item, PRIVACY, NOW))).toEqual(['현행', '철회']);
     expect(getRichText(getInitialTermBody(PRIVACY))).toContain('개인정보 처리방침 1판');
     expect(
       getRichText(
-        getInitialTermBody(SERVICE.map((item) => (item.version === 3 ? { ...item, status: 'withdrawn' } : item)))
+        getInitialTermBody(
+          SERVICE.map((item) => (item.version === 3 ? { ...item, status: 'withdrawn' as const } : item))
+        )
       )
     ).toContain('서비스 이용약관 2판');
     expect(getRichText(getInitialTermBody([]))).toContain('공고일자: {{공고일}}');

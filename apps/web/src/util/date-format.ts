@@ -21,3 +21,17 @@ export function formatDate(value: string | null | undefined, hasTime = false) {
   if (!date || Number.isNaN(date.getTime())) return '—';
   return (hasTime ? DATE_TIME_FORMAT : DATE_FORMAT).format(date);
 }
+
+const TIME_FORMAT = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+});
+
+/** 서버 시각의 KST 시각만 `오후 3:42`처럼 표시한다. 값이 없거나 읽을 수 없으면 '—'. */
+export function formatTime(value: string | null | undefined) {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '—';
+  return TIME_FORMAT.format(date);
+}

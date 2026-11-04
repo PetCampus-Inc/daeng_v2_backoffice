@@ -147,12 +147,12 @@ test('약관: 서식 보존·날짜 채움·공개 읽기·새 버전 복제', a
     await body.locator('strong').waitFor();
     await page.getByLabel('시행일 *', { exact: true }).fill('2026. 11. 10.');
     await page.getByRole('button', { name: '초안 저장', exact: true }).click();
-    await page.getByRole('heading', { name: '서비스 이용약관 버전 #5 초안 수정', exact: true }).waitFor();
+    await page.getByRole('heading', { name: '서비스 이용약관 버전 #7 초안 수정', exact: true }).waitFor();
     await body.locator('strong').waitFor();
     assert.equal(await page.getByRole('button', { name: '초안 저장', exact: true }).isDisabled(), true);
     await page.getByRole('button', { name: '공개하기', exact: true }).click();
     await confirm(page, '공개하기');
-    await page.getByRole('button', { name: '#5', exact: true }).click();
+    await page.getByRole('button', { name: '#7', exact: true }).click();
     await page.locator('main .slate-editor strong').waitFor();
     assert.equal(
       await page.locator('main .slate-editor strong').innerText(),

@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { Tabs } from 'radix-ui';
 import { useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -9,8 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle } from '@/util/page-config';
-import { termsQueryOptions } from './api/terms';
-import { TERM_KINDS, TERM_KIND_LABELS } from './type/term';
+import { termListQueryOptions, toServerTermKind } from './api/term-query';
+import { useListTermsVersions } from './api/use-terms';
+import { TERM_KINDS, TERM_KIND_LABELS } from './type/term-ui';
 import { displayTermDate, getTermStatus } from './util/term-policy';
 import { readTermKind, termPath } from './util/term-navigation';
 import { useTermClock } from './util/use-term-clock';
@@ -20,7 +20,7 @@ export default function TermsRoute() {
   const user = useAuthStore((state) => state.user);
   const [params, setParams] = useSearchParams();
   const kind = readTermKind(params.get('kind')) ?? 'service';
-  const query = useQuery(termsQueryOptions(user?.email ?? '', kind));
+  const query = useListTermsVersions(toServerTermKind(kind), { query: termListQueryOptions(user?.email ?? '', kind) });
   const navigate = useNavigate();
   const selectedTabRef = useRef<HTMLButtonElement>(null);
   const now = useTermClock(query.dataUpdatedAt);

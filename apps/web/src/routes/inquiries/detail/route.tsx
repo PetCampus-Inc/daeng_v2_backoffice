@@ -1,10 +1,9 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
-import type { ApiError } from '@/type/api';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,13 +32,21 @@ import { countCharacters, formatProfileName } from '@/util/profile';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import {
   inquiryAdjacentQueryOptions,
-  inquiryQueryOptions,
+  inquiryDetailQueryOptions,
+  toInquiryDetail,
+  toInquiryFilterRequest,
+  useInquiryChangeOptions,
+} from '../api/inquiry-query';
+import {
   useAssignInquiry,
-  useReleaseInquiry,
+  useGetAdjacentInquiries,
+  useGetInquiry,
+  useReleaseInquiryAssignee,
   useReplyInquiry,
   useRestoreInquiryAssignee,
-} from '../api/inquiries/index';
-import { INQUIRY_ERROR_CODES, type InquiryAssignee, type InquiryDetail } from '../type/inquiry';
+} from '../api/use-inquiries';
+import { InquiryConflictErrorCode, type InquiryAssignee } from '../type';
+import type { InquiryDetail } from '../type/inquiry-ui';
 import { InquiryAssigneeName } from '../ui/inquiry-assignee-name';
 import { InquiryStatusBadge } from '../ui/inquiry-status-badge';
 import { getAssignAction, getInquiryViewMode, needsReleaseConfirm } from '../util/inquiry-policy';
@@ -54,7 +61,7 @@ const RESOLVED_NOTICE = '해결 완료된 문의라 답변과 담당 변경을 �
 
 /** 서버가 준 거부 사유 코드를 읽는다. */
 const getInquiryErrorCode = (error: unknown) =>
-  axios.isAxiosError<ApiError>(error) ? error.response?.data?.code : undefined;
+  axios.isAxiosError<{ code?: string }>(error) ? error.response?.data?.code : undefined;
 
 /** 상세 대상 없음(PRD 4.5). 본문 자리에 '페이지를 찾을 수 없습니다.' + [목록으로]. */
 function InquiryNotFound() {
@@ -73,29 +80,35 @@ function ReplyNotice({ children }: { children: string }) {
   return <p className='rounded-kd-3 bg-kd-surface px-4 py-3 text-kd-body text-kd-foreground-muted'>{children}</p>;
 }
 
-/** 문의 상세(PRD 7.4). 주소의 번호가 숫자만이 아니면(`1e3`, `0x10`, 앞 공백 등) 없는 문의로 본다. */
+/**
+ * 문의 상세(PRD 7.4). 주소의 번호가 숫자만이 아니거나(`1e3`, `0x10`, 앞 공백 등) 0이거나 안전한 정수 범위를 넘으면
+ * 서버가 400으로 거절하므로 요청 없이 없는 문의로 본다.
+ */
 export default function InquiryDetailRoute() {
   const { inquiryId = '' } = useParams();
-  if (!/^\d+$/.test(inquiryId)) return <InquiryNotFound />;
+  const id = Number(inquiryId);
+  if (!/^\d+$/.test(inquiryId) || !Number.isSafeInteger(id) || id < 1) return <InquiryNotFound />;
   // 다른 문의로 옮기면 쓰던 답변·확인창 상태를 새로 시작한다.
-  return <InquiryDetailContent key={inquiryId} id={Number(inquiryId)} />;
+  return <InquiryDetailContent key={inquiryId} id={id} />;
 }
 
 /** 문의 한 건의 머리·대화·답변·정보. */
 function InquiryDetailContent({ id }: { id: number }) {
   const currentEmail = useAuthStore((state) => state.user?.email) ?? '';
+  const currentId = useAuthStore((state) => state.user?.id) ?? 0;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { listParams, listSearch } = useInquiryListSearchParams();
-  const inquiryQuery = useQuery(inquiryQueryOptions(currentEmail, id));
-  const adjacentQuery = useQuery({
-    ...inquiryAdjacentQueryOptions(currentEmail, id, listParams),
-    enabled: inquiryQuery.isSuccess,
+  const inquiryQuery = useGetInquiry(id, { query: inquiryDetailQueryOptions(currentEmail, id) });
+  const adjacentRequest = toInquiryFilterRequest(listParams);
+  const adjacentQuery = useGetAdjacentInquiries(id, adjacentRequest, {
+    query: { ...inquiryAdjacentQueryOptions(currentEmail, id, adjacentRequest), enabled: inquiryQuery.isSuccess },
   });
-  const assignMutation = useAssignInquiry(currentEmail);
-  const releaseMutation = useReleaseInquiry(currentEmail);
-  const restoreMutation = useRestoreInquiryAssignee(currentEmail);
-  const replyMutation = useReplyInquiry(currentEmail);
+  const changeOptions = useInquiryChangeOptions(currentEmail);
+  const assignMutation = useAssignInquiry(changeOptions);
+  const releaseMutation = useReleaseInquiryAssignee(changeOptions);
+  const restoreMutation = useRestoreInquiryAssignee(changeOptions);
+  const replyMutation = useReplyInquiry(changeOptions);
   const [draft, setDraft] = useState('');
   const actionButtonRef = useRef<HTMLButtonElement>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
@@ -138,28 +151,37 @@ function InquiryDetailContent({ id }: { id: number }) {
     await refetchInquiry();
   };
 
-  /** 화면에서 본 담당자를 보내 맡는다. 그 사이 바뀌었으면 최신 담당자로 다시 판단한다(FR-BO-054). */
-  const requestAssign = async (expectedAssigneeEmail: string | null): Promise<void> => {
+  /**
+   * 화면에서 본 담당자를 보내 맡는다. 그 사이 바뀌었으면 최신 담당자로 다시 판단한다(FR-BO-054).
+   * 서버가 담당자를 `null`로 내려주는데 실제로는 담당자가 있으면(표시명·직무가 비어 있는 경우) 같은 요청이 계속 거절되므로,
+   * 자동 재시도는 한 번만 한다. 재시도도 거절되면 오류 토스트를 띄우고 최신 상태를 다시 읽는다.
+   */
+  const requestAssign = async (expectedAssigneeId: number | null, isRetry = false): Promise<void> => {
     if (actionPendingRef.current) return;
     actionPendingRef.current = true;
     setIsRequestPending(true);
     try {
-      await assignMutation.mutateAsync({ id, expectedAssigneeEmail });
+      await assignMutation.mutateAsync({ id, data: { expectedAssigneeId } });
       setIsDraftLocked(false);
-      showSuccessToast(expectedAssigneeEmail ? '담당자를 변경했습니다.' : '문의를 맡았습니다.');
+      showSuccessToast(expectedAssigneeId !== null ? '담당자를 변경했습니다.' : '문의를 맡았습니다.');
     } catch (error) {
       const code = getInquiryErrorCode(error);
-      if (code === INQUIRY_ERROR_CODES.assigneeChanged) {
+      if (code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED) {
+        if (isRetry) {
+          showErrorToast('담당자가 변경되었습니다.');
+          await refetchInquiry();
+          return;
+        }
         const latest = await refetchInquiry();
         if (!latest) return;
-        const action = getAssignAction(latest.assignee?.email ?? null, currentEmail);
+        const action = getAssignAction(latest.assignee?.id ?? null, currentId);
         if (action === 'assign') {
           actionPendingRef.current = false;
-          await requestAssign(null);
+          await requestAssign(null, true);
         } else if (action === 'confirm') setConfirmAssignee(latest.assignee);
         return;
       }
-      if (code === INQUIRY_ERROR_CODES.resolved) {
+      if (code === InquiryConflictErrorCode.INQUIRY_RESOLVED) {
         await handleResolvedRejection();
         return;
       }
@@ -172,7 +194,7 @@ function InquiryDetailContent({ id }: { id: number }) {
 
   /** [내가 맡기]: 미배정이면 바로, 다른 팀원 담당이면 담당 변경 확인창부터. */
   const handleClickAssign = (inquiry: InquiryDetail) => {
-    const action = getAssignAction(inquiry.assignee?.email ?? null, currentEmail);
+    const action = getAssignAction(inquiry.assignee?.id ?? null, currentId);
     if (action === 'assign') void requestAssign(null);
     else if (action === 'confirm') setConfirmAssignee(inquiry.assignee);
   };
@@ -183,15 +205,18 @@ function InquiryDetailContent({ id }: { id: number }) {
     actionPendingRef.current = true;
     setIsRequestPending(true);
     try {
-      await restoreMutation.mutateAsync(id);
+      await restoreMutation.mutateAsync({ id });
       showSuccessToast('담당 해제를 취소했습니다.');
     } catch (error) {
       const code = getInquiryErrorCode(error);
-      if (code === INQUIRY_ERROR_CODES.assigneeChanged || code === INQUIRY_ERROR_CODES.resolved) {
+      if (
+        code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED ||
+        code === InquiryConflictErrorCode.INQUIRY_RESOLVED
+      ) {
         // 이 화면을 떠난 뒤에 눌러도 같은 문의를 다시 읽게 한다.
-        await queryClient.invalidateQueries({ queryKey: inquiryQueryOptions(currentEmail, id).queryKey });
+        await queryClient.invalidateQueries({ queryKey: inquiryDetailQueryOptions(currentEmail, id).queryKey });
         showErrorToast(
-          code === INQUIRY_ERROR_CODES.resolved
+          code === InquiryConflictErrorCode.INQUIRY_RESOLVED
             ? '해결 완료된 문의라 실행 취소할 수 없습니다.'
             : '담당자가 변경되어 실행 취소할 수 없습니다.'
         );
@@ -210,14 +235,14 @@ function InquiryDetailContent({ id }: { id: number }) {
     actionPendingRef.current = true;
     setIsRequestPending(true);
     try {
-      await releaseMutation.mutateAsync(id);
+      await releaseMutation.mutateAsync({ id });
       setDraft('');
       setIsDraftLocked(false);
       showUndoToast('담당을 해제했습니다.', () => void handleUndoRelease());
     } catch (error) {
       const code = getInquiryErrorCode(error);
-      if (code === INQUIRY_ERROR_CODES.resolved) await handleResolvedRejection();
-      else if (code === INQUIRY_ERROR_CODES.assigneeChanged) {
+      if (code === InquiryConflictErrorCode.INQUIRY_RESOLVED) await handleResolvedRejection();
+      else if (code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED) {
         setIsDraftLocked(draft !== '');
         await refetchInquiry();
         showErrorToast('담당자가 변경되었습니다.');
@@ -241,18 +266,18 @@ function InquiryDetailContent({ id }: { id: number }) {
     actionPendingRef.current = true;
     setIsRequestPending(true);
     try {
-      await replyMutation.mutateAsync({ id, body: draft });
+      await replyMutation.mutateAsync({ id, data: { body: draft } });
       setDraft('');
       showSuccessToast('답변을 저장했습니다. 사용자에게 알림이 전달됩니다.');
     } catch (error) {
       const code = getInquiryErrorCode(error);
-      if (code === INQUIRY_ERROR_CODES.assigneeChanged) {
+      if (code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED) {
         setIsDraftLocked(true);
         await refetchInquiry();
         showErrorToast('담당자가 변경되었습니다.');
         return;
       }
-      if (code === INQUIRY_ERROR_CODES.resolved) {
+      if (code === InquiryConflictErrorCode.INQUIRY_RESOLVED) {
         await handleResolvedRejection();
         return;
       }
@@ -290,8 +315,8 @@ function InquiryDetailContent({ id }: { id: number }) {
     );
   }
 
-  const inquiry = inquiryQuery.data;
-  const viewMode = getInquiryViewMode(inquiry.status, inquiry.assignee?.email ?? null, currentEmail);
+  const inquiry = toInquiryDetail(inquiryQuery.data);
+  const viewMode = getInquiryViewMode(inquiry.status, inquiry.assignee?.id ?? null, currentId);
   const isReplyFormShown = viewMode === 'mine' || (viewMode === 'notMine' && isDraftLocked);
   const replyLengthError = getReplyLengthError(draft);
   const prevId = adjacentQuery.data?.prevId ?? null;
@@ -421,7 +446,7 @@ function InquiryDetailContent({ id }: { id: number }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={() => confirmAssignee && void requestAssign(confirmAssignee.email)}>
+            <AlertDialogAction onClick={() => confirmAssignee && void requestAssign(confirmAssignee.id)}>
               담당자 변경
             </AlertDialogAction>
           </AlertDialogFooter>

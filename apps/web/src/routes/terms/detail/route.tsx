@@ -1,5 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
 import { useParams } from 'react-router';
 import { Forbidden } from '@/routes/app/ui/forbidden';
 import { useAuthStore } from '@/store/auth';
@@ -8,8 +6,10 @@ import { RichContentView } from '@/ui/organisms/rich-content-editor';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle } from '@/util/page-config';
-import { termQueryOptions, termsQueryOptions } from '../api/terms';
-import { TERM_KIND_LABELS, type TermKind } from '../type/term';
+import { termDetailQueryOptions, termListQueryOptions, toServerTermKind } from '../api/term-query';
+import { useGetTermsVersion, useListTermsVersions } from '../api/use-terms';
+import { TERM_KIND_LABELS, type TermKind } from '../type/term-ui';
+import { readTermError } from '../util/term-error';
 import { displayTermDate, getTermStatus } from '../util/term-policy';
 import { readTermKind, termListPath } from '../util/term-navigation';
 import { useTermClock } from '../util/use-term-clock';
@@ -38,8 +38,10 @@ export function TermEditRoute() {
 }
 function TermDetail({ kind, version, edit }: { kind: TermKind; version: number; edit: boolean }) {
   const user = useAuthStore((state) => state.user);
-  const query = useQuery(termQueryOptions(user?.email ?? '', kind, version));
-  const versions = useQuery(termsQueryOptions(user?.email ?? '', kind));
+  const query = useGetTermsVersion(version, { query: termDetailQueryOptions(user?.email ?? '', version) });
+  const versions = useListTermsVersions(toServerTermKind(kind), {
+    query: termListQueryOptions(user?.email ?? '', kind),
+  });
   const now = useTermClock(query.dataUpdatedAt + versions.dataUpdatedAt);
   if (edit && user?.role !== 'SUPER_ADMIN') return <Forbidden title='이용약관' />;
   if (query.isPending || versions.isPending) {
@@ -51,7 +53,7 @@ function TermDetail({ kind, version, edit }: { kind: TermKind; version: number; 
   }
   if (query.isError || versions.isError) {
     const error = query.error || versions.error;
-    return axios.isAxiosError(error) && error.response?.status === 404 ? (
+    return readTermError(error).status === 404 ? (
       <TermMissing kind={kind} />
     ) : (
       <Card>
@@ -66,6 +68,8 @@ function TermDetail({ kind, version, edit }: { kind: TermKind; version: number; 
     );
   }
   const term = query.data;
+  // 번호는 종류 구분 없이 하나씩 늘어나므로, 주소의 종류와 실제 종류가 다르면 없는 버전으로 본다.
+  if (term.kind !== kind) return <TermMissing kind={kind} />;
   const title = `${TERM_KIND_LABELS[kind]} 버전 #${version}`;
   if (term.status === 'draft' && user?.role === 'SUPER_ADMIN') {
     return <TermEditor key={`${kind}:${version}`} kind={kind} term={term} versions={versions.data} />;

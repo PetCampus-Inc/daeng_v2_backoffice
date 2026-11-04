@@ -29,7 +29,7 @@ import type {
   NotificationPage,
   UnreadNotificationCount,
 } from '@/routes/app/ui/top-bar/ui/notification-center/type';
-import type { UnauthorizedResponse } from '@/type';
+import type { UnauthorizedResponse, ValidationFailedResponse } from '@/type';
 
 import { customInstance } from '@/api/mutator';
 import type { ErrorType } from '@/api/mutator';
@@ -53,7 +53,7 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
 
 /**
  * 내 알림을 최근순으로 반환합니다. 읽음 여부는 사람마다 따로 관리되고, 알림 문구는 서버가 만듭니다. 디스코드 발송은 API로 제공하지 않습니다.
- * [확인 필요] 한 번에 보여 줄 건수 기준이 없어 다른 목록처럼 20건씩 나눕니다.
+ * 기본 페이지 크기는 20건입니다.
  * @summary 내 알림 목록
  */
 export const listNotifications = (
@@ -70,7 +70,7 @@ export const getListNotificationsQueryKey = (params?: ListNotificationsParams) =
 
 export const getListNotificationsQueryOptions = <
   TData = Awaited<ReturnType<typeof listNotifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListNotificationsParams,
   options?: {
@@ -93,11 +93,11 @@ export const getListNotificationsQueryOptions = <
 };
 
 export type ListNotificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listNotifications>>>;
-export type ListNotificationsQueryError = ErrorType<UnauthorizedResponse>;
+export type ListNotificationsQueryError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>;
 
 export function useListNotifications<
   TData = Awaited<ReturnType<typeof listNotifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params: undefined | ListNotificationsParams,
   options: {
@@ -116,7 +116,7 @@ export function useListNotifications<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListNotifications<
   TData = Awaited<ReturnType<typeof listNotifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListNotificationsParams,
   options?: {
@@ -135,7 +135,7 @@ export function useListNotifications<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListNotifications<
   TData = Awaited<ReturnType<typeof listNotifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListNotificationsParams,
   options?: {
@@ -150,7 +150,7 @@ export function useListNotifications<
 
 export function useListNotifications<
   TData = Awaited<ReturnType<typeof listNotifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListNotificationsParams,
   options?: {
@@ -338,7 +338,7 @@ export const readNotification = (
 export const getReadNotificationMutationKey = () => ['readNotification'] as const;
 
 export const getReadNotificationMutationOptions = <
-  TError = ErrorType<UnauthorizedResponse | NotificationNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | NotificationNotFoundError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -375,14 +375,16 @@ export const getReadNotificationMutationOptions = <
 
 export type ReadNotificationMutationResult = NonNullable<Awaited<ReturnType<typeof readNotification>>>;
 
-export type ReadNotificationMutationError = ErrorType<UnauthorizedResponse | NotificationNotFoundError>;
+export type ReadNotificationMutationError = ErrorType<
+  ValidationFailedResponse | UnauthorizedResponse | NotificationNotFoundError
+>;
 export type ReadNotificationMutationVariables = { id: number };
 
 /**
  * @summary 알림 읽음 처리
  */
 export const useReadNotification = <
-  TError = ErrorType<UnauthorizedResponse | NotificationNotFoundError>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse | NotificationNotFoundError>,
   TContext = unknown,
 >(
   options?: {

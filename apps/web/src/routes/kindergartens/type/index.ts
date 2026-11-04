@@ -8,5 +8,6 @@
  */
 
 export * from './list-service-schools-params';
+export * from './school-status';
 export * from './service-school-page';
 export * from './service-school';

@@ -1,7 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
 import { NavLink } from 'react-router';
 
-import { overviewQueryOptions } from '@/api/overview';
 import { cn } from '@/util/cn';
 import { formatCount } from '@/util/count-format';
 import { PAGES } from '@/util/page-config';
@@ -9,6 +7,7 @@ import { getVerificationSummary } from '@/util/verification-summary';
 import type { Role } from '@/type/role';
 
 import { visibleMenu, type MenuItem } from '@/routes/app/util/menu';
+import { useGetServiceOverview } from '@/routes/home/api/use-home';
 
 /** 메뉴 항목 공통 모양. 본문 600 진한 글자, 모서리 8. */
 const itemClassName =
@@ -119,7 +118,7 @@ function SidebarItem({
  * 0건이면 `0`, 불러오는 중·실패면 `—`(service-admin.html 기준).
  */
 function VerificationCountBadge() {
-  const overviewQuery = useQuery(overviewQueryOptions());
+  const overviewQuery = useGetServiceOverview();
   const stats = overviewQuery.data?.stats;
   const count = stats
     ? formatCount(getVerificationSummary(stats.verificationCounts, stats.revokedOwners).inProgress)

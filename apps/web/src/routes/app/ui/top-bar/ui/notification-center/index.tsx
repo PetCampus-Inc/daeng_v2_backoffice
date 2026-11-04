@@ -1,9 +1,10 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { BellIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { apiClient } from '@/api/client';
+import { getIdea } from '@/routes/ideas/api/use-ideas';
+import { getInquiry } from '@/routes/inquiries/api/use-inquiries';
 import { useAuthStore, type CompletedSessionUser } from '@/store/auth';
 import { useLeaveGuardStore } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
@@ -11,17 +12,30 @@ import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } 
 import { showErrorToast } from '@/ui/atoms/sonner';
 import { cn } from '@/util/cn';
 import { formatDate } from '@/util/date-format';
-import { notificationsQueryOptions, patchNotificationsRead } from './api/notifications';
-import type { Notification } from './type/notification-ui';
+import {
+  notificationListQueryKey,
+  notificationListQueryOptions,
+  unreadCountQueryKey,
+  unreadCountQueryOptions,
+} from './api/notification-query';
+import { useGetUnreadNotificationCount, useReadAllNotifications, useReadNotification } from './api/use-notifications';
+import { NotificationTargetType, type Notification } from './type';
+import { getNotificationPath, getNotificationText, isNotificationRead } from './util/notification-text';
+import { useLoadMoreOnReach } from './util/use-load-more-on-reach';
 
 /** 개인별 읽음 상태와 작성 중 이탈 확인을 연결하는 상단바 알림 센터. */
 export function NotificationCenter({ user }: { user: CompletedSessionUser }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const options = notificationsQueryOptions(user.email);
+  const listKey = notificationListQueryKey(user.email);
+  const countKey = unreadCountQueryKey(user.email);
   const [isOpen, setIsOpen] = useState(false);
-  const [pendingId, setPendingId] = useState<string | null>(null);
-  const query = useQuery({ ...options, enabled: pendingId === null });
+  const [pendingId, setPendingId] = useState<number | 'all' | null>(null);
+  // 목록은 팝오버가 열려 있을 때만 받는다. 배지 숫자는 따로 받는 안 읽은 수를 쓴다.
+  const query = useInfiniteQuery({ ...notificationListQueryOptions(user.email), enabled: isOpen });
+  const countQuery = useGetUnreadNotificationCount({ query: unreadCountQueryOptions(user.email) });
+  const readNotification = useReadNotification();
+  const readAllNotifications = useReadAllNotifications();
   const [error, setError] = useState<string | null>(null);
   const busyRef = useRef(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -33,7 +47,12 @@ export function NotificationCenter({ user }: { user: CompletedSessionUser }) {
   const wasLeavePendingRef = useRef(false);
   const requestLeave = useLeaveGuardStore((state) => state.requestLeave);
   const isLeavePending = useLeaveGuardStore((state) => state.pendingAction !== null);
-  const unreadCount = query.data?.filter((item) => !item.isRead).length;
+  const unreadCount = countQuery.data?.count;
+  // 이어 붙이는 사이에 새 알림이 생기면 페이지 경계에서 같은 알림이 겹칠 수 있어 번호로 거른다.
+  const items = query.data?.pages
+    .flatMap((page) => page.items)
+    .filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index);
+  const sentinelRef = useLoadMoreOnReach(listRef, () => void query.fetchNextPage());
 
   useEffect(() => {
     const rememberWorkFocus = (event: FocusEvent) => {
@@ -67,25 +86,34 @@ export function NotificationCenter({ user }: { user: CompletedSessionUser }) {
     setError(null);
     try {
       // 이미 진행 중인 조회가 뒤늦게 읽음 결과를 덮어쓰지 않게 한다.
-      await queryClient.cancelQueries({ queryKey: options.queryKey });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: listKey }),
+        queryClient.cancelQueries({ queryKey: countKey }),
+      ]);
       let canNavigate = true;
       if (item) {
         try {
-          await apiClient.get(`/${item.targetType === 'inquiry' ? 'inquiries' : 'ideas'}/${item.targetId}`);
+          if (item.targetType === NotificationTargetType.INQUIRY) await getInquiry(item.targetId);
+          else await getIdea(item.targetId);
         } catch (cause) {
           if (axios.isAxiosError(cause) && [403, 404, 410].includes(cause.response?.status ?? 0)) canNavigate = false;
           else throw cause;
         }
       }
       if (!isCurrentAccount()) return;
-      const items = item?.isRead ? query.data! : await patchNotificationsRead(item?.id);
+      if (!item) await readAllNotifications.mutateAsync();
+      else if (!isNotificationRead(item)) await readNotification.mutateAsync({ id: item.id });
       if (!isCurrentAccount()) return;
-      queryClient.setQueryData(options.queryKey, items);
+      // 낙관적 갱신 없이, 읽음이 성공한 뒤 서버 값으로 목록과 안 읽은 수를 다시 받는다.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: listKey }),
+        queryClient.invalidateQueries({ queryKey: countKey }),
+      ]);
       if (!item) {
         listRef.current?.focus({ preventScroll: true });
       } else if (canNavigate) {
         setIsOpen(false);
-        navigate(`/${item.targetType === 'inquiry' ? 'inquiries' : 'ideas'}/${item.targetId}`);
+        navigate(getNotificationPath(item));
       } else {
         showErrorToast('처리가 완료되었거나 볼 수 없는 항목입니다.');
       }
@@ -112,8 +140,7 @@ export function NotificationCenter({ user }: { user: CompletedSessionUser }) {
         if (open) {
           shouldRestoreWorkRef.current = false;
           setError(null);
-          // staleTime 내 재개방은 캐시를 바로 보여 주고, 오래된 알림만 갱신한다.
-          if (!busyRef.current) void queryClient.fetchQuery(options).catch(() => {});
+          // staleTime 내 재개방은 캐시를 바로 보여 주고, 오래된 알림만 갱신한다(목록 조회가 열릴 때 켜진다).
         }
         setIsOpen(open);
       }}
@@ -188,7 +215,7 @@ export function NotificationCenter({ user }: { user: CompletedSessionUser }) {
             알림을 불러오는 중…
           </p>
         )}
-        {query.isError && (
+        {query.isError && !query.isFetchNextPageError && (
           <div role='alert' className='px-6 py-4 text-kd-body'>
             <p>알림을 불러오지 못했습니다.</p>
             <Button variant='link' size='sm' disabled={query.isFetching} onClick={() => void query.refetch()}>
@@ -201,7 +228,7 @@ export function NotificationCenter({ user }: { user: CompletedSessionUser }) {
             {error}
           </p>
         )}
-        {query.data && (
+        {items && (
           <ul
             ref={listRef}
             onScroll={(event) => {
@@ -212,27 +239,27 @@ export function NotificationCenter({ user }: { user: CompletedSessionUser }) {
             aria-busy={pendingId !== null}
             className='max-h-[min(480px,calc(100dvh-180px))] overflow-y-auto overscroll-contain outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-kd-primary'
           >
-            {query.data.length === 0 && (
+            {items.length === 0 && (
               <li className='px-6 py-8 text-center text-kd-body text-kd-foreground-muted'>새로운 알림이 없습니다.</li>
             )}
-            {query.data.map((item) => (
+            {items.map((item) => (
               <li key={item.id} className='border-b border-kd-border last:border-0'>
                 <button
                   type='button'
                   disabled={pendingId !== null || isLeavePending}
                   onClick={() => handleSelect(item)}
-                  aria-label={`${item.isRead ? '읽음' : '안 읽음'}: ${item.message}`}
+                  aria-label={`${isNotificationRead(item) ? '읽음' : '안 읽음'}: ${getNotificationText(item)}`}
                   className={cn(
                     'flex w-full gap-3 px-6 py-4 text-left outline-none hover:bg-kd-surface focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-kd-primary disabled:cursor-wait',
-                    item.isRead && 'text-kd-foreground-muted'
+                    isNotificationRead(item) && 'text-kd-foreground-muted'
                   )}
                 >
                   <span
                     aria-hidden
-                    className={cn('mt-1.5 size-2 shrink-0 rounded-full', !item.isRead && 'bg-kd-primary')}
+                    className={cn('mt-1.5 size-2 shrink-0 rounded-full', !isNotificationRead(item) && 'bg-kd-primary')}
                   />
                   <span className='min-w-0 flex-1'>
-                    <span className='block text-kd-body wrap-anywhere'>{item.message}</span>
+                    <span className='block text-kd-body wrap-anywhere'>{getNotificationText(item)}</span>
                     <time dateTime={item.createdAt} className='mt-1 block text-kd-caption text-kd-foreground-muted'>
                       {pendingId === item.id ? '처리 중…' : formatDate(item.createdAt, true)}
                     </time>
@@ -240,6 +267,24 @@ export function NotificationCenter({ user }: { user: CompletedSessionUser }) {
                 </button>
               </li>
             ))}
+            {query.isFetchingNextPage && (
+              <li className='px-6 py-4 text-center text-kd-sub text-kd-foreground-muted'>
+                <span role='status'>알림을 더 불러오는 중…</span>
+              </li>
+            )}
+            {query.isFetchNextPageError && (
+              <li className='px-6 py-3 text-kd-sub'>
+                <div role='alert'>
+                  <p>알림을 더 불러오지 못했습니다.</p>
+                  <Button variant='link' size='sm' onClick={() => void query.fetchNextPage()}>
+                    다시 시도
+                  </Button>
+                </div>
+              </li>
+            )}
+            {query.hasNextPage && !query.isFetchingNextPage && !query.isFetchNextPageError && (
+              <li ref={sentinelRef} aria-hidden className='h-px' />
+            )}
           </ul>
         )}
       </PopoverContent>

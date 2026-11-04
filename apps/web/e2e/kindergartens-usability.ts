@@ -14,7 +14,9 @@ const OUTPUT_DIR = process.env.BO_QA_OUTPUT_DIR || path.resolve('.local/test-res
 const FIXTURES_25 = Array.from({ length: 25 }, (_, index) => ({
   id: 301 + index,
   name: `유치원 ${String(index + 1).padStart(2, '0')}`,
-  ownerName: null,
+  guardianName: null,
+  nickname: null,
+  ownerUserId: null,
   address: '서울 성동구 성수동 1',
   status: 'ACTIVE',
   activeMembers: 0,
@@ -58,9 +60,9 @@ async function scenario(
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__schoolQA = { delay, delays: {}, fail: false, started: [], completed: [] };
       network.use(
-        http.get('/api/v0/admin/kindergartens', async ({ request }) => {
+        http.get('/api/v0/admin/service-admin/schools', async ({ request }) => {
           const params = new URL(request.url).searchParams;
-          const key = params.get('status') || params.get('keyword') || `page:${params.get('page')}`;
+          const key = params.get('status') || params.get('keyword') || `page:${Number(params.get('page')) - 1}`;
           const { delay: fallback, delays, fail } = window.__schoolQA;
           window.__schoolQA.started.push(key);
           await new Promise((resolve) => setTimeout(resolve, delays[key] ?? fallback));

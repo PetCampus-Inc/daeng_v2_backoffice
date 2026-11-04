@@ -1,7 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
-import { VERIFICATION_STATUS_LABELS } from '@/type/overview';
+import { VERIFICATION_STATUS_LABELS } from '@/type/verification-status-ui';
 import { Badge } from '@/ui/atoms/badge';
 import { Button } from '@/ui/atoms/button';
 import { Card } from '@/ui/atoms/card';
@@ -14,21 +13,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/ui/atoms/pagination';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/ui/atoms/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/atoms/table';
 import { ListState } from '@/ui/molecules/list-state';
 import { ReadOnlyDbBadge } from '@/ui/molecules/read-only-db-badge';
 import { cn } from '@/util/cn';
 import { formatDate } from '@/util/date-format';
+import { KEYWORD_MAX_LENGTH } from '@/util/keyword-max-length';
 import { formatDocumentTitle } from '@/util/page-config';
-import { ownerVerificationsQueryOptions } from './api/owner-verifications';
-import {
-  OWNER_VERIFICATION_SORT_LABELS,
-  OWNER_VERIFICATION_SORTS,
-  OWNER_VERIFICATION_TABS,
-  type OwnerVerificationListParams,
-  type OwnerVerificationSort,
-} from './type/owner-verification';
+import { verificationListQueryOptions, toOwnerVerificationListRequest } from './api/owner-verification-list-query';
+import { useListServiceVerifications } from './api/use-owner-verifications';
+import { OWNER_VERIFICATION_TABS, type OwnerVerificationListParams } from './type/owner-verification-ui';
 import { VerificationDetailPanel } from './ui/verification-detail-panel';
 import { useOwnerVerificationListParams } from './util/list-search-params';
 
@@ -46,7 +40,10 @@ export default function OwnerVerificationsRoute() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const paginationRef = useRef<HTMLElement>(null);
   const pageTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const verificationsQuery = useQuery(ownerVerificationsQueryOptions(email, queryParams, page - 1));
+  const request = toOwnerVerificationListRequest(queryParams, page);
+  const verificationsQuery = useListServiceVerifications(request, {
+    query: verificationListQueryOptions(email, request),
+  });
   useEffect(() => {
     if (verificationsQuery.isFetching || !pageTriggerRef.current) return;
     // 비활성화·제거된 버튼에서 초점을 잃은 경우만 복구한다. 사용자가 다른 곳으로 이동했다면 유지한다.
@@ -66,8 +63,8 @@ export default function OwnerVerificationsRoute() {
     selected === null || isTransitioning || !verificationsQuery.isSuccess
       ? undefined
       : items.find((item) => item.id === selected);
-  const hasCondition = queryParams.keyword.trim() !== '' || queryParams.sort !== 'latest';
-  /** 탭·검색어·정렬을 바꾸면 1페이지로 가고 고른 건을 푼다(S-인증-004·009·010). */
+  const hasCondition = queryParams.keyword.trim() !== '';
+  /** 탭·검색어를 바꾸면 1페이지로 가고 고른 건을 푼다(S-인증-004·009). */
   const handleChangeCondition = (condition: Partial<OwnerVerificationListParams>) => {
     pageTriggerRef.current = null;
     void setSearchParams({ ...condition, page: null, selected: null });
@@ -78,11 +75,11 @@ export default function OwnerVerificationsRoute() {
     pageTriggerRef.current = trigger;
     void setSearchParams({ page: nextPage === 1 ? null : nextPage, selected: null });
   };
-  /** 검색어·정렬을 처음으로 돌린다. 탭은 그대로 둔다(S-인증-009). */
+  /** 검색어를 처음으로 돌린다. 탭은 그대로 둔다(S-인증-009). */
   const handleResetFilters = () => {
     pageTriggerRef.current = null;
     searchInputRef.current?.focus({ preventScroll: true });
-    void setSearchParams({ keyword: null, sort: null, page: null, selected: null });
+    void setSearchParams({ keyword: null, page: null, selected: null });
   };
   /** 다시 시도하면 사라지는 버튼 대신 검색창에 초점을 둔다(S-인증-024). */
   const handleRetry = () => {
@@ -131,26 +128,12 @@ export default function OwnerVerificationsRoute() {
               ref={searchInputRef}
               type='search'
               aria-label='원장 인증 검색'
-              placeholder='신청자 또는 유치원 검색'
+              placeholder='대표자 또는 유치원 검색'
+              maxLength={KEYWORD_MAX_LENGTH}
               className='w-72 max-[767px]:w-full'
               value={listParams.keyword}
               onChange={(event) => handleChangeCondition({ keyword: event.target.value })}
             />
-            <Select
-              value={listParams.sort}
-              onValueChange={(value) => handleChangeCondition({ sort: value as OwnerVerificationSort })}
-            >
-              <SelectTrigger aria-label='정렬' className='w-32'>
-                <SelectValue>{OWNER_VERIFICATION_SORT_LABELS[listParams.sort]}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {OWNER_VERIFICATION_SORTS.map((sort) => (
-                  <SelectItem key={sort} value={sort}>
-                    {OWNER_VERIFICATION_SORT_LABELS[sort]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             {hasCondition && (
               <Button variant='link' onClick={handleResetFilters}>
                 필터 초기화
@@ -158,7 +141,7 @@ export default function OwnerVerificationsRoute() {
             )}
             {verificationsQuery.isSuccess && !isRetrying && (
               <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-                {isTransitioning ? '조회 중…' : `총 ${verificationsQuery.data.totalElements.toLocaleString('ko-KR')}건`}
+                {isTransitioning ? '조회 중…' : `총 ${verificationsQuery.data.totalItems.toLocaleString('ko-KR')}건`}
               </p>
             )}
           </div>
@@ -183,7 +166,7 @@ export default function OwnerVerificationsRoute() {
                 <caption className='sr-only'>원장 인증 목록</caption>
                 <TableHeader>
                   <TableRow>
-                    {['신청자', '유치원', '지역', '신청일', '단계'].map((label) => (
+                    {['대표자', '유치원', '지역', '신청일', '단계'].map((label) => (
                       <TableHead key={label}>{label}</TableHead>
                     ))}
                   </TableRow>
@@ -191,7 +174,7 @@ export default function OwnerVerificationsRoute() {
                 <TableBody>
                   {items.map((item) => {
                     const isSelected = item.id === selectedItem?.id;
-                    const name = item.userName || '—';
+                    const name = item.representativeName || '—';
                     return (
                       <TableRow
                         key={item.id}

@@ -1,5 +1,4 @@
-import { useIsMutating, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import { useIsMutating } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth';
@@ -14,25 +13,46 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/ui/atoms/alert-dialog';
-import { useChangeNotice } from '../api/notices/index';
-import type { Notice } from '../type/notice-ui';
+import {
+  getNoticeChangeMutationKey,
+  useInvalidateNotices,
+  useNoticeChangeOptions,
+  useNoticeDeleteOptions,
+} from '../api/notice-query';
+import { useDeleteNotice, usePublishNotice, useUnpublishNotice } from '../api/use-notices';
+import type { Notice as ServerNotice } from '../type';
+import type { NoticeSummary } from '../type/notice-ui';
+import { getNoticeErrorGuide, readNoticeError } from '../util/notice-error';
 
-/** 목록·읽기·초안 화면에서 동일한 상태 전환과 확인창을 쓴다. */
+const GENERIC_ERROR_MESSAGE = '일시적 오류로 요청을 완료하지 못했습니다.';
+const STATE_CHANGED_MESSAGE = '공지 상태가 변경되었습니다. 최신 상태를 확인해 주세요.';
+
+/**
+ * 목록·읽기·초안 화면에서 동일한 상태 전환과 확인창을 쓴다.
+ * 재게시는 읽기 화면만 하며 최신 `version`이 필요해 `version`을 함께 받는다. 게시 해제·삭제는 서버가 `version`을 확인하지 않는다.
+ */
 export function NoticeActions({
   notice,
+  version,
   onDeleted,
   title = notice.title,
   showRepublish = false,
 }: {
-  notice: Notice;
+  notice: NoticeSummary;
+  version?: number;
   onDeleted?: () => void;
   title?: string;
   showRepublish?: boolean;
 }) {
   const user = useAuthStore((state) => state.user);
-  const mutation = useChangeNotice(user?.email ?? '');
-  const isPending = useIsMutating({ mutationKey: ['notices', user?.email ?? '', 'change'] }) > 0;
-  const queryClient = useQueryClient();
+  const email = user?.email ?? '';
+  const changeOptions = useNoticeChangeOptions(email);
+  const deleteMutation = useDeleteNotice(useNoticeDeleteOptions(email));
+  const unpublishMutation = useUnpublishNotice(changeOptions);
+  const publishMutation = usePublishNotice(changeOptions);
+  const invalidateNotices = useInvalidateNotices();
+  const isPending = useIsMutating({ mutationKey: getNoticeChangeMutationKey(email) }) > 0;
+  const [isRunning, setIsRunning] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const isBusy = useRef(false);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
@@ -41,35 +61,66 @@ export function NoticeActions({
   if (action === 'republish' && !showRepublish) return null;
   const label = action === 'delete' ? '초안 삭제' : action === 'unpublish' ? '게시 해제' : '공지 재게시';
 
-  const handleAction = async (undoNotice?: Notice) => {
+  /** 요청이 거절되면 상태가 바뀐 것으로 보고 최신 상태를 다시 읽는다. */
+  const handleFailure = (error: unknown) => {
+    const { status, code } = readNoticeError(error);
+    if (status === 404 || status === 409) {
+      toast.error(STATE_CHANGED_MESSAGE);
+      invalidateNotices();
+    } else if (status === 400) toast.error(getNoticeErrorGuide(status, code)?.description ?? GENERIC_ERROR_MESSAGE);
+    else toast.error(GENERIC_ERROR_MESSAGE);
+  };
+
+  /** 게시 해제를 취소한다. 해제 응답의 새 `version`으로 다시 게시한다(서버는 재게시와 같은 API). */
+  const handleUndo = async (unpublished: ServerNotice) => {
     if (isBusy.current) return;
     isBusy.current = true;
+    setIsRunning(true);
     try {
-      const target = undoNotice ?? notice;
-      const updated = await mutation.mutateAsync({
-        id: target.id,
-        revision: target.revision,
-        action: undoNotice ? 'undo' : action,
+      await publishMutation.mutateAsync({
+        id: unpublished.id,
+        data: { version: unpublished.version },
       });
-      setIsConfirmOpen(false);
-      if (undoNotice) toast.success('게시 해제를 취소했습니다.');
-      else if (action === 'delete') {
-        toast.success('초안을 삭제했습니다.');
-        onDeleted?.();
-      } else if (action === 'unpublish' && updated) {
-        toast.success('게시를 해제했습니다.', {
-          duration: 8000,
-          action: { label: '실행 취소', onClick: () => void handleAction(updated) },
-        });
-      } else toast.success('공지를 다시 게시했습니다.');
+      toast.success('게시 해제를 취소했습니다.');
     } catch (error) {
-      const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-      if (status === 404 || status === 409) {
-        toast.error('공지 상태가 변경되었습니다. 최신 상태를 확인해 주세요.');
-        void queryClient.invalidateQueries({ queryKey: ['notices', user.email] });
-      } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
+      handleFailure(error);
     } finally {
       isBusy.current = false;
+      setIsRunning(false);
+    }
+  };
+
+  const handleAction = async () => {
+    if (isBusy.current) return;
+    isBusy.current = true;
+    setIsRunning(true);
+    try {
+      if (action === 'delete') {
+        await deleteMutation.mutateAsync({ id: notice.id });
+        setIsConfirmOpen(false);
+        toast.success('초안을 삭제했습니다.');
+        onDeleted?.();
+      } else if (action === 'unpublish') {
+        const unpublished = await unpublishMutation.mutateAsync({
+          id: notice.id,
+        });
+        toast.success('게시를 해제했습니다.', {
+          duration: 8000,
+          action: {
+            label: '실행 취소',
+            onClick: () => void handleUndo(unpublished),
+          },
+        });
+      } else if (version !== undefined) {
+        await publishMutation.mutateAsync({ id: notice.id, data: { version } });
+        setIsConfirmOpen(false);
+        toast.success('공지를 다시 게시했습니다.');
+      }
+    } catch (error) {
+      handleFailure(error);
+    } finally {
+      isBusy.current = false;
+      setIsRunning(false);
     }
   };
 
@@ -85,7 +136,7 @@ export function NoticeActions({
           else setIsConfirmOpen(true);
         }}
       >
-        {mutation.isPending ? `${label} 중…` : label}
+        {isRunning ? `${label} 중…` : label}
       </Button>
       <AlertDialog open={isConfirmOpen} onOpenChange={(open) => !isPending && setIsConfirmOpen(open)}>
         <AlertDialogContent

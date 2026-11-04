@@ -20,7 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type { GetServiceOverviewParams, ServiceOverview } from '@/routes/home/type';
-import type { UnauthorizedResponse } from '@/type';
+import type { UnauthorizedResponse, ValidationFailedResponse } from '@/type';
 
 import { customInstance } from '@/api/mutator';
 import type { ErrorType } from '@/api/mutator';
@@ -63,7 +63,7 @@ export const getGetServiceOverviewQueryKey = (params?: GetServiceOverviewParams)
 
 export const getGetServiceOverviewQueryOptions = <
   TData = Awaited<ReturnType<typeof getServiceOverview>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: GetServiceOverviewParams,
   options?: {
@@ -86,11 +86,11 @@ export const getGetServiceOverviewQueryOptions = <
 };
 
 export type GetServiceOverviewQueryResult = NonNullable<Awaited<ReturnType<typeof getServiceOverview>>>;
-export type GetServiceOverviewQueryError = ErrorType<UnauthorizedResponse>;
+export type GetServiceOverviewQueryError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>;
 
 export function useGetServiceOverview<
   TData = Awaited<ReturnType<typeof getServiceOverview>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params: undefined | GetServiceOverviewParams,
   options: {
@@ -109,7 +109,7 @@ export function useGetServiceOverview<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetServiceOverview<
   TData = Awaited<ReturnType<typeof getServiceOverview>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: GetServiceOverviewParams,
   options?: {
@@ -128,7 +128,7 @@ export function useGetServiceOverview<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetServiceOverview<
   TData = Awaited<ReturnType<typeof getServiceOverview>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: GetServiceOverviewParams,
   options?: {
@@ -143,7 +143,7 @@ export function useGetServiceOverview<
 
 export function useGetServiceOverview<
   TData = Awaited<ReturnType<typeof getServiceOverview>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: GetServiceOverviewParams,
   options?: {

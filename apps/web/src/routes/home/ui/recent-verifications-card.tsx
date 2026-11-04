@@ -5,7 +5,8 @@ import { Card, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { ListState } from '@/ui/molecules/list-state';
 import { PAGES } from '@/util/page-config';
 import type { LoadState } from '../type/load-state';
-import { VERIFICATION_STATUS_LABELS, type RecentVerification } from '@/type/overview';
+import type { ServiceRecentVerification } from '../type';
+import { VERIFICATION_STATUS_LABELS } from '@/type/verification-status-ui';
 import { formatDate } from '@/util/date-format';
 
 /** 홈에 보여 주는 최근 원장 인증 최대 줄 수. */
@@ -17,7 +18,7 @@ export function RecentVerificationsCard({
   state,
   onRetry,
 }: {
-  items: RecentVerification[] | undefined;
+  items: ServiceRecentVerification[] | undefined;
   state: LoadState;
   onRetry: () => void;
 }) {

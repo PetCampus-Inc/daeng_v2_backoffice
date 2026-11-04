@@ -8,7 +8,11 @@
  */
 
 /**
- * 원장 인증 상태. [확인 필요] 각 값의 의미
+ * 원장 인증 상태.
+ * - `KINDERGARTEN_INFO_COMPLETED`: 유치원 정보 입력을 마친 단계. 현재 서비스 코드에는 이 값으로 바뀌는 경로가 없고, 진행 중 상태로만 취급됩니다.
+ * - `BUSINESS_REGISTRATION_PENDING`: 유치원·대표자 정보를 입력했고 사업자등록번호 제출을 기다리는 단계
+ * - `SUBMITTED`: 사업자등록번호를 제출해 인증을 신청한 상태
+ * - `REVOKED`: 인증이 철회·해지된 상태
  */
 export type VerificationStatus = (typeof VerificationStatus)[keyof typeof VerificationStatus];
 

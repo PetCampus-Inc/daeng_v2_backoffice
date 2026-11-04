@@ -20,7 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type { ListServiceVerificationsParams, ServiceVerificationPage } from '@/routes/owner-verifications/type';
-import type { UnauthorizedResponse } from '@/type';
+import type { UnauthorizedResponse, ValidationFailedResponse } from '@/type';
 
 import { customInstance } from '@/api/mutator';
 import type { ErrorType } from '@/api/mutator';
@@ -63,7 +63,7 @@ export const getListServiceVerificationsQueryKey = (params?: ListServiceVerifica
 
 export const getListServiceVerificationsQueryOptions = <
   TData = Awaited<ReturnType<typeof listServiceVerifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceVerificationsParams,
   options?: {
@@ -86,11 +86,11 @@ export const getListServiceVerificationsQueryOptions = <
 };
 
 export type ListServiceVerificationsQueryResult = NonNullable<Awaited<ReturnType<typeof listServiceVerifications>>>;
-export type ListServiceVerificationsQueryError = ErrorType<UnauthorizedResponse>;
+export type ListServiceVerificationsQueryError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>;
 
 export function useListServiceVerifications<
   TData = Awaited<ReturnType<typeof listServiceVerifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params: undefined | ListServiceVerificationsParams,
   options: {
@@ -109,7 +109,7 @@ export function useListServiceVerifications<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListServiceVerifications<
   TData = Awaited<ReturnType<typeof listServiceVerifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceVerificationsParams,
   options?: {
@@ -128,7 +128,7 @@ export function useListServiceVerifications<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useListServiceVerifications<
   TData = Awaited<ReturnType<typeof listServiceVerifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceVerificationsParams,
   options?: {
@@ -143,7 +143,7 @@ export function useListServiceVerifications<
 
 export function useListServiceVerifications<
   TData = Awaited<ReturnType<typeof listServiceVerifications>>,
-  TError = ErrorType<UnauthorizedResponse>,
+  TError = ErrorType<ValidationFailedResponse | UnauthorizedResponse>,
 >(
   params?: ListServiceVerificationsParams,
   options?: {
