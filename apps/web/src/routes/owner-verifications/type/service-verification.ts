@@ -12,7 +12,6 @@ import type { ServiceVerificationKindergartenType } from './service-verification
 export interface ServiceVerification {
   id: number;
   userId: string;
-  userName: string;
   /** @nullable */
   schoolId: number | null;
   /**

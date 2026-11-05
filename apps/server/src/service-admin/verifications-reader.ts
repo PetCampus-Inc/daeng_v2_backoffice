@@ -12,7 +12,6 @@ import { VERIFICATIONS_FROM, VERIFICATIONS_ORDER } from './verification-sql.js';
 export interface VerificationRow {
   id: number;
   userId: string;
-  userName: string | null;
   schoolId: number | null;
   kindergartenPlaceId: string | null;
   kindergartenType: string | null;
@@ -58,7 +57,6 @@ export class ServiceVerificationsReader {
       SELECT
         ov.owner_verification_id AS id,
         u.user_id AS userId,
-        COALESCE(NULLIF(u.guardian_name, ''), NULLIF(u.nickname, ''), ov.representative_name) AS userName,
         ov.school_id_fk AS schoolId,
         ov.kindergarten_place_id AS kindergartenPlaceId,
         ov.kindergarten_type AS kindergartenType,

@@ -3107,7 +3107,6 @@ components:
       required:
         - id
         - userId
-        - userName
         - schoolId
         - kindergartenPlaceId
         - kindergartenType
@@ -3128,8 +3127,6 @@ components:
         id:
           type: integer
         userId:
-          type: string
-        userName:
           type: string
         schoolId:
           type: integer

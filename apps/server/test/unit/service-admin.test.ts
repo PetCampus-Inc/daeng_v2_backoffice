@@ -253,7 +253,6 @@ describe('ServiceAdminService', () => {
         {
           id: 4,
           userId: 'u',
-          userName: null,
           schoolId: null,
           kindergartenPlaceId: null,
           kindergartenType: null,
@@ -275,7 +274,6 @@ describe('ServiceAdminService', () => {
     }));
     const verification = (await serviceWith({ verifications }).verifications({ page: 1, size: 20 })).items[0]!;
     expect(verification).toMatchObject({
-      userName: '이름 미등록',
       kindergartenPhone: '031-****-4567',
       representativePhone: null,
       businessRegistrationNumber: '123-**-67890',
