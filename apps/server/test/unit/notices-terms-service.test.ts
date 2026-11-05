@@ -93,6 +93,23 @@ describe('platform content Java translation', () => {
       vi.useRealTimers();
     }
   });
+  test('lists drafts first by newest id, then versions by effective date descending', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-29T00:00:00Z'));
+    try {
+      const items = [
+        { ...terms, id: 1, status: 'PUBLISHED', effectiveDate: '2026-10-01' },
+        { ...terms, id: 2, status: 'PUBLISHED', effectiveDate: '2026-11-20' },
+        { ...terms, id: 3, status: 'DRAFT', effectiveDate: '2026-09-01' },
+        { ...terms, id: 4, status: 'DRAFT', effectiveDate: null },
+      ];
+      const { terms: service } = setup([{ items, totalPages: 1 }]);
+      const result = await service.listVersions('SERVICE_TERMS');
+      expect(result.map((v) => v.id)).toEqual([4, 3, 2, 1]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   test('converts file names to Java image upload contract', async () => {
     const { notices, requestJava } = setup([[]]);
     await notices.uploadImages({ files: [{ fileName: 'a.png', contentType: 'image/png', size: 10 }] });
