@@ -93,6 +93,31 @@ describe('platform content Java translation', () => {
       vi.useRealTimers();
     }
   });
+  test('sends no effective date when creating a draft without one and forwards null to clear it', async () => {
+    const draft = { ...terms, status: 'DRAFT', effectiveDate: null };
+    const { terms: service, requestJava } = setup([draft, draft]);
+    await service.create('SERVICE_TERMS', { content: '본문' });
+    expect(requestJava.mock.calls[0]![2]).toEqual({ body: '본문' });
+    await service.update(7, { version: 2, content: '본문', effectiveDate: null });
+    expect(requestJava.mock.calls[1]![2]).toEqual({ effectiveDate: null, body: '본문', rowVersion: 2 });
+  });
+  test('lists drafts first by newest id, then versions by effective date descending', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-29T00:00:00Z'));
+    try {
+      const items = [
+        { ...terms, id: 1, status: 'PUBLISHED', effectiveDate: '2026-10-01' },
+        { ...terms, id: 2, status: 'PUBLISHED', effectiveDate: '2026-11-20' },
+        { ...terms, id: 3, status: 'DRAFT', effectiveDate: '2026-09-01' },
+        { ...terms, id: 4, status: 'DRAFT', effectiveDate: null },
+      ];
+      const { terms: service } = setup([{ items, totalPages: 1 }]);
+      const result = await service.listVersions('SERVICE_TERMS');
+      expect(result.map((v) => v.id)).toEqual([4, 3, 2, 1]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   test('converts file names to Java image upload contract', async () => {
     const { notices, requestJava } = setup([[]]);
     await notices.uploadImages({ files: [{ fileName: 'a.png', contentType: 'image/png', size: 10 }] });

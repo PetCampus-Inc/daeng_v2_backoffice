@@ -10,6 +10,7 @@ import {
   listNoticesSchema,
   updateNoticeSchema,
   uploadImagesSchema,
+  versionQuerySchema,
   versionSchema,
 } from './notices.schemas.js';
 import { NoticesService } from './notices.service.js';
@@ -60,8 +61,11 @@ export class NoticesController {
   @Delete(':id')
   @HttpCode(204)
   @Roles('SUPER_ADMIN', 'OPERATOR')
-  delete(@Param('id', idPipe) id: number) {
-    return this.notices.delete(id);
+  delete(
+    @Param('id', idPipe) id: number,
+    @Query(new ZodValidationPipe(versionQuerySchema)) query: z.infer<typeof versionQuerySchema>
+  ) {
+    return this.notices.delete(id, query.version);
   }
 
   @Put(':id/publication')
@@ -76,7 +80,11 @@ export class NoticesController {
 
   @Delete(':id/publication')
   @Roles('SUPER_ADMIN', 'OPERATOR')
-  unpublish(@CurrentMember() actor: MemberRow, @Param('id', idPipe) id: number) {
-    return this.notices.unpublish(actor, id);
+  unpublish(
+    @CurrentMember() actor: MemberRow,
+    @Param('id', idPipe) id: number,
+    @Query(new ZodValidationPipe(versionQuerySchema)) query: z.infer<typeof versionQuerySchema>
+  ) {
+    return this.notices.unpublish(actor, id, query.version);
   }
 }

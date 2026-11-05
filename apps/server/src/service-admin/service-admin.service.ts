@@ -135,7 +135,6 @@ export class ServiceAdminService {
     return pageOf(result, query, (row: VerificationRow) => ({
       id: row.id,
       userId: row.userId,
-      userName: row.userName ?? '이름 미등록',
       schoolId: row.schoolId,
       kindergartenPlaceId: row.kindergartenPlaceId,
       kindergartenType: row.kindergartenType,
