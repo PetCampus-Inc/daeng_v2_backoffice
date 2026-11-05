@@ -1059,7 +1059,7 @@ paths:
       operationId: createTermsVersion
       summary: 약관 새 버전 초안 저장
       description: |-
-        약관 새 버전을 초안으로 저장합니다. 시행일은 공개할 때 검증합니다.
+        약관 새 버전을 초안으로 저장합니다. 시행일은 비워 둘 수 있고, 공개할 때 필수이며 그때 검증합니다.
         시작 내용은 `getTermsDraftTemplate`로 받을 수 있습니다.
       parameters:
         - $ref: '#/components/parameters/TermsKind'
@@ -1197,6 +1197,7 @@ paths:
       summary: 약관 버전 공개
       description: |-
         약관 버전을 공개합니다.
+        시행일이 비어 있으면 공개할 수 없습니다(`TERMS_EFFECTIVE_DATE_REQUIRED`).
         시행일은 공개일(KST)로부터 7일 이후여야 하고, 같은 약관의 공개된 버전 중 가장 늦은 시행일보다 뒤여야 합니다.
         공개하면 `{{공고일}}`·`{{시행일}}`이 실제 날짜로 채워지고, 이후에는 수정·삭제할 수 없습니다.
       parameters:
@@ -2324,6 +2325,7 @@ components:
                   TERMS_EFFECTIVE_DATE_IN_PAST,
                   TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST,
                   TERMS_EFFECTIVE_DATE_INVALID_FORMAT,
+                  TERMS_EFFECTIVE_DATE_REQUIRED,
                 ]
       example:
         code: TERMS_EFFECTIVE_DATE_TOO_SOON
@@ -2744,11 +2746,12 @@ components:
 
     CreateTermsVersionRequest:
       type: object
-      required: [effectiveDate, content]
+      required: [content]
       properties:
         effectiveDate:
           type: string
           format: date
+          description: 시행일입니다. 초안에서는 비워 둘 수 있고 공개할 때 필수입니다.
         content:
           type: string
           description:
@@ -2761,6 +2764,8 @@ components:
         effectiveDate:
           type: string
           format: date
+          nullable: true
+          description: 보내지 않으면 유지하고, `null`을 보내면 시행일을 비웁니다.
         content:
           type: string
         version:

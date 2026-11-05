@@ -93,6 +93,14 @@ describe('platform content Java translation', () => {
       vi.useRealTimers();
     }
   });
+  test('sends no effective date when creating a draft without one and forwards null to clear it', async () => {
+    const draft = { ...terms, status: 'DRAFT', effectiveDate: null };
+    const { terms: service, requestJava } = setup([draft, draft]);
+    await service.create('SERVICE_TERMS', { content: '본문' });
+    expect(requestJava.mock.calls[0]![2]).toEqual({ body: '본문' });
+    await service.update(7, { version: 2, content: '본문', effectiveDate: null });
+    expect(requestJava.mock.calls[1]![2]).toEqual({ effectiveDate: null, body: '본문', rowVersion: 2 });
+  });
   test('lists drafts first by newest id, then versions by effective date descending', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-29T00:00:00Z'));

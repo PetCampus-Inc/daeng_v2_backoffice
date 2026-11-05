@@ -78,6 +78,7 @@ beforeAll(async () => {
       let error: string | undefined;
       if (path.pathname.endsWith('/publication') && req.method === 'PUT') {
         if (body?.rowVersion !== terms.rowVersion) error = 'PLATFORM-409-1';
+        else if (!terms.effectiveDate) error = 'PLATFORM-409-7';
         else if (terms.effectiveDate === '2000-01-01') error = 'PLATFORM-409-14';
         else
           terms = {
@@ -161,6 +162,23 @@ beforeAll(async () => {
 });
 
 describe('terms API with fake Java and real HTTP', () => {
+  test('saves drafts without an effective date, clears it, and rejects publishing without one', async () => {
+    const created = await request('POST', '/terms/SERVICE_TERMS/versions', { content: '본문' });
+    expect(created.status).toBe(201);
+    const cleared = await request('PATCH', '/term-versions/9', { version: 1, effectiveDate: null });
+    expect(cleared.status).toBe(200);
+    await expectMatchesSpec(contract, cleared, { method: 'patch', path: '/term-versions/{id}' });
+    const invalid = await request('PATCH', '/term-versions/9', { version: 1, effectiveDate: '2026-13-40' });
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({ code: 'TERMS_EFFECTIVE_DATE_INVALID_FORMAT' });
+    const saved = terms;
+    terms = { ...terms, effectiveDate: null as unknown as string };
+    const publish = await request('PUT', '/term-versions/9/publication', { version: terms.rowVersion });
+    terms = saved;
+    expect(publish.status).toBe(400);
+    await expectMatchesSpec(contract, publish, { method: 'put', path: '/term-versions/{id}/publication' });
+    expect(await publish.json()).toMatchObject({ code: 'TERMS_EFFECTIVE_DATE_REQUIRED' });
+  });
   test('maps Java date errors and records publication and withdrawal', async () => {
     terms = { ...terms, effectiveDate: '2000-01-01' };
     const past = await request('PUT', '/term-versions/9/publication', { version: 1 });

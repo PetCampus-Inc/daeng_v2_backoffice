@@ -65,12 +65,12 @@ export class TermsService {
     return this.detail(item, await this.java.allVersions(item.kind));
   }
 
-  async create(kind: TermsKind, body: { effectiveDate: string; content: string }) {
+  async create(kind: TermsKind, body: { effectiveDate?: string | null; content: string }) {
     const item = await this.java.create(kind, body);
     return this.detail(item, [item]);
   }
 
-  async update(id: number, body: { version: number; content?: string; effectiveDate?: string }) {
+  async update(id: number, body: { version: number; content?: string; effectiveDate?: string | null }) {
     const { version, ...data } = body;
     if (data.content === undefined) requireMarkdownBody('Terms', id, (await this.java.get(id)).body);
     return this.detail(await this.java.update(id, data, version), []);

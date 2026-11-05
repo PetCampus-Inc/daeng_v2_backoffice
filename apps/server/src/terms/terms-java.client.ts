@@ -34,6 +34,7 @@ const TERMS_ERRORS: JavaErrors = {
   'PLATFORM-409-2': boError(409, 'TERMS_VERSION_CONFLICT'),
   'PLATFORM-409-5': boError(409, 'TERMS_VERSION_NOT_DRAFT'),
   'PLATFORM-409-6': boError(409, 'TERMS_VERSION_NOT_DRAFT'),
+  'PLATFORM-409-7': boError(400, 'TERMS_EFFECTIVE_DATE_REQUIRED'),
   'PLATFORM-409-9': boError(409, 'TERMS_WITHDRAW_NOT_ALLOWED'),
   'PLATFORM-409-11': boError(400, 'TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST'),
   'PLATFORM-409-14': boError(400, 'TERMS_EFFECTIVE_DATE_IN_PAST'),
@@ -119,14 +120,18 @@ export class TermsJavaClient {
     return result.content;
   }
 
-  create(kind: TermsKind, body: { content: string; effectiveDate: string }): Promise<JavaTerms> {
+  create(kind: TermsKind, body: { content: string; effectiveDate?: string | null }): Promise<JavaTerms> {
     return this.item('POST', `${TERMS}/types/${TO_JAVA_KIND[kind]}/versions`, {
       body: body.content,
-      effectiveDate: body.effectiveDate,
+      ...(body.effectiveDate ? { effectiveDate: body.effectiveDate } : {}),
     });
   }
 
-  update(id: number, data: { content?: string; effectiveDate?: string }, rowVersion: number): Promise<JavaTerms> {
+  update(
+    id: number,
+    data: { content?: string; effectiveDate?: string | null },
+    rowVersion: number
+  ): Promise<JavaTerms> {
     const { content, ...rest } = data;
     return this.item('PATCH', `${TERMS}/${id}`, {
       ...rest,
