@@ -172,7 +172,13 @@ describe('terms API with fake Java and real HTTP', () => {
     expect(published.status).toBe(200);
     await expectMatchesSpec(contract, published, { method: 'put', path: '/term-versions/{id}/publication' });
     expect(await published.json()).toMatchObject({ kind: 'SERVICE_TERMS', effectiveStatus: 'SCHEDULED' });
-    const withdrawn = await request('DELETE', '/term-versions/9/publication');
+    const missing = await request('DELETE', '/term-versions/9/publication');
+    expect(missing.status).toBe(400);
+    const staleWithdraw = await request('DELETE', '/term-versions/9/publication?version=1');
+    expect(staleWithdraw.status).toBe(409);
+    await expectMatchesSpec(contract, staleWithdraw, { method: 'delete', path: '/term-versions/{id}/publication' });
+    expect(await staleWithdraw.json()).toMatchObject({ code: 'TERMS_VERSION_CONFLICT' });
+    const withdrawn = await request('DELETE', '/term-versions/9/publication?version=2');
     expect(withdrawn.status).toBe(200);
     await expectMatchesSpec(contract, withdrawn, { method: 'delete', path: '/term-versions/{id}/publication' });
     expect(await withdrawn.json()).toMatchObject({ publishStatus: 'WITHDRAWN', effectiveStatus: null });
@@ -210,7 +216,13 @@ describe('notice API with fake Java and real HTTP', () => {
     const stale = await request('PUT', '/notices/1/publication', { version: 1 });
     expect(stale.status).toBe(409);
     await expectMatchesSpec(contract, stale, { method: 'put', path: '/notices/{id}/publication' });
-    const unpublish = await request('DELETE', '/notices/1/publication');
+    const unpublishWithoutVersion = await request('DELETE', '/notices/1/publication');
+    expect(unpublishWithoutVersion.status).toBe(400);
+    const staleUnpublish = await request('DELETE', '/notices/1/publication?version=1');
+    expect(staleUnpublish.status).toBe(409);
+    await expectMatchesSpec(contract, staleUnpublish, { method: 'delete', path: '/notices/{id}/publication' });
+    expect(await staleUnpublish.json()).toMatchObject({ code: 'NOTICE_VERSION_CONFLICT' });
+    const unpublish = await request('DELETE', '/notices/1/publication?version=2');
     expect(unpublish.status).toBe(200);
     await expectMatchesSpec(contract, unpublish, { method: 'delete', path: '/notices/{id}/publication' });
     expect(await unpublish.json()).toMatchObject({ status: 'UNPUBLISHED', version: 3 });
@@ -225,10 +237,18 @@ describe('notice API with fake Java and real HTTP', () => {
   test('does not repeat a successful write when the change log fails', async () => {
     failLog = true;
     const before = writes;
-    const response = await request('DELETE', '/notices/1/publication');
+    const response = await request('DELETE', `/notices/1/publication?version=${notice.rowVersion}`);
     expect(response.status).toBe(200);
     expect(writes).toBe(before + 1);
     failLog = false;
+  });
+  test('rejects deleting a notice without or with a stale version', async () => {
+    const missing = await request('DELETE', '/notices/1');
+    expect(missing.status).toBe(400);
+    const stale = await request('DELETE', '/notices/1?version=0');
+    expect(stale.status).toBe(409);
+    await expectMatchesSpec(contract, stale, { method: 'delete', path: '/notices/{id}' });
+    expect(await stale.json()).toMatchObject({ code: 'NOTICE_VERSION_CONFLICT' });
   });
   test('reads Java date and time arrays as KST', async () => {
     const asArray = (value: unknown) => value as string;

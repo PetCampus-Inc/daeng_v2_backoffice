@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 export const versionSchema = z.object({ version: z.number().int().nonnegative() });
+/** 본문이 없는 DELETE 요청은 `version`을 쿼리로 받는다. */
+export const versionQuerySchema = z.object({ version: z.coerce.number().int().nonnegative() });
 
 const pendingImage = z.object({ clientImageId: z.uuid(), tempKey: z.string(), originalFilename: z.string() });
 const noticeFields = {

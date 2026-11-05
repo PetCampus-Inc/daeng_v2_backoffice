@@ -58,17 +58,15 @@ export class NoticesService {
     return this.detail(result);
   }
 
-  async unpublish(actor: MemberRow, id: number) {
-    const before = await this.java.get(id);
-    this.detail(before);
-    const result = await this.java.unpublish(id, before.rowVersion);
+  async unpublish(actor: MemberRow, id: number, version: number) {
+    this.detail(await this.java.get(id));
+    const result = await this.java.unpublish(id, version);
     await this.record(actor, id, result, 'NOTICE_UNPUBLISHED');
     return this.detail(result);
   }
 
-  async delete(id: number) {
-    const before = await this.java.get(id);
-    await this.java.delete(id, before.rowVersion);
+  async delete(id: number, version: number) {
+    await this.java.delete(id, version);
   }
 
   uploadImages(body: Parameters<NoticeJavaClient['uploadUrls']>[0]) {

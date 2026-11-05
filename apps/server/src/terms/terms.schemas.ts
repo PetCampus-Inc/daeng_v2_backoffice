@@ -13,6 +13,8 @@ export const updateTermsSchema = z.object({
   version: z.number().int().nonnegative(),
 });
 export const termsVersionSchema = z.object({ version: z.number().int().nonnegative() });
+/** 본문이 없는 DELETE 요청은 `version`을 쿼리로 받는다. */
+export const termsVersionQuerySchema = z.object({ version: z.coerce.number().int().nonnegative() });
 
 /** 시행일 형식 오류는 일반 검증 오류가 아니라 명세의 전용 코드로 알린다. */
 export class TermsBodyPipe<T> extends ZodValidationPipe<T> {

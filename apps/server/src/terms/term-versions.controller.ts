@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Put, Query } from '@nestjs/common';
 import type { z } from 'zod';
 import { CurrentMember, Roles } from '../auth/decorators.js';
 import { idPipe } from '../common/id-pipe.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import type { MemberRow } from '../database/schema.js';
-import { TermsBodyPipe, termsVersionSchema, updateTermsSchema } from './terms.schemas.js';
+import { TermsBodyPipe, termsVersionQuerySchema, termsVersionSchema, updateTermsSchema } from './terms.schemas.js';
 import { TermsService } from './terms.service.js';
 
 /** 약관 버전 하나(`/term-versions/:id`)를 다루는 경로. */
@@ -30,8 +30,11 @@ export class TermVersionsController {
   @Delete(':id')
   @HttpCode(204)
   @Roles('SUPER_ADMIN')
-  delete(@Param('id', idPipe) id: number) {
-    return this.terms.delete(id);
+  delete(
+    @Param('id', idPipe) id: number,
+    @Query(new ZodValidationPipe(termsVersionQuerySchema)) query: z.infer<typeof termsVersionQuerySchema>
+  ) {
+    return this.terms.delete(id, query.version);
   }
 
   @Put(':id/publication')
@@ -46,7 +49,11 @@ export class TermVersionsController {
 
   @Delete(':id/publication')
   @Roles('SUPER_ADMIN')
-  withdraw(@CurrentMember() actor: MemberRow, @Param('id', idPipe) id: number) {
-    return this.terms.withdraw(actor, id);
+  withdraw(
+    @CurrentMember() actor: MemberRow,
+    @Param('id', idPipe) id: number,
+    @Query(new ZodValidationPipe(termsVersionQuerySchema)) query: z.infer<typeof termsVersionQuerySchema>
+  ) {
+    return this.terms.withdraw(actor, id, query.version);
   }
 }

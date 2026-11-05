@@ -85,17 +85,15 @@ export class TermsService {
     return this.detail(item, [item]);
   }
 
-  async withdraw(actor: MemberRow, id: number) {
-    const before = await this.java.get(id);
-    requireMarkdownBody('Terms', id, before.body);
-    const item = await this.java.withdraw(id, before.rowVersion);
+  async withdraw(actor: MemberRow, id: number, version: number) {
+    requireMarkdownBody('Terms', id, (await this.java.get(id)).body);
+    const item = await this.java.withdraw(id, version);
     await this.record(actor, id, item, 'TERMS_VERSION_WITHDRAWN');
     return this.detail(item, [item]);
   }
 
-  async delete(id: number) {
-    const before = await this.java.get(id);
-    await this.java.delete(id, before.rowVersion);
+  async delete(id: number, version: number) {
+    await this.java.delete(id, version);
   }
 
   private summaries(versions: readonly JavaTerms[]) {
