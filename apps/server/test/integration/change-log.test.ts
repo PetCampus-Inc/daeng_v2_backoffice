@@ -153,7 +153,7 @@ describe.skipIf(!hasDatabase)('change log API (real database)', () => {
         actor: { id: ids.admin, displayName: '기록관리', jobRole: 'BE', email: email('admin') },
         targetType: 'ACCOUNT',
         action: 'ACCOUNT_ROLE_CHANGED',
-        change: { from: 'OPERATOR', to: 'VIEWER' },
+        change: { from: 'OPERATOR', to: 'VIEWER', fromJobRole: null, toJobRole: null },
       });
       expect(low).toMatchObject({ targetType: 'INQUIRY', change: null });
     });

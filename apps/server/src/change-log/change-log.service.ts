@@ -16,8 +16,16 @@ function toChangeLog(row: ChangeLogRow) {
     targetType: row.targetType,
     target: { id: row.targetId, label: row.targetLabel },
     action: row.action,
-    // 역할 변경·담당자 변경처럼 변경 전후 값이 있을 때만 채운다.
-    change: row.beforeValue === null && row.afterValue === null ? null : { from: row.beforeValue, to: row.afterValue },
+    // 역할 변경·담당자 변경처럼 변경 전후 값이 있을 때만 채운다. 직무는 담당자 변경에만 있다.
+    change:
+      row.beforeValue === null && row.afterValue === null
+        ? null
+        : {
+            from: row.beforeValue,
+            to: row.afterValue,
+            fromJobRole: row.beforeJobRole,
+            toJobRole: row.afterJobRole,
+          },
   };
 }
 

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { asc, inArray, isNotNull } from 'drizzle-orm';
-import { recordChange } from '../change-log/record.js';
+import { recordChange, type ChangeValues } from '../change-log/record.js';
 import { ApiException } from '../common/api-error.js';
 import { retry } from '../common/retry.js';
 import { DatabaseService } from '../database/database.service.js';
@@ -124,10 +124,12 @@ export class InquiriesService {
     const { previousAssigneeId } = await this.java.assign(id, actor.id, expectedAssigneeId);
     // 이전 담당자는 Java가 행 잠금 안에서 읽은 값이라 그 사이에 바뀌었을 수 없다. 본인이 이미 담당자였으면 바뀐 것이 없다.
     if (previousAssigneeId !== actor.id) {
-      const previousName = previousAssigneeId === null ? null : await this.displayNameOf(previousAssigneeId);
+      const previous = previousAssigneeId === null ? null : await this.memberOf(previousAssigneeId);
       await this.record(actor, id, previousAssigneeId === null ? 'INQUIRY_ASSIGNED' : 'INQUIRY_ASSIGNEE_CHANGED', {
-        from: previousName,
+        from: previous?.displayName ?? null,
         to: actor.displayName,
+        fromJobRole: previous?.jobRole ?? null,
+        toJobRole: actor.jobRole,
       });
     }
     return this.detailAfterWrite(id);
@@ -135,14 +137,24 @@ export class InquiriesService {
 
   async release(actor: MemberRow, id: number): Promise<InquiryDetail> {
     await this.java.release(id, actor.id);
-    await this.record(actor, id, 'INQUIRY_ASSIGNEE_RELEASED', { from: actor.displayName, to: null });
+    await this.record(actor, id, 'INQUIRY_ASSIGNEE_RELEASED', {
+      from: actor.displayName,
+      to: null,
+      fromJobRole: actor.jobRole,
+      toJobRole: null,
+    });
     return this.detailAfterWrite(id);
   }
 
   async restore(actor: MemberRow, id: number): Promise<InquiryDetail> {
     await this.java.restore(id, actor.id);
     // 해제 취소를 가리키는 이력 종류는 아직 정해지지 않아 맡기와 같게 기록한다.
-    await this.record(actor, id, 'INQUIRY_ASSIGNED', { from: null, to: actor.displayName });
+    await this.record(actor, id, 'INQUIRY_ASSIGNED', {
+      from: null,
+      to: actor.displayName,
+      fromJobRole: null,
+      toJobRole: actor.jobRole,
+    });
     return this.detailAfterWrite(id);
   }
 
@@ -161,7 +173,7 @@ export class InquiriesService {
     actor: MemberRow,
     id: number,
     action: 'INQUIRY_ASSIGNED' | 'INQUIRY_ASSIGNEE_CHANGED' | 'INQUIRY_ASSIGNEE_RELEASED' | 'INQUIRY_REPLIED',
-    change?: { from: string | null; to: string | null }
+    change?: ChangeValues
   ): Promise<void> {
     try {
       await retry(
@@ -184,6 +196,8 @@ export class InquiriesService {
           action,
           from: change?.from ?? null,
           to: change?.to ?? null,
+          fromJobRole: change?.fromJobRole ?? null,
+          toJobRole: change?.toJobRole ?? null,
         })}`,
         error instanceof Error ? error.stack : String(error)
       );
@@ -198,8 +212,8 @@ export class InquiriesService {
     return retry(() => this.detail(id), RETRY_TRANSIENT);
   }
 
-  private async displayNameOf(memberId: number): Promise<string | null> {
-    return (await this.membersByIds([memberId])).get(memberId)?.displayName ?? null;
+  private async memberOf(memberId: number): Promise<MemberRow | undefined> {
+    return (await this.membersByIds([memberId])).get(memberId);
   }
 
   private filterOf(actor: MemberRow, query: InquiryQuery): InquiryFilter {

@@ -115,6 +115,8 @@ export const changeLogs = mysqlTable(
     action: varchar('action', { length: 64 }).notNull(),
     beforeValue: varchar('before_value', { length: 255 }),
     afterValue: varchar('after_value', { length: 255 }),
+    beforeJobRole: mysqlEnum('before_job_role', MEMBER_JOB_ROLES),
+    afterJobRole: mysqlEnum('after_job_role', MEMBER_JOB_ROLES),
   },
   (table) => [
     index('idx_change_log_occurred_at').on(table.occurredAt),

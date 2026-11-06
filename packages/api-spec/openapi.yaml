@@ -2448,7 +2448,7 @@ components:
     ChangeLogChange:
       type: object
       description: 변경 전→후 값입니다. 역할 변경과 담당자 변경일 때만 채워집니다.
-      required: [from, to]
+      required: [from, to, fromJobRole, toJobRole]
       properties:
         from:
           type: string
@@ -2456,6 +2456,19 @@ components:
         to:
           type: string
           nullable: true
+        fromJobRole:
+          type: string
+          enum: [PM, UX_UI, FE, BE, FULL_STACK, null]
+          nullable: true
+          description:
+            담당자 변경에서 이전 담당자의 기록 당시 직무입니다. 역할 변경과 직무를 기록하기 전 이력은 `null`입니다.
+        toJobRole:
+          type: string
+          enum: [PM, UX_UI, FE, BE, FULL_STACK, null]
+          nullable: true
+          description:
+            담당자 변경에서 새 담당자의 기록 당시 직무입니다. 담당 해제, 역할 변경, 직무를 기록하기 전 이력은
+            `null`입니다.
 
     ChangeLog:
       type: object
