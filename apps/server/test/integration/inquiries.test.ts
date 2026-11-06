@@ -426,6 +426,8 @@ describe.skipIf(!hasDatabase)('inquiry operations (real database, fake service d
       targetLabel: `문의 #${id}`,
       actorMemberId: ids.op,
       beforeValue: null,
+      beforeJobRole: null,
+      afterJobRole: 'BE',
     });
   });
 
@@ -440,7 +442,7 @@ describe.skipIf(!hasDatabase)('inquiry operations (real database, fake service d
     expect(await response.json()).toMatchObject({ status: 'CHECKING', assignee: { id: ids.op } });
     const logs = await logsOf(id);
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatchObject({ action: 'INQUIRY_ASSIGNEE_CHANGED' });
+    expect(logs[0]).toMatchObject({ action: 'INQUIRY_ASSIGNEE_CHANGED', beforeJobRole: 'BE', afterJobRole: 'BE' });
     expect(logs[0]!.beforeValue).toContain(names.other);
     expect(logs[0]!.afterValue).toContain(names.op);
   });
@@ -507,7 +509,12 @@ describe.skipIf(!hasDatabase)('inquiry operations (real database, fake service d
     });
     const logs = await logsOf(id);
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatchObject({ action: 'INQUIRY_ASSIGNEE_RELEASED', afterValue: null });
+    expect(logs[0]).toMatchObject({
+      action: 'INQUIRY_ASSIGNEE_RELEASED',
+      afterValue: null,
+      beforeJobRole: 'BE',
+      afterJobRole: null,
+    });
     expect(logs[0]!.beforeValue).toContain(names.op);
   });
 
@@ -681,6 +688,8 @@ describe.skipIf(!hasDatabase)('inquiry operations (real database, fake service d
         action: 'INQUIRY_ASSIGNED',
         from: null,
         to: expect.stringContaining(names.op),
+        fromJobRole: null,
+        toJobRole: 'BE',
       });
       expect(String(stack)).toContain('connection lost');
     } finally {

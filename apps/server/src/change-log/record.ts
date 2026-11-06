@@ -1,5 +1,5 @@
 import type { Database } from '../database/database.service.js';
-import { changeLogs, type MemberRow } from '../database/schema.js';
+import { changeLogs, type MemberJobRole, type MemberRow } from '../database/schema.js';
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
 
@@ -21,12 +21,20 @@ export type ChangeTargetType = keyof typeof CHANGE_ACTIONS;
 /** 이력을 남기는 대상 종류. 조회 API의 필터가 같은 목록을 쓴다. */
 export const CHANGE_TARGET_TYPES = Object.keys(CHANGE_ACTIONS) as [ChangeTargetType, ...ChangeTargetType[]];
 
+/** 담당자 변경처럼 사람이 바뀌는 이력은 기록 당시의 직무를 함께 남긴다. */
+export interface ChangeValues {
+  from: string | null;
+  to: string | null;
+  fromJobRole?: MemberJobRole | null;
+  toJobRole?: MemberJobRole | null;
+}
+
 export type ChangeLogInput = {
   [T in ChangeTargetType]: {
     actor: MemberRow;
     target: { type: T; id: number; label: string };
     action: (typeof CHANGE_ACTIONS)[T][number];
-    change?: { from: string | null; to: string | null };
+    change?: ChangeValues;
   };
 }[ChangeTargetType];
 
@@ -47,5 +55,7 @@ export async function recordChange(tx: Transaction, input: ChangeLogInput): Prom
     action,
     beforeValue: change?.from ?? null,
     afterValue: change?.to ?? null,
+    beforeJobRole: change?.fromJobRole ?? null,
+    afterJobRole: change?.toJobRole ?? null,
   });
 }

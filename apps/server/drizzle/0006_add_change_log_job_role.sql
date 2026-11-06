@@ -1,0 +1,2 @@
+ALTER TABLE `change_log` ADD `before_job_role` enum('PM','UX_UI','FE','BE','FULL_STACK');--> statement-breakpoint
+ALTER TABLE `change_log` ADD `after_job_role` enum('PM','UX_UI','FE','BE','FULL_STACK');
