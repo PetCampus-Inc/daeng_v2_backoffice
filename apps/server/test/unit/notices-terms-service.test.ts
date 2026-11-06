@@ -17,8 +17,8 @@ const notice = {
   createdAt: '2026-10-20T12:00:00',
   updatedAt: '2026-10-20T12:00:00',
   rowVersion: 2,
-  body: '본문',
-  images: [],
+  body: { schemaVersion: 1, blocks: [{ type: 'p', children: [{ text: '본문' }] }] },
+  previewBody: { schemaVersion: 1, blocks: [{ type: 'p', children: [{ text: '본문' }] }] },
 };
 const terms = { ...notice, type: 'TERMS_OF_SERVICE', effectiveDate: '2026-11-20', announcedDate: null };
 function setup(responses: unknown[]) {
@@ -43,7 +43,7 @@ describe('platform content Java translation', () => {
     expect(result).toMatchObject({
       page: 2,
       totalItems: 21,
-      items: [{ status: 'UNPUBLISHED', createdAt: '2026-10-20T03:00:00.000Z' }],
+      items: [{ status: 'UNPUBLISHED', createdAt: '2026-10-20T03:00:00.000Z', version: 2 }],
     });
   });
   test('reads Java date and time arrays as KST', async () => {
@@ -96,10 +96,10 @@ describe('platform content Java translation', () => {
   test('sends no effective date when creating a draft without one and forwards null to clear it', async () => {
     const draft = { ...terms, status: 'DRAFT', effectiveDate: null };
     const { terms: service, requestJava } = setup([draft, draft]);
-    await service.create('SERVICE_TERMS', { content: '본문' });
-    expect(requestJava.mock.calls[0]![2]).toEqual({ body: '본문' });
-    await service.update(7, { version: 2, content: '본문', effectiveDate: null });
-    expect(requestJava.mock.calls[1]![2]).toEqual({ effectiveDate: null, body: '본문', rowVersion: 2 });
+    await service.create('SERVICE_TERMS', { content: notice.body });
+    expect(requestJava.mock.calls[0]![2]).toEqual({ body: notice.body });
+    await service.update(7, { version: 2, content: notice.body, effectiveDate: null });
+    expect(requestJava.mock.calls[1]![2]).toEqual({ effectiveDate: null, body: notice.body, rowVersion: 2 });
   });
   test('lists drafts first by newest id, then versions by effective date descending', async () => {
     vi.useFakeTimers();
@@ -125,9 +125,28 @@ describe('platform content Java translation', () => {
       files: [{ filename: 'a.png', contentType: 'image/png', size: 10 }],
     });
   });
-  test('does not misrepresent legacy JSON as markdown', async () => {
-    const { notices } = setup([{ ...notice, body: { blocks: [] } }]);
-    await expect(notices.get(7)).rejects.toThrow('legacy JSON body');
+  test('returns the notice body and preview body as block JSON without images', async () => {
+    const { notices } = setup([notice]);
+    const result = await notices.get(7);
+    expect(result).toMatchObject({ body: notice.body, previewBody: notice.previewBody, version: 2 });
+    expect(result).not.toHaveProperty('images');
+  });
+  test('sends the update body to Java as an object without pending images', async () => {
+    const { notices, requestJava } = setup([notice, notice]);
+    await notices.update(actor, 7, { version: 2, body: notice.body });
+    expect(requestJava.mock.calls[1]![2]).toEqual({ body: notice.body, rowVersion: 2 });
+  });
+  test('returns a null draft template when there is no published terms version', async () => {
+    const empty = { schemaVersion: 1, blocks: [] };
+    const { terms: service } = setup([{ content: empty }, { content: notice.body }]);
+    expect(await service.draftTemplate('SERVICE_TERMS')).toEqual({ content: null });
+    expect(await service.draftTemplate('SERVICE_TERMS')).toEqual({ content: notice.body });
+  });
+  test('exposes the Java row version as the terms version on summaries', async () => {
+    const { terms: service } = setup([
+      { items: [{ ...terms, status: 'PUBLISHED' }], page: 0, size: 100, totalElements: 1, totalPages: 1 },
+    ]);
+    expect(await service.listVersions('SERVICE_TERMS')).toMatchObject([{ id: 7, version: 2 }]);
   });
 });
 
@@ -165,12 +184,6 @@ test('the real Java transport maps a publication conflict', async () => {
   }
 });
 
-test('does not publish a legacy JSON notice before failing its response conversion', async () => {
-  const { notices, requestJava } = setup([{ ...notice, body: { blocks: [] } }]);
-  await expect(notices.publish(actor, 7, 2)).rejects.toThrow('legacy JSON body');
-  expect(requestJava).toHaveBeenCalledTimes(1);
-});
-
 test('publishing a terms draft records registration and publication without another Java read', async () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-29T00:00:00Z'));
@@ -179,19 +192,38 @@ test('publishing a terms draft records registration and publication without anot
       terms: service,
       requestJava,
       values,
-    } = setup([terms, { ...terms, status: 'PUBLISHED', publishedAt: '2026-10-29T12:00:00' }]);
+    } = setup([{ ...terms, status: 'PUBLISHED', publishedAt: '2026-10-29T12:00:00' }]);
     expect(await service.publish(actor, 7, 2)).toMatchObject({ effectiveStatus: 'SCHEDULED' });
-    expect(requestJava).toHaveBeenCalledTimes(2);
+    expect(requestJava).toHaveBeenCalledTimes(1);
     expect(values.mock.calls.map((call) => call[0].action)).toEqual([
       'TERMS_VERSION_CREATED',
       'TERMS_VERSION_PUBLISHED',
     ]);
-    // 같은 약관의 여러 버전을 이력에서 구별하도록 종류와 시행일을 남긴다.
     expect(values.mock.calls.map((call) => call[0].targetLabel)).toEqual([
       '서비스 이용약관 (시행 2026-11-20)',
       '서비스 이용약관 (시행 2026-11-20)',
     ]);
   } finally {
     vi.useRealTimers();
+  }
+});
+
+test.each([
+  ['PLATFORM-409-7', 'TERMS_EFFECTIVE_DATE_REQUIRED'],
+  ['PLATFORM-409-11', 'TERMS_EFFECTIVE_DATE_DUPLICATED'],
+])('the real Java transport maps %s on terms publication to %s', async (javaCode, boCode) => {
+  const { JavaApiClient } = await import('../../src/java-api/java-api.client.js');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ code: javaCode }), { status: 409 })));
+  try {
+    const service = new TermsService(
+      new TermsJavaClient(new JavaApiClient({ baseUrl: 'http://java.test', apiKey: 'key' })),
+      {} as DatabaseService
+    );
+    await expect(service.publish(actor, 7, 1)).rejects.toMatchObject({
+      status: 400,
+      response: { code: boCode },
+    });
+  } finally {
+    vi.unstubAllGlobals();
   }
 });

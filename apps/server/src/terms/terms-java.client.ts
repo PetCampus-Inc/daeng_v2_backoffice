@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { JavaApiClient } from '../java-api/java-api.client.js';
+import type { ContentBody } from '../java-api/content-body.js';
 import {
   boError,
   invalidBodyError,
@@ -36,14 +37,14 @@ const TERMS_ERRORS: JavaErrors = {
   'PLATFORM-409-6': boError(409, 'TERMS_VERSION_NOT_DRAFT'),
   'PLATFORM-409-7': boError(400, 'TERMS_EFFECTIVE_DATE_REQUIRED'),
   'PLATFORM-409-9': boError(409, 'TERMS_WITHDRAW_NOT_ALLOWED'),
-  'PLATFORM-409-11': boError(400, 'TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST'),
+  'PLATFORM-409-11': boError(400, 'TERMS_EFFECTIVE_DATE_DUPLICATED'),
   'PLATFORM-409-14': boError(400, 'TERMS_EFFECTIVE_DATE_IN_PAST'),
   'PLATFORM-409-15': boError(400, 'TERMS_EFFECTIVE_DATE_TOO_SOON'),
   'PLATFORM-409-16': boError(400, 'TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST'),
 };
 
-/** Java 약관 버전. 종류는 BO 값으로, 날짜·시각은 문자열로 정규화돼 있고 상태는 Java 값(`CANCELLED`)이다. */
-export interface JavaTerms {
+/** Java 약관 버전 목록 항목. 종류는 BO 값, 상태는 Java 값(`CANCELLED`)이다. */
+export interface JavaTermsSummary {
   id: number;
   title: string;
   status: string;
@@ -52,13 +53,16 @@ export interface JavaTerms {
   createdAt: string;
   updatedAt: string;
   rowVersion: number;
-  body: unknown;
   effectiveDate: string | null;
   announcedDate: string | null;
 }
 
-type RawTerms = Omit<
-  JavaTerms,
+export interface JavaTerms extends JavaTermsSummary {
+  body: ContentBody;
+}
+
+type RawTermsSummary = Omit<
+  JavaTermsSummary,
   'kind' | 'publishedAt' | 'createdAt' | 'updatedAt' | 'effectiveDate' | 'announcedDate'
 > & {
   type: JavaKind;
@@ -68,8 +72,9 @@ type RawTerms = Omit<
   effectiveDate?: JavaTemporal | null;
   announcedDate?: JavaTemporal | null;
 };
+type RawTerms = RawTermsSummary & Pick<JavaTerms, 'body'>;
 
-const normalize = ({ type, ...raw }: RawTerms): JavaTerms => ({
+const normalizeSummary = ({ type, ...raw }: RawTermsSummary): JavaTermsSummary => ({
   ...raw,
   kind: FROM_JAVA_KIND[type],
   publishedAt: javaDateTime(raw.publishedAt),
@@ -79,25 +84,27 @@ const normalize = ({ type, ...raw }: RawTerms): JavaTerms => ({
   announcedDate: javaDate(raw.announcedDate),
 });
 
-/** Java 약관 관리 API의 경로·요청·오류 계약을 감싼다. 서비스는 Java 주소와 오류 코드를 모른다. */
+const normalize = (raw: RawTerms): JavaTerms => ({ ...normalizeSummary(raw), body: raw.body });
+
+/** Java 약관 관리 API 호출과 오류 변환 */
 @Injectable()
 export class TermsJavaClient {
   constructor(@Inject(JavaApiClient) private readonly java: JavaApiClient) {}
 
-  /** Java는 생성일 역순으로 페이지를 나눠 주므로 한 종류의 모든 버전을 끝까지 읽는다. */
-  async allVersions(kind: TermsKind): Promise<JavaTerms[]> {
-    const items: JavaTerms[] = [];
+  /** 한 종류의 모든 버전을 끝까지 읽는다. */
+  async allVersions(kind: TermsKind): Promise<JavaTermsSummary[]> {
+    const items: JavaTermsSummary[] = [];
     let page = 0;
     let totalPages: number;
     do {
-      const result = await requestData<JavaPage<RawTerms>>(
+      const result = await requestData<JavaPage<RawTermsSummary>>(
         this.java,
         'GET',
         `${TERMS}/types/${TO_JAVA_KIND[kind]}/versions?page=${page}&size=${PAGE_SIZE}`,
         undefined,
         TERMS_ERRORS
       );
-      items.push(...result.items.map(normalize));
+      items.push(...result.items.map(normalizeSummary));
       totalPages = result.totalPages;
       page++;
     } while (page < totalPages);
@@ -108,9 +115,9 @@ export class TermsJavaClient {
     return this.item('GET', `${TERMS}/${id}`);
   }
 
-  /** 공개된 버전이 없으면 빈 문자열이다. */
-  async draftTemplate(kind: TermsKind): Promise<string> {
-    const result = await requestData<{ content: string }>(
+  /** 공개된 버전이 없으면 `blocks`가 빈 본문 */
+  async draftTemplate(kind: TermsKind): Promise<ContentBody> {
+    const result = await requestData<{ content: ContentBody }>(
       this.java,
       'GET',
       `${TERMS}/types/${TO_JAVA_KIND[kind]}/draft-template`,
@@ -120,7 +127,7 @@ export class TermsJavaClient {
     return result.content;
   }
 
-  create(kind: TermsKind, body: { content: string; effectiveDate?: string | null }): Promise<JavaTerms> {
+  create(kind: TermsKind, body: { content: ContentBody; effectiveDate?: string | null }): Promise<JavaTerms> {
     return this.item('POST', `${TERMS}/types/${TO_JAVA_KIND[kind]}/versions`, {
       body: body.content,
       ...(body.effectiveDate ? { effectiveDate: body.effectiveDate } : {}),
@@ -129,7 +136,7 @@ export class TermsJavaClient {
 
   update(
     id: number,
-    data: { content?: string; effectiveDate?: string | null },
+    data: { content?: ContentBody; effectiveDate?: string | null },
     rowVersion: number
   ): Promise<JavaTerms> {
     const { content, ...rest } = data;

@@ -985,8 +985,7 @@ paths:
       description: |-
         공지 본문에 넣을 이미지의 업로드 주소를 발급합니다. 순서는 다음과 같습니다.
         1. `uploadUrl`로 파일을 올립니다.
-        2. 이미지마다 UUID(`clientImageId`)를 만들어 본문에 `![설명](knockdog-upload://clientImageId)` 형태로 넣습니다.
-        3. 공지를 저장할 때 `pendingImages`에 `clientImageId`, 응답의 `tempKey`, 원본 파일명을 함께 보냅니다. 저장하면 이미지가 확정됩니다.
+        2. 본문의 이미지 블록에 응답의 `tempKey`와 원본 파일명(`originalFilename`)을 넣어 공지를 저장합니다. 저장하면 이미지가 확정되고 본문에는 `imageId`가 남습니다.
         저장하지 않고 나간 업로드는 확정되지 않습니다.
         JPEG·PNG만 가능하고, 파일당 20MB 이하로 한 번에 10개까지 올릴 수 있습니다.
       requestBody:
@@ -2324,8 +2323,9 @@ components:
                   TERMS_EFFECTIVE_DATE_TOO_SOON,
                   TERMS_EFFECTIVE_DATE_IN_PAST,
                   TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST,
-                  TERMS_EFFECTIVE_DATE_INVALID_FORMAT,
                   TERMS_EFFECTIVE_DATE_REQUIRED,
+                  TERMS_EFFECTIVE_DATE_DUPLICATED,
+                  TERMS_EFFECTIVE_DATE_INVALID_FORMAT,
                 ]
       example:
         code: TERMS_EFFECTIVE_DATE_TOO_SOON
@@ -2500,13 +2500,16 @@ components:
     NoticeSummary:
       type: object
       description: 공지 목록의 한 행
-      required: [id, title, status, publishedAt, createdAt, updatedAt]
+      required: [id, title, status, publishedAt, createdAt, updatedAt, version]
       properties:
         id:
           type: integer
         title:
           type: string
           description: 초안은 빈 문자열일 수 있습니다.
+        version:
+          type: integer
+          description: 동시 수정을 막기 위한 값입니다. 게시·숨김·삭제 요청에 그대로 보냅니다.
         status:
           $ref: '#/components/schemas/NoticeStatus'
         publishedAt:
@@ -2525,26 +2528,19 @@ components:
       allOf:
         - $ref: '#/components/schemas/NoticeSummary'
         - type: object
-          required: [body, version, images]
+          required: [body, previewBody]
           properties:
-            images:
-              type: array
-              description: 본문의 이미지 ID에 대응하는 임시 조회 URL입니다. 본문은 저장용 상대 경로를 유지합니다.
-              items:
-                type: object
-                required: [imageId, previewUrl]
-                properties:
-                  imageId:
-                    type: integer
-                  previewUrl:
-                    type: string
-                    nullable: true
             body:
-              type: string
-              description: 마크다운 본문입니다. 게시하려면 1~5,000자여야 하고, 초안은 비어 있어도 됩니다.
-            version:
-              type: integer
-              description: 동시 수정을 막기 위한 값입니다. 수정·게시 요청에 그대로 보냅니다.
+              allOf:
+                - $ref: '#/components/schemas/ContentBody'
+              description:
+                다시 저장할 원본 본문입니다. 이미지는 `imageId`로 들어 있습니다. 게시하려면 글자가 1~5,000자여야 하고,
+                초안은 비어 있어도 됩니다.
+            previewBody:
+              allOf:
+                - $ref: '#/components/schemas/ContentBody'
+              description:
+                화면에 보여 줄 본문입니다. 이미지 노드에 임시로 열 수 있는 URL이 들어 있어 저장에는 쓰지 않습니다.
 
     NoticePage:
       allOf:
@@ -2565,14 +2561,11 @@ components:
           type: string
           maxLength: 50
         body:
-          type: string
-          maxLength: 5000
-        pendingImages:
-          type: array
-          maxItems: 10
-          description: 본문에 새로 넣은 이미지. 본문의 `knockdog-upload://` 표식과 일대일로 대응해야 합니다.
-          items:
-            $ref: '#/components/schemas/NoticePendingImage'
+          allOf:
+            - $ref: '#/components/schemas/ContentBody'
+          description:
+            본문 블록 JSON. 새 이미지는 이미지 블록에 `tempKey`와 `originalFilename`을 넣습니다. 글자는 5,000자 이하여야
+            합니다.
 
     UpdateNoticeRequest:
       type: object
@@ -2582,14 +2575,11 @@ components:
           type: string
           maxLength: 50
         body:
-          type: string
-          maxLength: 5000
-        pendingImages:
-          type: array
-          maxItems: 10
-          description: 본문에 새로 넣은 이미지. 본문의 `knockdog-upload://` 표식과 일대일로 대응해야 합니다.
-          items:
-            $ref: '#/components/schemas/NoticePendingImage'
+          allOf:
+            - $ref: '#/components/schemas/ContentBody'
+          description:
+            본문 블록 JSON. 새 이미지는 이미지 블록에 `tempKey`와 `originalFilename`을 넣습니다. 글자는 5,000자 이하여야
+            합니다.
         version:
           type: integer
           minimum: 0
@@ -2643,20 +2633,12 @@ components:
           description: 파일을 직접 올릴 주소(유효시간이 짧습니다)
         tempKey:
           type: string
-          description: 업로드한 임시 파일의 키입니다. 공지를 저장할 때 `pendingImages`에 담아 보냅니다.
+          description: 업로드한 임시 파일의 키입니다. 공지를 저장할 때 본문의 이미지 블록에 넣어 보냅니다.
 
-    NoticePendingImage:
+    ContentBody:
       type: object
-      required: [clientImageId, tempKey, originalFilename]
-      properties:
-        clientImageId:
-          type: string
-          description: 본문의 `knockdog-upload://` 표식에 쓴 UUID
-        tempKey:
-          type: string
-          description: 업로드 주소 발급 응답의 `tempKey`
-        originalFilename:
-          type: string
+      additionalProperties: true
+      description: 에디터가 내보내는 블록 JSON(`{schemaVersion, blocks}`)입니다. 문자열은 받지 않습니다.
 
     TermsKind:
       type: string
@@ -2678,11 +2660,14 @@ components:
 
     TermsVersionSummary:
       type: object
-      required: [id, kind, effectiveDate, publishStatus, effectiveStatus, publishedAt, updatedAt]
+      required: [id, kind, effectiveDate, publishStatus, effectiveStatus, publishedAt, updatedAt, version]
       properties:
         id:
           type: integer
           description: 약관 버전 식별자입니다. 종류와 관계없이 하나씩 늘어나므로 종류별로 이어지는 번호가 아닙니다.
+        version:
+          type: integer
+          description: 동시 수정을 막기 위한 값입니다. 수정·공개·철회·삭제 요청에 그대로 보냅니다.
         kind:
           $ref: '#/components/schemas/TermsKind'
         effectiveDate:
@@ -2711,19 +2696,18 @@ components:
       allOf:
         - $ref: '#/components/schemas/TermsVersionSummary'
         - type: object
-          required: [content, announcedDate, version]
+          required: [content, announcedDate]
           properties:
             content:
-              type: string
-              description: 마크다운입니다. 제목 없이 약관 본문으로 시작하고, 맨 아래에 공고일자·시행일자가 들어갑니다.
+              allOf:
+                - $ref: '#/components/schemas/ContentBody'
+              description:
+                약관 본문 블록 JSON입니다. 제목 없이 약관 본문으로 시작하고, 맨 아래에 공고일자·시행일자가 들어갑니다.
             announcedDate:
               type: string
               format: date
               nullable: true
               description: 공고일(공개한 날짜, KST). 공개 전에는 `null`
-            version:
-              type: integer
-              description: 동시 수정을 막기 위한 값입니다. 수정·공개 요청에 그대로 보냅니다.
 
     TermsKindSummary:
       type: object
@@ -2753,9 +2737,9 @@ components:
           format: date
           description: 시행일입니다. 초안에서는 비워 둘 수 있고 공개할 때 필수입니다.
         content:
-          type: string
-          description:
-            마크다운입니다. 공고일·시행일 자리에 `{{공고일}}`·`{{시행일}}`을 적어 두면 공개할 때 자동으로 채워집니다.
+          allOf:
+            - $ref: '#/components/schemas/ContentBody'
+          description: 약관 본문 블록 JSON입니다. 글자는 100,000자 이하여야 합니다.
 
     UpdateTermsVersionRequest:
       type: object
@@ -2767,7 +2751,7 @@ components:
           nullable: true
           description: 보내지 않으면 유지하고, `null`을 보내면 시행일을 비웁니다.
         content:
-          type: string
+          $ref: '#/components/schemas/ContentBody'
         version:
           type: integer
           minimum: 0
@@ -2787,9 +2771,10 @@ components:
       required: [content]
       properties:
         content:
-          type: string
+          type: object
+          additionalProperties: true
           nullable: true
-          description: 시작 본문. 공개한 버전이 없으면 `null`
+          description: 시작 본문 블록 JSON(`{schemaVersion, blocks}`). 공개한 버전이 없으면 `null`
 
     NotificationKind:
       type: string

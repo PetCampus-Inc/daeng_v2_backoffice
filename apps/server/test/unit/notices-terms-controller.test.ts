@@ -51,7 +51,7 @@ const request = (path: string, role: string, method = 'GET', body?: unknown) =>
 describe('content HTTP authorization and validation', () => {
   test('viewer can list notices but cannot create one', async () => {
     expect((await request('/notices', 'VIEWER')).status).toBe(200);
-    const denied = await request('/notices', 'VIEWER', 'POST', { title: '', body: '' });
+    const denied = await request('/notices', 'VIEWER', 'POST', { title: '', body: { schemaVersion: 1, blocks: [] } });
     expect(denied.status).toBe(403);
     expect(await denied.json()).toMatchObject({ code: 'FORBIDDEN' });
     expect(accessLog.record).toHaveBeenCalledWith(expect.objectContaining({ event: 'ACCESS_DENIED' }));
@@ -61,7 +61,7 @@ describe('content HTTP authorization and validation', () => {
       (
         await request('/terms/SERVICE_TERMS/versions', 'OPERATOR', 'POST', {
           effectiveDate: '2026-11-01',
-          content: '내용',
+          content: { schemaVersion: 1, blocks: [] },
         })
       ).status
     ).toBe(403);
@@ -69,9 +69,14 @@ describe('content HTTP authorization and validation', () => {
   test('invalid date and image requests use their specified errors', async () => {
     const invalidDate = await request('/terms/SERVICE_TERMS/versions', 'SUPER_ADMIN', 'POST', {
       effectiveDate: '2026-02-30',
-      content: '내용',
+      content: { schemaVersion: 1, blocks: [] },
     });
     expect(await invalidDate.json()).toMatchObject({ code: 'TERMS_EFFECTIVE_DATE_INVALID_FORMAT' });
+    const stringBody = await request('/notices', 'OPERATOR', 'POST', { title: '공지', body: '마크다운' });
+    expect(stringBody.status).toBe(400);
+    expect(await stringBody.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
+    const arrayBody = await request('/notices', 'OPERATOR', 'POST', { title: '공지', body: [] });
+    expect(arrayBody.status).toBe(400);
     const invalidImage = await request('/notices/images/upload-urls', 'OPERATOR', 'POST', { files: [] });
     expect(await invalidImage.json()).toMatchObject({ code: 'NOTICE_IMAGE_INVALID' });
   });
