@@ -1,7 +1,7 @@
 import { NoticeStatus, type Notice } from '@/routes/notices/type';
 
-/** 가짜 서버에 저장하는 공지. 서버 응답(상세)과 같은 모양이며 시각은 UTC다. */
-export type MockNotice = Notice;
+/** 가짜 서버에 저장하는 공지. 서버 상세 응답에서 화면용 본문(`previewBody`)만 뺀 모양이며 시각은 UTC다. */
+export type MockNotice = Omit<Notice, 'previewBody'>;
 
 /** 가짜 서버가 읽은 공지 목록 조건. 서버가 받는 값 그대로다. */
 export type MockNoticeFilter = { keyword: string; status?: NoticeStatus };

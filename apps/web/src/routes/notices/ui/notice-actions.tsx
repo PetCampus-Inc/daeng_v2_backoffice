@@ -29,17 +29,15 @@ const STATE_CHANGED_MESSAGE = '공지 상태가 변경되었습니다. 최신 �
 
 /**
  * 목록·읽기·초안 화면에서 동일한 상태 전환과 확인창을 쓴다.
- * 재게시는 읽기 화면만 하며 최신 `version`이 필요해 `version`을 함께 받는다. 게시 해제·삭제는 서버가 `version`을 확인하지 않는다.
+ * 삭제·게시 해제·재게시는 목록·상세 응답으로 받은 공지의 `version`을 서버에 보낸다(재게시는 읽기 화면만 한다).
  */
 export function NoticeActions({
   notice,
-  version,
   onDeleted,
   title = notice.title,
   showRepublish = false,
 }: {
   notice: NoticeSummary;
-  version?: number;
   onDeleted?: () => void;
   title?: string;
   showRepublish?: boolean;
@@ -61,11 +59,11 @@ export function NoticeActions({
   if (action === 'republish' && !showRepublish) return null;
   const label = action === 'delete' ? '초안 삭제' : action === 'unpublish' ? '게시 해제' : '공지 재게시';
 
-  /** 요청이 거절되면 상태가 바뀐 것으로 보고 최신 상태를 다시 읽는다. */
+  /** 요청이 거절되면 상태가 바뀐 것으로 보고 안내한 뒤 최신 상태를 다시 읽는다(수정 저장의 409와 같은 안내문). */
   const handleFailure = (error: unknown) => {
     const { status, code } = readNoticeError(error);
     if (status === 404 || status === 409) {
-      toast.error(STATE_CHANGED_MESSAGE);
+      toast.error(getNoticeErrorGuide(status, code)?.description ?? STATE_CHANGED_MESSAGE);
       invalidateNotices();
     } else if (status === 400) toast.error(getNoticeErrorGuide(status, code)?.description ?? GENERIC_ERROR_MESSAGE);
     else toast.error(GENERIC_ERROR_MESSAGE);
@@ -96,13 +94,14 @@ export function NoticeActions({
     setIsRunning(true);
     try {
       if (action === 'delete') {
-        await deleteMutation.mutateAsync({ id: notice.id });
+        await deleteMutation.mutateAsync({ id: notice.id, params: { version: notice.version } });
         setIsConfirmOpen(false);
         toast.success('초안을 삭제했습니다.');
         onDeleted?.();
       } else if (action === 'unpublish') {
         const unpublished = await unpublishMutation.mutateAsync({
           id: notice.id,
+          params: { version: notice.version },
         });
         toast.success('게시를 해제했습니다.', {
           duration: 8000,
@@ -111,8 +110,8 @@ export function NoticeActions({
             onClick: () => void handleUndo(unpublished),
           },
         });
-      } else if (version !== undefined) {
-        await publishMutation.mutateAsync({ id: notice.id, data: { version } });
+      } else {
+        await publishMutation.mutateAsync({ id: notice.id, data: { version: notice.version } });
         setIsConfirmOpen(false);
         toast.success('공지를 다시 게시했습니다.');
       }

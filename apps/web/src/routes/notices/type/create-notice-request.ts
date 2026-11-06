@@ -6,16 +6,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { NoticePendingImage } from './notice-pending-image';
+import type { ContentBody } from '@/type/content-body';
 
 export interface CreateNoticeRequest {
   /** @maxLength 50 */
   title: string;
-  /** @maxLength 5000 */
-  body: string;
-  /**
-   * 본문에 새로 넣은 이미지. 본문의 `knockdog-upload://` 표식과 일대일로 대응해야 합니다.
-   * @maxItems 10
-   */
-  pendingImages?: NoticePendingImage[];
+  /** 본문 블록 JSON. 새 이미지는 이미지 블록에 `tempKey`와 `originalFilename`을 넣습니다. 글자는 5,000자 이하여야 합니다. */
+  body: ContentBody;
 }

@@ -6,10 +6,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ContentBody } from '@/type/content-body';
 
 export interface UpdateTermsVersionRequest {
-  effectiveDate?: string;
-  content?: string;
+  /**
+   * 보내지 않으면 유지하고, `null`을 보내면 시행일을 비웁니다.
+   * @nullable
+   */
+  effectiveDate?: string | null;
+  content?: ContentBody;
   /**
    * 화면을 열 때 받은 `version`
    * @minimum 0

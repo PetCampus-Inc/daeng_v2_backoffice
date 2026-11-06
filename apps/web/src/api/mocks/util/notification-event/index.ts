@@ -4,23 +4,30 @@ import { readStoredNotifications, writeStoredNotifications } from '../../handler
 
 export type NotificationEvent =
   | { type: 'newInquiry'; targetId: number }
-  | { type: 'followUp'; targetId: number }
+  | { type: 'followUp'; targetId: number; assigneeEmail: string | null }
   | { type: 'assigneeChanged'; targetId: number; previousEmail: string | null; actorName: string }
   | { type: 'newIdea'; targetId: number }
   | { type: 'reviewReport'; targetId: number };
 
 /**
  * 서버(`notification-event-processor.ts`)의 수신자 규칙을 따라 하는 모의 서버 규칙이다. 활성 팀원만 받는다.
- * 새 문의와 추가 문의는 최고 관리자·운영자 모두에게, 새 제안은 전 역할에게 가고, 담당자 변경은 이전 담당자에게만 간다.
- * 기획(PRD 8장)은 추가 문의를 담당자에게만 보낸다. 서버가 고쳐지기 전까지 다르다(OQ-D30).
+ * 새 문의는 최고 관리자·운영자 모두에게, 새 제안은 전 역할에게 가고, 담당자 변경은 이전 담당자에게만 간다.
+ * 추가 문의는 담당자가 활성이면 담당자와 활성 최고 관리자에게만 가고, 담당자가 없거나 비활성이면
+ * 활성 최고 관리자·운영자 전원에게 간다(OQ-D30, 서버와 일치).
  */
 export function getNotificationRecipients(members: TeamMember[], event: NotificationEvent): string[] {
+  const activeAssignee =
+    event.type === 'followUp'
+      ? members.find((member) => member.status === 'ACTIVE' && member.email === event.assigneeEmail)
+      : undefined;
   return members
     .filter((member) => {
       if (member.status !== 'ACTIVE') return false;
       switch (event.type) {
-        case 'newInquiry':
         case 'followUp':
+          if (activeAssignee) return member.email === activeAssignee.email || member.role === 'SUPER_ADMIN';
+          return member.role === 'SUPER_ADMIN' || member.role === 'OPERATOR';
+        case 'newInquiry':
           return member.role === 'SUPER_ADMIN' || member.role === 'OPERATOR';
         case 'newIdea':
           return true;

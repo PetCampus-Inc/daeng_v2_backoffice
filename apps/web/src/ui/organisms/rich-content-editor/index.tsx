@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type Ref } from 'react';
+import { Fragment, useEffect, useId, useRef, useState, type ChangeEvent, type ComponentProps, type Ref } from 'react';
 import {
   BasicBlocksPlugin,
   BoldPlugin,
@@ -6,25 +6,23 @@ import {
   UnderlinePlugin,
   StrikethroughPlugin,
 } from '@platejs/basic-nodes/react';
-import { BaseBasicBlocksPlugin, BaseBasicMarksPlugin } from '@platejs/basic-nodes';
 import { ListPlugin } from '@platejs/list-classic/react';
-import { BaseListPlugin } from '@platejs/list-classic';
 import { LinkPlugin } from '@platejs/link/react';
-import { BaseLinkPlugin, upsertLink, unwrapLink } from '@platejs/link';
+import { upsertLink, unwrapLink } from '@platejs/link';
+import { ImagePlugin } from '@platejs/media/react';
 import { TablePlugin } from '@platejs/table/react';
-import { BaseTablePlugin, insertTable, insertTableRow, insertTableColumn, deleteTable } from '@platejs/table';
+import { insertTable, insertTableRow, insertTableColumn, deleteTable } from '@platejs/table';
+import type { Value } from 'platejs';
 import {
   Plate,
   PlateContent,
   usePlateEditor,
   useEditorRef,
   useEditorSelector,
+  useReadOnly,
   createPlatePlugin,
   type PlateElementProps,
 } from 'platejs/react';
-import { createSlatePlugin } from 'platejs';
-import { PlateStatic, createStaticEditor, type SlateElementProps } from 'platejs/static';
-import { createElement } from 'react';
 import {
   Bold,
   Italic,
@@ -38,12 +36,21 @@ import {
   Link,
   Unlink,
   Table,
+  ImagePlus,
+  X,
   Minus,
   Undo2,
   Redo2,
 } from 'lucide-react';
 import type { RichContent } from '@/type/rich-content';
-import { fromEditorValue, isHttpUrl, toEditorValue } from '@/util/rich-content';
+import { countRichContentImages, fromEditorValue, isHttpUrl, toEditorValue } from '@/util/rich-content';
+import {
+  RICH_CONTENT_CLASS,
+  RICH_CONTENT_COMPONENTS,
+  RICH_CONTENT_FONT_SIZES as FONT_SIZES,
+  isRichContentFontSize as isFontSize,
+} from '@/ui/organisms/rich-content-viewer/util';
+import { ImageElement } from '@/ui/organisms/rich-content-viewer/ui/rich-content-image';
 import { Button } from '@/ui/atoms/button';
 import { Input } from '@/ui/atoms/input';
 import { Label } from '@/ui/atoms/label';
@@ -71,101 +78,6 @@ function DialogFooter(props: ComponentProps<'div'>) {
   return <div {...props} className='flex justify-end gap-2' />;
 }
 
-function ContentElement({ attributes, children, element }: PlateElementProps | SlateElementProps) {
-  if (element.type === 'hr') {
-    return (
-      <div {...attributes}>
-        <div contentEditable={false}>
-          <hr />
-        </div>
-        {children}
-      </div>
-    );
-  }
-  if (element.type === 'table') {
-    return (
-      <div className='max-w-full overflow-x-auto'>
-        <table {...attributes}>
-          <tbody>{children}</tbody>
-        </table>
-      </div>
-    );
-  }
-  if (element.type === 'a') {
-    return isHttpUrl(String(element.url)) ? (
-      <a {...attributes} href={String(element.url)} target='_blank' rel='noopener noreferrer'>
-        {children}
-      </a>
-    ) : (
-      <span {...attributes}>{children}</span>
-    );
-  }
-  const tag =
-    (
-      {
-        h1: 'h1',
-        h2: 'h2',
-        h3: 'h3',
-        h4: 'h4',
-        h5: 'h5',
-        h6: 'h6',
-        blockquote: 'blockquote',
-        ul: 'ul',
-        ol: 'ol',
-        li: 'li',
-        lic: 'div',
-        tr: 'tr',
-        td: 'td',
-        th: 'th',
-      } as Record<string, string>
-    )[element.type] ?? 'p';
-  return createElement(tag, attributes, children);
-}
-const COMPONENTS = Object.fromEntries(
-  [
-    'p',
-    'h1',
-    'h2',
-    'h3',
-    'h4',
-    'h5',
-    'h6',
-    'blockquote',
-    'ul',
-    'ol',
-    'li',
-    'lic',
-    'table',
-    'tr',
-    'td',
-    'th',
-    'hr',
-    'a',
-  ].map((key) => [key, ContentElement])
-);
-const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28];
-/** 선택 목록(FONT_SIZES)에 있는 px 값인지 확인한다. */
-function isFontSize(value: unknown): value is number {
-  return typeof value === 'number' && FONT_SIZES.includes(value);
-}
-/** 글자 크기 표시를 위한 mark. 목록에 있는 px 숫자만 그린다. */
-function FontSizeLeaf({
-  attributes,
-  children,
-  leaf,
-}: {
-  attributes: object;
-  children: ReactNode;
-  leaf: { fontSize?: unknown };
-}) {
-  const size = isFontSize(leaf.fontSize) ? leaf.fontSize : undefined;
-  return (
-    <span {...attributes} style={size ? { fontSize: `${size}px` } : undefined}>
-      {children}
-    </span>
-  );
-}
-const EDITOR_COMPONENTS = { ...COMPONENTS, fontSize: FontSizeLeaf };
 const PLUGINS = [
   createPlatePlugin({ key: 'fontSize', node: { isLeaf: true } }),
   BasicBlocksPlugin,
@@ -176,23 +88,74 @@ const PLUGINS = [
   ListPlugin,
   LinkPlugin.configure({ options: { isUrl: isHttpUrl } }),
   TablePlugin,
+  // 붙여넣기·주소로 들어오는 이미지는 서버가 받지 않는 모양(url)이라 막고, 이미지는 업로드 버튼으로만 넣는다.
+  ImagePlugin.configure({
+    options: { disableEmbedInsert: true, disableUploadInsert: true },
+    parsers: { html: { deserializer: { query: () => false } } },
+  }),
 ];
-const CONTENT_CLASS =
-  'min-w-0 whitespace-pre-wrap text-kd-body [overflow-wrap:anywhere] [&_p]:min-h-6 [&_h1]:text-kd-title-1 [&_h2]:text-kd-title-2 [&_h3]:text-kd-title-3 [&_h4]:font-bold [&_h5]:font-bold [&_h6]:font-bold [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_a]:text-kd-primary [&_a]:underline [&_blockquote]:border-l-4 [&_blockquote]:border-kd-border [&_blockquote]:pl-4 [&_hr]:my-4 [&_hr]:border-kd-border [&_table]:w-full [&_table]:min-w-80 [&_table]:border-collapse [&_td]:min-w-24 [&_td]:border [&_td]:border-kd-border [&_td]:p-2 [&_th]:min-w-24 [&_th]:border [&_th]:border-kd-border [&_th]:bg-kd-surface [&_th]:p-2';
+
+/** 이미지 업로드를 켜는 값. 업로드 실행은 화면(공지)이 맡고 편집기는 파일 선택과 블록 삽입만 한다. */
+export type RichContentImageUpload = {
+  /** 파일 선택창에 거는 허용 형식. */
+  accept: string;
+  /** 업로드 중이면 이미지 버튼을 잠근다. */
+  isUploading: boolean;
+  /** 파일을 올리고 성공한 이미지를 돌려준다. `currentImageCount`는 본문에 든 이미지 수다. */
+  upload: (files: File[], currentImageCount: number) => Promise<{ tempKey: string; originalFilename: string }[]>;
+  /** 저장으로 확정된 이미지(`tempKey`→`imageId`). 본문의 같은 이미지 블록을 `imageId`로 바꾼다. */
+  confirmed?: Record<string, number>;
+};
+
+/** 편집기 안의 이미지. 보기 모양에 삭제 버튼을 얹는다. */
+function EditableImageElement(props: PlateElementProps) {
+  const editor = useEditorRef();
+  const readOnly = useReadOnly();
+  return (
+    <ImageElement
+      {...props}
+      actions={
+        !readOnly && (
+          <Button
+            type='button'
+            size='icon'
+            variant='outline'
+            className='absolute top-2 right-2 size-8'
+            aria-label='이미지 삭제'
+            title='이미지 삭제'
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              const path = editor.api.findPath(props.element);
+              if (path) editor.tf.removeNodes({ at: path });
+            }}
+          >
+            <X className='size-4' />
+          </Button>
+        )
+      }
+    />
+  );
+}
 
 type EditorProps = {
   value: RichContent;
   onChange: (value: RichContent) => void;
   readOnly?: boolean;
+  /** 주면 도구 모음에 이미지 버튼이 생긴다. 주지 않으면(약관 등) 이미지 버튼이 없다. */
+  imageUpload?: RichContentImageUpload;
   ref?: Ref<HTMLDivElement>;
 } & Pick<ComponentProps<typeof PlateContent>, 'id' | 'placeholder' | 'aria-invalid' | 'aria-describedby'>;
 
-export function RichContentEditor({ value, onChange, readOnly = false, ref, ...props }: EditorProps) {
-  const editor = usePlateEditor({ plugins: PLUGINS, components: EDITOR_COMPONENTS, value: toEditorValue(value) });
+export function RichContentEditor({ value, onChange, readOnly = false, imageUpload, ref, ...props }: EditorProps) {
+  const editor = usePlateEditor({
+    plugins: PLUGINS,
+    components: { ...RICH_CONTENT_COMPONENTS, img: EditableImageElement },
+    value: toEditorValue(value),
+  });
   return (
     <div className='min-w-0 rounded-kd-3 border border-kd-border focus-within:ring-2 focus-within:ring-kd-primary'>
       <Plate editor={editor} readOnly={readOnly} onValueChange={({ value }) => onChange(fromEditorValue(value))}>
-        <EditorToolbar readOnly={readOnly} />
+        <EditorToolbar readOnly={readOnly} imageUpload={imageUpload} />
         <PlateContent
           {...props}
           ref={ref}
@@ -201,7 +164,7 @@ export function RichContentEditor({ value, onChange, readOnly = false, ref, ...p
           aria-multiline='true'
           aria-readonly={readOnly}
           className={cn(
-            CONTENT_CLASS,
+            RICH_CONTENT_CLASS,
             'h-96 min-h-96 overflow-y-auto p-4 outline-none [&_[data-slate-placeholder]]:top-4! [&_[data-slate-placeholder]]:w-[calc(100%-2rem)]!'
           )}
         />
@@ -210,8 +173,21 @@ export function RichContentEditor({ value, onChange, readOnly = false, ref, ...p
   );
 }
 
-function EditorToolbar({ readOnly }: { readOnly: boolean }) {
+function EditorToolbar({ readOnly, imageUpload }: { readOnly: boolean; imageUpload?: RichContentImageUpload }) {
   const editor = useEditorRef();
+  const fileInputId = useId();
+  const confirmed = imageUpload?.confirmed;
+  // 저장으로 확정된 이미지는 `tempKey`를 `imageId`로 바꾼다. 실행 취소 기록에는 남기지 않는다.
+  useEffect(() => {
+    if (!confirmed) return;
+    editor.tf.withoutSaving(() => {
+      for (const [tempKey, imageId] of Object.entries(confirmed)) {
+        const match = (node: { type?: unknown; tempKey?: unknown }) => node.type === 'img' && node.tempKey === tempKey;
+        editor.tf.setNodes({ imageId }, { at: [], match });
+        editor.tf.unsetNodes(['tempKey', 'originalFilename'], { at: [], match });
+      }
+    });
+  }, [editor, confirmed]);
   const marks = useEditorSelector((editor) => editor.api.marks() ?? {}, []);
   const block = useEditorSelector(
     (editor) =>
@@ -248,6 +224,34 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
     run();
     editor.tf.focus();
   };
+  /** 고른 이미지 파일을 올리고, 성공한 이미지를 이미지 블록으로 넣는다. */
+  const handleImageFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!imageUpload || files.length === 0) return;
+    const target = lastSelection.current;
+    const uploaded = await imageUpload.upload(files, countRichContentImages(editor.children as Value));
+    if (uploaded.length === 0) return;
+    const nodes = [
+      ...uploaded.map(({ tempKey, originalFilename }) => ({
+        type: 'img',
+        tempKey,
+        originalFilename,
+        children: [{ text: '' }],
+      })),
+      { type: 'p', children: [{ text: '' }] },
+    ];
+    try {
+      if (!editor.selection && target) editor.tf.select(target);
+    } catch {
+      // 올리는 사이 문서가 바뀌어 위치를 못 찾으면 맨 끝에 넣는다.
+    }
+    if (editor.selection) editor.tf.insertNodes(nodes, { nextBlock: true });
+    else editor.tf.insertNodes(nodes, { at: [editor.children.length] });
+    editor.tf.focus();
+  };
+  /** 파일 선택창을 연다. */
+  const openFilePicker = () => document.getElementById(fileInputId)?.click();
   const buttons = [
     { label: '굵게', Icon: Bold, active: !!marks.bold, run: () => editor.tf.toggleMark('bold') },
     { label: '기울임', Icon: Italic, active: !!marks.italic, run: () => editor.tf.toggleMark('italic') },
@@ -291,6 +295,16 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
         insertTable(editor, { rowCount: 2, colCount: 2 });
       },
     },
+    ...(imageUpload
+      ? [
+          {
+            label: '이미지',
+            Icon: ImagePlus,
+            isDisabled: imageUpload.isUploading,
+            run: openFilePicker,
+          },
+        ]
+      : []),
     {
       label: '구분선',
       Icon: Minus,
@@ -307,7 +321,7 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
   return (
     <>
       <div role='group' aria-label='본문 서식' className='flex flex-wrap gap-1 border-b border-kd-border p-2'>
-        {buttons.map(({ label, Icon, active, run }) => (
+        {buttons.map(({ label, Icon, active, run, isDisabled }) => (
           <Fragment key={label}>
             <Button
               type='button'
@@ -317,7 +331,7 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
               aria-label={label}
               title={label}
               aria-pressed={active}
-              disabled={readOnly}
+              disabled={readOnly || isDisabled}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => act(run)}
             >
@@ -348,6 +362,17 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
             )}
           </Fragment>
         ))}
+        {imageUpload && (
+          <input
+            id={fileInputId}
+            type='file'
+            hidden
+            multiple
+            accept={imageUpload.accept}
+            aria-label='이미지 파일 선택'
+            onChange={(event) => void handleImageFiles(event)}
+          />
+        )}
         {block.includes('table') && (
           <div className='flex flex-wrap gap-1'>
             <Button
@@ -431,23 +456,4 @@ function EditorToolbar({ readOnly }: { readOnly: boolean }) {
       </Dialog>
     </>
   );
-}
-
-export function RichContentView({ value, className }: { value: RichContent; className?: string }) {
-  const editor = useMemo(
-    () =>
-      createStaticEditor({
-        plugins: [
-          BaseBasicBlocksPlugin,
-          BaseBasicMarksPlugin,
-          BaseListPlugin,
-          BaseLinkPlugin,
-          BaseTablePlugin,
-          createSlatePlugin({ key: 'fontSize', node: { isLeaf: true } }),
-        ],
-        components: EDITOR_COMPONENTS,
-      }),
-    []
-  );
-  return <PlateStatic editor={editor} value={toEditorValue(value)} className={cn(CONTENT_CLASS, className)} />;
 }

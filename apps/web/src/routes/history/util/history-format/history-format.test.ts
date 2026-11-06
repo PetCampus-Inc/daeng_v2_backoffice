@@ -32,7 +32,7 @@ describe('R-이력대상표시. 대상 칸 글자', () => {
 describe('R-이력기록. 변경 전 → 후', () => {
   it.each<[string, ChangeLogAction, { from: string | null; to: string | null }, string]>([
     [
-      '01 맡기는 미배정에서 이름으로',
+      '01 처음 맡기와 해제 실행 취소는 미배정에서 이름으로',
       ChangeLogAction.INQUIRY_ASSIGNED,
       { from: null, to: '김운영' },
       '미배정 → 김운영',

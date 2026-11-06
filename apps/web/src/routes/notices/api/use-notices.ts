@@ -24,6 +24,7 @@ import type {
 
 import type {
   CreateNoticeRequest,
+  DeleteNoticeParams,
   ListNoticesParams,
   Notice,
   NoticeContentError,
@@ -38,6 +39,7 @@ import type {
   NoticePublishConflictError,
   NoticeVersionConflictResponse,
   NoticeVersionRequest,
+  UnpublishNoticeParams,
   UpdateNoticeRequest,
 } from '@/routes/notices/type';
 import type { ForbiddenResponse, UnauthorizedResponse, ValidationFailedResponse } from '@/type';
@@ -463,10 +465,16 @@ export const useUpdateNotice = <
 };
 /**
  * 공지 초안을 삭제합니다. 초안만 삭제할 수 있습니다.
+ * `version`이 다르면 409로 실패합니다.
  * @summary 공지 초안 삭제
  */
-export const deleteNotice = (id: number, options?: SecondParameter<typeof customInstance>, signal?: AbortSignal) => {
-  return customInstance<void>({ url: `/notices/${id}`, method: 'DELETE', signal }, options);
+export const deleteNotice = (
+  id: number,
+  params: DeleteNoticeParams,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal
+) => {
+  return customInstance<void>({ url: `/notices/${id}`, method: 'DELETE', params, signal }, options);
 };
 
 export const getDeleteNoticeMutationKey = () => ['deleteNotice'] as const;
@@ -493,9 +501,9 @@ export const getDeleteNoticeMutationOptions = <
   const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteNotice>>, DeleteNoticeMutationVariables> = (
     props
   ) => {
-    const { id } = props ?? {};
+    const { id, params } = props ?? {};
 
-    return deleteNotice(id, requestOptions);
+    return deleteNotice(id, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -506,7 +514,7 @@ export type DeleteNoticeMutationResult = NonNullable<Awaited<ReturnType<typeof d
 export type DeleteNoticeMutationError = ErrorType<
   UnauthorizedResponse | ForbiddenResponse | NoticeNotFoundResponse | NoticeNotDraftError
 >;
-export type DeleteNoticeMutationVariables = { id: number };
+export type DeleteNoticeMutationVariables = { id: number; params: DeleteNoticeParams };
 
 /**
  * @summary 공지 초안 삭제
@@ -628,11 +636,17 @@ export const usePublishNotice = <
   return useMutation(getPublishNoticeMutationOptions(options), queryClient);
 };
 /**
- * 공지 게시를 해제합니다. 다시 게시할 수 있습니다. 게시 중이 아니면 실패하며, `version`은 확인하지 않습니다.
+ * 공지 게시를 해제합니다. 다시 게시할 수 있습니다. 게시 중이 아니면 실패합니다.
+ * `version`이 다르면 409로 실패합니다.
  * @summary 공지 게시 해제
  */
-export const unpublishNotice = (id: number, options?: SecondParameter<typeof customInstance>, signal?: AbortSignal) => {
-  return customInstance<Notice>({ url: `/notices/${id}/publication`, method: 'DELETE', signal }, options);
+export const unpublishNotice = (
+  id: number,
+  params: UnpublishNoticeParams,
+  options?: SecondParameter<typeof customInstance>,
+  signal?: AbortSignal
+) => {
+  return customInstance<Notice>({ url: `/notices/${id}/publication`, method: 'DELETE', params, signal }, options);
 };
 
 export const getUnpublishNoticeMutationKey = () => ['unpublishNotice'] as const;
@@ -664,9 +678,9 @@ export const getUnpublishNoticeMutationOptions = <
   const mutationFn: MutationFunction<Awaited<ReturnType<typeof unpublishNotice>>, UnpublishNoticeMutationVariables> = (
     props
   ) => {
-    const { id } = props ?? {};
+    const { id, params } = props ?? {};
 
-    return unpublishNotice(id, requestOptions);
+    return unpublishNotice(id, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -677,7 +691,7 @@ export type UnpublishNoticeMutationResult = NonNullable<Awaited<ReturnType<typeo
 export type UnpublishNoticeMutationError = ErrorType<
   UnauthorizedResponse | ForbiddenResponse | NoticeNotFoundResponse | NoticeNotPublishedError
 >;
-export type UnpublishNoticeMutationVariables = { id: number };
+export type UnpublishNoticeMutationVariables = { id: number; params: UnpublishNoticeParams };
 
 /**
  * @summary 공지 게시 해제
@@ -707,8 +721,7 @@ export const useUnpublishNotice = <
 /**
  * 공지 본문에 넣을 이미지의 업로드 주소를 발급합니다. 순서는 다음과 같습니다.
  * 1. `uploadUrl`로 파일을 올립니다.
- * 2. 이미지마다 UUID(`clientImageId`)를 만들어 본문에 `![설명](knockdog-upload://clientImageId)` 형태로 넣습니다.
- * 3. 공지를 저장할 때 `pendingImages`에 `clientImageId`, 응답의 `tempKey`, 원본 파일명을 함께 보냅니다. 저장하면 이미지가 확정됩니다.
+ * 2. 본문의 이미지 블록에 응답의 `tempKey`와 원본 파일명(`originalFilename`)을 넣어 공지를 저장합니다. 저장하면 이미지가 확정되고 본문에는 `imageId`가 남습니다.
  * 저장하지 않고 나간 업로드는 확정되지 않습니다.
  * JPEG·PNG만 가능하고, 파일당 20MB 이하로 한 번에 10개까지 올릴 수 있습니다.
  * @summary 공지 이미지 업로드 주소 발급

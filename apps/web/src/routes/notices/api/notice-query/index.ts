@@ -18,7 +18,7 @@ import {
   type NoticeListParams,
   type NoticeSummary,
 } from '../../type/notice-ui';
-import { fromNoticeBodyResponse } from '../../util/notice-body';
+import { fromContentBody } from '@/util/rich-content';
 
 /** 공지 목록 한 페이지 건수(PRD 4.4). */
 export const NOTICE_PAGE_SIZE = 20;
@@ -38,17 +38,18 @@ export const toNoticeListRequest = (params: NoticeListParams, page: number): Lis
 export const toNoticeSummary = (notice: ServerNoticeSummary): NoticeSummary => ({
   id: notice.id,
   title: notice.title,
+  version: notice.version,
   status: NOTICE_STATUS_FROM_SERVER[notice.status],
   publishedAt: notice.publishedAt,
   createdAt: notice.createdAt,
   updatedAt: notice.updatedAt,
 });
 
-/** 서버 공지 상세를 화면 값으로 바꾼다. 상태는 소문자로, 본문은 블록 값으로 바뀐다. 이미지는 쓰지 않는다. */
+/** 서버 공지 상세를 화면 값으로 바꾼다. 상태는 소문자로, 본문(`body`·`previewBody`)은 블록 값으로 바뀐다. */
 export const toNotice = (notice: ServerNotice): Notice => ({
   ...toNoticeSummary(notice),
-  body: fromNoticeBodyResponse(notice.body),
-  version: notice.version,
+  body: fromContentBody(notice.body),
+  previewBody: fromContentBody(notice.previewBody),
 });
 
 /** 공지 목록 조회 키인지 본다. 목록 키는 `/notices`로 시작하고, 상세 키는 `/notices/{id}`다. */

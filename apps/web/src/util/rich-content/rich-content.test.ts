@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { fillTermDates, getInitialTermBody } from '@/routes/terms/util/term-policy';
 import {
   createRichContent,
+  fromContentBody,
+  countRichTextLength,
   fromEditorValue,
   getRichText,
   isHttpUrl,
@@ -78,6 +80,11 @@ describe('블록 본문 변환과 검증', () => {
       sameRichContent(body, { schemaVersion: 1, blocks: [{ type: 'h2', children: [{ text: getRichText(body) }] }] })
     ).toBe(false);
   });
+  it('서버 본문 JSON은 그대로 읽고, 비었거나 모양이 맞지 않으면 빈 본문으로 읽는다', () => {
+    expect(fromContentBody(BODY)).toEqual(BODY);
+    expect(fromContentBody({ schemaVersion: 1, blocks: [] })).toEqual(createRichContent(''));
+    expect(fromContentBody({})).toEqual(createRichContent(''));
+  });
   it('지원 문서와 중첩 서식을 허용한다', () => expect(isRichContent(BODY)).toBe(true));
   it.each(['javascript:alert(1)', 'data:text/html,hi', '//example.com', '/terms', 'invalid'])(
     '안전하지 않은 링크를 거부한다: %s',
@@ -112,5 +119,39 @@ describe('서식을 보존하는 약관 날짜', () => {
   });
   it('같은 문단의 반복·기호 포함 문자열을 모두 치환한다', () => {
     expect(getRichText(replaceRichText(createRichContent('a.b a.b'), [['a.b', 'new']]))).toBe('new new');
+  });
+});
+
+describe('본문 글자 수(서버 기준)', () => {
+  it('이모지 하나는 1자다', () => {
+    expect(countRichTextLength(createRichContent('😀😀가'))).toBe(3);
+  });
+
+  it('블록 사이 줄바꿈은 세지 않는다', () => {
+    expect(countRichTextLength(createRichContent('가\n나\n다'))).toBe(3);
+  });
+
+  it('글자 안에 든 줄바꿈은 센다', () => {
+    expect(
+      countRichTextLength({ schemaVersion: 1, blocks: [{ type: 'paragraph', children: [{ text: '가\n나' }] }] })
+    ).toBe(3);
+  });
+
+  it('서식으로 나뉜 글자 조각과 표·목록 안의 글자를 모두 더한다', () => {
+    const body = {
+      schemaVersion: 1,
+      blocks: [
+        { type: 'paragraph', children: [{ text: '가', bold: true }, { text: '나' }] },
+        { type: 'ul', children: [{ type: 'li', children: [{ text: '다라' }] }] },
+      ],
+    };
+    expect(countRichTextLength(body)).toBe(4);
+  });
+
+  it('text가 아닌 값과 글자가 없는 본문은 0자다', () => {
+    expect(countRichTextLength({ schemaVersion: 1, blocks: [{ type: 'paragraph', children: [{ text: '' }] }] })).toBe(
+      0
+    );
+    expect(countRichTextLength({ title: '제목', blocks: [] })).toBe(0);
   });
 });

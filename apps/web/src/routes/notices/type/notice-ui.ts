@@ -1,5 +1,4 @@
 import type { RichContent } from '@/type/rich-content';
-import type { Notice as ServerNotice } from './notice';
 import { NoticeStatus as ServerNoticeStatus } from './notice-status';
 import type { NoticeSummary as ServerNoticeSummary } from './notice-summary';
 
@@ -28,7 +27,7 @@ export const NOTICE_STATUS_FROM_SERVER: Record<ServerNoticeStatus, NoticeStatus>
 export type NoticeSummary = Omit<ServerNoticeSummary, 'status'> & { status: NoticeStatus };
 
 export type NoticeBody = RichContent;
-/** 화면이 쓰는 상세. 본문은 블록 값이고, 동시 수정을 막는 `version`을 가진다. 이미지는 이번 범위에서 다루지 않는다. */
-export type Notice = NoticeSummary & Pick<ServerNotice, 'version'> & { body: NoticeBody };
+/** 화면이 쓰는 상세. `body`는 편집·저장용 원본, `previewBody`는 읽기 화면에 보여 줄 본문이다. */
+export type Notice = NoticeSummary & { body: NoticeBody; previewBody: NoticeBody };
 export type NoticeInput = Pick<Notice, 'title' | 'body'>;
 export type NoticeListParams = { keyword: string; status: NoticeStatus | 'all' };

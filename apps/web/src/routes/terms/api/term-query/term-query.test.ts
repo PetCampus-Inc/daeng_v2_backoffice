@@ -2,9 +2,16 @@ import { QueryClient, QueryObserver } from '@tanstack/react-query';
 import { describe, expect, it } from 'vitest';
 import { createRichContent } from '@/util/rich-content';
 import type { TermsVersion, TermsVersionSummary } from '../../type';
-import { fromTermBodyResponse } from '../../util/term-body';
 import { getGetTermsVersionQueryOptions, getListTermsVersionsQueryOptions } from '../use-terms';
-import { termDetailQueryOptions, termListQueryOptions, toServerTermKind, toTerm, toTermSummary } from './index';
+import {
+  termDetailQueryOptions,
+  termListQueryOptions,
+  toServerTermKind,
+  toTerm,
+  toTermCreateRequest,
+  toTermSummary,
+  toTermUpdateRequest,
+} from './index';
 
 const SERVER_SUMMARY: TermsVersionSummary = {
   id: 7,
@@ -14,6 +21,7 @@ const SERVER_SUMMARY: TermsVersionSummary = {
   effectiveStatus: 'SCHEDULED',
   publishedAt: '2026-10-07T01:00:00.000Z',
   updatedAt: '2026-10-07T01:00:00.000Z',
+  version: 3,
 };
 
 describe('서버 약관 값을 화면 값으로 바꾸기', () => {
@@ -36,11 +44,14 @@ describe('서버 약관 값을 화면 값으로 바꾸기', () => {
   });
 
   it('서버 version(동시 수정 값)이 화면의 revision이 되고, 본문은 블록 값이 된다', () => {
-    const server: TermsVersion = { ...SERVER_SUMMARY, content: '제1조', announcedDate: '2026-10-07', version: 3 };
+    const server: TermsVersion = {
+      ...SERVER_SUMMARY,
+      content: createRichContent('제1조'),
+      announcedDate: '2026-10-07',
+    };
     const term = toTerm(server);
     expect(term.version).toBe(7);
     expect(term.revision).toBe(3);
-    expect(term.body).toEqual(fromTermBodyResponse('제1조'));
     expect(term.body).toEqual(createRichContent('제1조'));
   });
 
@@ -78,5 +89,18 @@ describe('약관 조회 계정 분리', () => {
     observer.setOptions({ ...second, queryFn: () => new Promise<never>(() => {}) });
     expect(observer.getCurrentResult()).toMatchObject({ data: undefined, isPending: true });
     client.clear();
+  });
+});
+
+describe('초안 저장 요청의 시행일', () => {
+  const body = createRichContent('제1조');
+  it('생성은 시행일이 없으면 필드를 보내지 않는다', () => {
+    expect('effectiveDate' in toTermCreateRequest(null, body)).toBe(false);
+    expect(toTermCreateRequest('2026-11-10', body).effectiveDate).toBe('2026-11-10');
+  });
+
+  it('수정은 시행일이 없으면 null을 보내 서버의 시행일을 비운다', () => {
+    expect(toTermUpdateRequest(null, body)).toMatchObject({ effectiveDate: null });
+    expect(toTermUpdateRequest('2026-11-10', body).effectiveDate).toBe('2026-11-10');
   });
 });

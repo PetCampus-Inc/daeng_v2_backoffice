@@ -19,6 +19,12 @@ describe('약관 요청 거절 안내', () => {
       'TERMS_EFFECTIVE_DATE_TOO_SOON',
       '시행일은 공개일로부터 7일 이후 날짜만 지정할 수 있습니다. 2026. 10. 14. 이후로 골라 주세요.',
     ],
+    [
+      400,
+      'TERMS_EFFECTIVE_DATE_DUPLICATED',
+      '같은 시행일로 공개된 버전이 이미 있습니다. 다른 날짜를 고르거나 그 버전을 철회해 주세요.',
+    ],
+    [400, 'TERMS_EFFECTIVE_DATE_REQUIRED', '공개하려면 시행일을 입력해 주세요.'],
     [400, 'TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST', '시행일은 같은 약관의 가장 최근 시행일보다 이후여야 합니다.'],
   ])('%i %s 는 시행일 칸 안내를 고른다', (status, code, description) => {
     expect(getTermErrorGuide(status, code, NOW)).toEqual({

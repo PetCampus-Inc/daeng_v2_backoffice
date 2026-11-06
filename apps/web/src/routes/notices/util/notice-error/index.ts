@@ -2,6 +2,7 @@ import axios from 'axios';
 import { ValidationFailedErrorCode } from '@/type/validation-failed-error-code';
 import {
   NoticeContentRequiredErrorCode,
+  NoticeImageInvalidErrorCode,
   NoticeNotDraftErrorCode,
   NoticeNotPublishedErrorCode,
   NoticePublishConflictErrorCode,
@@ -67,4 +68,18 @@ export function getNoticeErrorGuide(status: number | undefined, code: string | u
     }
   }
   return null;
+}
+
+/** 400 `NOTICE_IMAGE_INVALID`: 업로드 주소를 받을 수 없는 이미지(형식·용량·개수·없는 공지). */
+export const NOTICE_IMAGE_INVALID_MESSAGE = '올릴 수 없는 이미지예요. JPG, PNG 파일인지, 20MB 이하인지 확인해 주세요.';
+/** 403: 조회자는 이미지를 올릴 수 없다. */
+export const NOTICE_IMAGE_FORBIDDEN_MESSAGE = '이미지를 올릴 권한이 없어요.';
+/** 그 밖의 업로드 실패(서버 오류·네트워크·파일 올리기 실패). */
+export const NOTICE_IMAGE_FAILED_MESSAGE = '이미지를 올리지 못했어요. 잠시 후 다시 시도해 주세요.';
+
+/** 이미지 업로드 주소 발급이 거절됐을 때 보여 줄 쉬운 문구를 고른다. 모르는 오류는 일시적 실패 문구다. */
+export function getNoticeImageErrorMessage(status: number | undefined, code: string | undefined): string {
+  if (status === 400 && code === NoticeImageInvalidErrorCode.NOTICE_IMAGE_INVALID) return NOTICE_IMAGE_INVALID_MESSAGE;
+  if (status === 403) return NOTICE_IMAGE_FORBIDDEN_MESSAGE;
+  return NOTICE_IMAGE_FAILED_MESSAGE;
 }

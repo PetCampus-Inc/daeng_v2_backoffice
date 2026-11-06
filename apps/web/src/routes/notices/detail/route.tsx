@@ -9,7 +9,7 @@ import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { noticeDetailQueryOptions, toNotice } from '../api/notice-query';
 import { useGetNotice } from '../api/use-notices';
-import { RichContentView } from '@/ui/organisms/rich-content-editor';
+import { RichContentViewer } from '@/ui/organisms/rich-content-viewer';
 import { useNoticeListSearchParams } from '../util/list-search-params';
 import { NoticeActions } from '../ui/notice-actions';
 import { NoticeBreadcrumb } from '../ui/notice-breadcrumb';
@@ -101,9 +101,7 @@ function NoticeDetailContent({ id, edit }: { id: number; edit: boolean }) {
             <Button variant={notice.status === 'unpublished' ? 'outline' : 'default'} asChild>
               <Link to={{ pathname: `${PAGES.notices.path}/${id}/edit`, search: listSearch }}>수정</Link>
             </Button>
-            {notice.status === 'unpublished' && (
-              <NoticeActions notice={notice} version={notice.version} showRepublish />
-            )}
+            {notice.status === 'unpublished' && <NoticeActions notice={notice} showRepublish />}
           </div>
         )}
       </div>
@@ -113,7 +111,7 @@ function NoticeDetailContent({ id, edit }: { id: number; edit: boolean }) {
       <div className='mt-6 grid grid-cols-[minmax(0,1fr)_320px] items-start gap-6 max-[1200px]:grid-cols-1'>
         <Card>
           <CardContent className='py-6'>
-            <RichContentView value={notice.body} />
+            <RichContentViewer value={notice.previewBody} />
           </CardContent>
         </Card>
         <Card>
