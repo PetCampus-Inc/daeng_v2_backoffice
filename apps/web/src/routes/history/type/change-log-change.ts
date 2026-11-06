@@ -6,6 +6,8 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ChangeLogChangeFromJobRole } from './change-log-change-from-job-role';
+import type { ChangeLogChangeToJobRole } from './change-log-change-to-job-role';
 
 /**
  * 변경 전→후 값입니다. 역할 변경과 담당자 변경일 때만 채워집니다.
@@ -15,4 +17,14 @@ export interface ChangeLogChange {
   from: string | null;
   /** @nullable */
   to: string | null;
+  /**
+   * 담당자 변경에서 이전 담당자의 기록 당시 직무입니다. 역할 변경과 직무를 기록하기 전 이력은 `null`입니다.
+   * @nullable
+   */
+  fromJobRole: ChangeLogChangeFromJobRole;
+  /**
+   * 담당자 변경에서 새 담당자의 기록 당시 직무입니다. 담당 해제, 역할 변경, 직무를 기록하기 전 이력은 `null`입니다.
+   * @nullable
+   */
+  toJobRole: ChangeLogChangeToJobRole;
 }

@@ -3,6 +3,8 @@ import { mockUrl, okResponse } from '../util/response';
 import { authenticateMockRequest } from '../util/session';
 import { getMockTeamMembers } from './team-members';
 import { recordMockNotification } from '../util/notification-event';
+import { getInquiryAssigneeLog, type InquiryChangeLogMember } from '../util/inquiry-change-log';
+import { recordMockChangeLog } from './change-histories';
 import {
   getAdjacentInquiryIds,
   getInquiryList,
@@ -25,6 +27,7 @@ import {
   type InquirySummaryPage,
 } from '@/routes/inquiries/type';
 import { INQUIRY_STATUS_FROM_SERVER, INQUIRY_STATUS_REQUEST_VALUES } from '@/routes/inquiries/type/inquiry-ui';
+import { ChangeLogTargetType } from '@/routes/history/type';
 import { checkAssignRequest, transitionInquiry, type InquiryEvent } from '@/routes/inquiries/util/inquiry-policy';
 import { canSubmitReply } from '@/routes/inquiries/util/reply-input';
 import type { TeamMember } from '@/routes/settings/members/type/team-member';
@@ -379,6 +382,38 @@ const applyPolicyState = (inquiry: MockInquiry, next: ReturnType<typeof toPolicy
   assigneeId: next.assigneeId,
 });
 
+/** 이름·직무가 모두 있는 팀원만 이력에 남길 수 있다. 없으면 `undefined`. */
+const toChangeLogMember = (member: TeamMember | undefined): InquiryChangeLogMember | undefined =>
+  member?.displayName && member.jobRole ? { displayName: member.displayName, jobRole: member.jobRole } : undefined;
+
+/**
+ * 담당자 지정·변경·해제·해제 실행 취소가 성공한 뒤 변경 이력을 남긴다(서버 `inquiries.service.ts`와 같은 규칙).
+ * 행위자는 로그인한 팀원, 대상은 문의 번호다.
+ */
+const recordInquiryAssigneeLog = (
+  event: 'assign' | 'release' | 'restore',
+  inquiry: MockInquiry,
+  member: TeamMember,
+  members: TeamMember[]
+) => {
+  const actor = toChangeLogMember(member);
+  if (!actor || !member.displayName || !member.jobRole) return;
+  const log = getInquiryAssigneeLog({
+    event,
+    actorId: member.id,
+    actor,
+    previousAssigneeId: inquiry.assigneeId,
+    previousMember: toChangeLogMember(members.find((item) => item.id === inquiry.assigneeId)),
+  });
+  if (!log) return;
+  recordMockChangeLog({
+    actor: { id: member.id, displayName: member.displayName, jobRole: member.jobRole, email: member.email },
+    targetType: ChangeLogTargetType.INQUIRY,
+    target: { id: inquiry.id, label: `문의 #${inquiry.id}` },
+    ...log,
+  });
+};
+
 /** 상태 전환을 적용해 저장하고 응답한다. 거부되면 최신 상태를 다시 읽도록 거부 사유를 준다. */
 const applyInquiryEvent = (rawId: unknown, event: InquiryEvent) => {
   const { denied, member } = authorizeInquiryRequest();
@@ -393,7 +428,9 @@ const applyInquiryEvent = (rawId: unknown, event: InquiryEvent) => {
   if (!next) return inquiry.status === InquiryStatus.RESOLVED ? resolvedResponse() : assigneeChangedResponse();
   inquiries[index] = applyPolicyState(inquiry, next);
   saveMockInquiries(inquiries);
-  return HttpResponse.json(toInquiryDetail(inquiries[index], getMockTeamMembers()));
+  const members = getMockTeamMembers();
+  if (event === 'release' || event === 'restore') recordInquiryAssigneeLog(event, inquiry, member, members);
+  return HttpResponse.json(toInquiryDetail(inquiries[index], members));
 };
 
 /**
@@ -475,7 +512,8 @@ export const INQUIRY_HANDLERS = [
     saveMockInquiries(inquiries);
     const members = getMockTeamMembers();
     const previousAssignee = members.find((item) => item.id === inquiry.assigneeId);
-    // 이전 담당자가 활성 팀원일 때만 알린다(S-문의-034). 변경 이력 기록은 실제 서버가 한다.
+    recordInquiryAssigneeLog('assign', inquiry, member, members);
+    // 이전 담당자가 활성 팀원일 때만 알린다(S-문의-034).
     if (previousAssignee && previousAssignee.id !== member.id && previousAssignee.status === 'ACTIVE') {
       recordMockNotification(members, {
         type: 'assigneeChanged',

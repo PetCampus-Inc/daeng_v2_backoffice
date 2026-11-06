@@ -61,7 +61,7 @@ const DEFAULT_CHANGE_LOGS: ChangeLog[] = [
     targetType: ChangeLogTargetType.ACCOUNT,
     target: { id: 3, label: 'ops2@knockdog.test' },
     action: ChangeLogAction.ACCOUNT_ROLE_CHANGED,
-    change: { from: 'VIEWER', to: 'OPERATOR' },
+    change: { from: 'VIEWER', to: 'OPERATOR', fromJobRole: null, toJobRole: null },
   },
   {
     id: 6,
@@ -81,7 +81,7 @@ const DEFAULT_CHANGE_LOGS: ChangeLog[] = [
     targetType: ChangeLogTargetType.INQUIRY,
     target: { id: 1045, label: '문의 #1045' },
     action: ChangeLogAction.INQUIRY_ASSIGNED,
-    change: { from: null, to: '이담당' },
+    change: { from: null, to: '이담당', fromJobRole: null, toJobRole: 'FE' },
   },
   {
     id: 8,
@@ -90,7 +90,7 @@ const DEFAULT_CHANGE_LOGS: ChangeLog[] = [
     targetType: ChangeLogTargetType.INQUIRY,
     target: { id: 1043, label: '문의 #1043' },
     action: ChangeLogAction.INQUIRY_ASSIGNEE_CHANGED,
-    change: { from: '이담당', to: '김운영' },
+    change: { from: '이담당', to: '김운영', fromJobRole: 'FE', toJobRole: 'PM' },
   },
   {
     id: 9,
@@ -112,7 +112,8 @@ const DEFAULT_CHANGE_LOGS: ChangeLog[] = [
   },
 ];
 
-const getMockChangeLogs = (): ChangeLog[] => {
+/** 개발용 변경 이력을 읽는다. 저장값이 없거나 잘못되면 `이력-기본`이다. */
+export const getMockChangeLogs = (): ChangeLog[] => {
   try {
     const stored = JSON.parse(localStorage.getItem('daeng-bo-mock-change-logs') ?? 'null');
     if (Array.isArray(stored)) return stored;
@@ -120,6 +121,17 @@ const getMockChangeLogs = (): ChangeLog[] => {
     /* 잘못된 개발 데이터는 기본값으로 복구한다. */
   }
   return DEFAULT_CHANGE_LOGS;
+};
+
+/**
+ * 새 이력 한 줄을 저장한다. 번호는 가장 큰 번호 다음 값이고 시각은 지금이라 목록에서 최신순 맨 앞에 보인다.
+ * 서버처럼 요청이 성공한 뒤에 호출한다.
+ */
+export const recordMockChangeLog = (entry: Omit<ChangeLog, 'id' | 'occurredAt'>) => {
+  const logs = getMockChangeLogs();
+  const id = logs.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+  const next: ChangeLog = { ...entry, id, occurredAt: new Date().toISOString() };
+  localStorage.setItem('daeng-bo-mock-change-logs', JSON.stringify([...logs, next]));
 };
 
 /** 서버 기본 한 페이지 건수. */
