@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ChangeLogAction, ChangeLogTargetType, type ChangeLog } from '../../type';
+import { ChangeLogAction, ChangeLogTargetType, type ChangeLog, type ChangeLogChange } from '../../type';
 import { formatHistoryChange, formatHistoryTarget } from './index';
 
 describe('R-이력대상표시. 대상 칸 글자', () => {
@@ -30,32 +30,55 @@ describe('R-이력대상표시. 대상 칸 글자', () => {
 });
 
 describe('R-이력기록. 변경 전 → 후', () => {
-  it.each<[string, ChangeLogAction, { from: string | null; to: string | null }, string]>([
+  it.each<[string, ChangeLogAction, ChangeLogChange, string]>([
     [
-      '01 처음 맡기와 해제 실행 취소는 미배정에서 이름으로',
+      '01 처음 맡기와 해제 실행 취소는 미배정에서 이름 · 직무로',
       ChangeLogAction.INQUIRY_ASSIGNED,
-      { from: null, to: '김운영' },
-      '미배정 → 김운영',
+      { from: null, to: '김운영', fromJobRole: null, toJobRole: 'PM' },
+      '미배정 → 김운영 · PM',
     ],
     [
-      '02 담당자 변경은 이름만',
+      '02 담당자 변경은 이전·새 담당자 모두 이름 · 직무',
       ChangeLogAction.INQUIRY_ASSIGNEE_CHANGED,
-      { from: '이담당', to: '김운영' },
+      { from: '이담당', to: '김운영', fromJobRole: 'FE', toJobRole: 'PM' },
+      '이담당 · FE → 김운영 · PM',
+    ],
+    [
+      '03 담당 해제는 새 담당자 없이 미배정으로',
+      ChangeLogAction.INQUIRY_ASSIGNEE_RELEASED,
+      { from: '김운영', to: null, fromJobRole: 'PM', toJobRole: null },
+      '김운영 · PM → 미배정',
+    ],
+    [
+      '04 직무를 기록하기 전 이력은 이름만',
+      ChangeLogAction.INQUIRY_ASSIGNEE_CHANGED,
+      { from: '이담당', to: '김운영', fromJobRole: null, toJobRole: null },
       '이담당 → 김운영',
     ],
     [
-      '03 담당 해제는 미배정으로',
-      ChangeLogAction.INQUIRY_ASSIGNEE_RELEASED,
-      { from: '김운영', to: null },
-      '김운영 → 미배정',
+      '05 한쪽만 직무가 있으면 있는 쪽만 붙는다',
+      ChangeLogAction.INQUIRY_ASSIGNEE_CHANGED,
+      { from: '이담당', to: '김운영', fromJobRole: null, toJobRole: 'BE' },
+      '이담당 → 김운영 · BE',
     ],
     [
       '24 역할 변경은 역할 이름으로',
       ChangeLogAction.ACCOUNT_ROLE_CHANGED,
-      { from: 'OPERATOR', to: 'VIEWER' },
+      { from: 'OPERATOR', to: 'VIEWER', fromJobRole: null, toJobRole: null },
       '운영자 → 조회자',
     ],
   ])('%s', (_, action, change, expected) => {
     expect(formatHistoryChange(action, change)).toBe(expected);
+  });
+
+  it.each<[ChangeLogChange['toJobRole'], string]>([
+    ['PM', 'PM'],
+    ['UX_UI', 'UX/UI'],
+    ['FE', 'FE'],
+    ['BE', 'BE'],
+    ['FULL_STACK', '풀스택'],
+  ])('직무 %s는 화면 이름 %s로 보인다', (jobRole, label) => {
+    const change = { from: null, to: '김운영', fromJobRole: null, toJobRole: jobRole };
+    expect(formatHistoryChange(ChangeLogAction.INQUIRY_ASSIGNED, change)).toBe(`미배정 → 김운영 · ${label}`);
   });
 });

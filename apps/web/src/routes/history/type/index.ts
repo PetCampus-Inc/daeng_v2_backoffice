@@ -9,6 +9,8 @@
 
 export * from './change-log-action';
 export * from './change-log-actor';
+export * from './change-log-change-from-job-role';
+export * from './change-log-change-to-job-role';
 export * from './change-log-change';
 export * from './change-log-page';
 export * from './change-log-target-type';
