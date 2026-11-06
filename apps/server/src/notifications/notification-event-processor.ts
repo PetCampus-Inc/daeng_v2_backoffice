@@ -1,8 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, or } from 'drizzle-orm';
 import { DatabaseService } from '../database/database.service.js';
 import { isDuplicateEntry } from '../database/errors.js';
 import { members, notifications, processedNotificationEvents, type MemberRole } from '../database/schema.js';
+import { ServiceDatabaseService } from '../service-database/service-database.service.js';
+import { serviceInquiries } from '../service-database/service-schema.js';
 import type { NotificationEvent } from './notification-events.js';
 
 const messages = {
@@ -12,8 +14,14 @@ const messages = {
 } as const;
 @Injectable()
 export class NotificationEventProcessor {
-  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+  constructor(
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Inject(ServiceDatabaseService) private readonly service: ServiceDatabaseService
+  ) {}
   async process(event: NotificationEvent): Promise<void> {
+    // 서비스 DB 조회가 실패하면 처리 기록을 남기기 전에 예외가 나서 이벤트가 재전달된다.
+    const inquiryAssigneeId =
+      event.type === 'ADDITIONAL_INQUIRY' ? await this.findInquiryAssignee(event.targetId) : null;
     try {
       await this.database.db.transaction(async (tx) => {
         await tx.insert(processedNotificationEvents).values({ eventId: event.eventId });
@@ -38,10 +46,25 @@ export class NotificationEventProcessor {
           message = messages[event.type];
           const roles: MemberRole[] =
             event.type === 'NEW_IDEA' ? ['SUPER_ADMIN', 'OPERATOR', 'VIEWER'] : ['SUPER_ADMIN', 'OPERATOR'];
+          // 추가 문의는 담당자가 활성이면 담당자와 최고 관리자에게만 보낸다. 담당자가 없거나 비활성이면 전원에게 보낸다.
+          const activeAssignee =
+            inquiryAssigneeId === null
+              ? []
+              : await tx
+                  .select({ id: members.id })
+                  .from(members)
+                  .where(and(eq(members.id, inquiryAssigneeId), eq(members.status, 'ACTIVE')));
           recipients = await tx
             .select({ id: members.id })
             .from(members)
-            .where(and(eq(members.status, 'ACTIVE'), inArray(members.role, roles)));
+            .where(
+              and(
+                eq(members.status, 'ACTIVE'),
+                activeAssignee.length
+                  ? or(eq(members.id, activeAssignee[0]!.id), eq(members.role, 'SUPER_ADMIN'))
+                  : inArray(members.role, roles)
+              )
+            );
         }
         if (recipients.length)
           await tx.insert(notifications).values(
@@ -67,5 +90,15 @@ export class NotificationEventProcessor {
       }
       throw error;
     }
+  }
+
+  /** 문의의 현재 담당자. 문의가 없거나 담당자가 없으면 null이다. */
+  private async findInquiryAssignee(inquiryId: number): Promise<number | null> {
+    const [row] = await this.service.db
+      .select({ assigneeMemberId: serviceInquiries.assigneeMemberId })
+      .from(serviceInquiries)
+      .where(eq(serviceInquiries.id, inquiryId))
+      .limit(1);
+    return row?.assigneeMemberId ?? null;
   }
 }
