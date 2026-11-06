@@ -4,9 +4,9 @@ import type { ChangeLogInput } from '../change-log/record.js';
 import { kstToIso, todayInKst } from '../common/time.js';
 import { DatabaseService } from '../database/database.service.js';
 import type { MemberRow } from '../database/schema.js';
-import type { ContentBody } from '../java-api/java-content.js';
+import type { ContentBody } from '../java-api/content-body.js';
 import { currentVersionId, effectiveStatusOf } from './terms-status.js';
-import { TermsJavaClient, type JavaTerms } from './terms-java.client.js';
+import { TermsJavaClient, type JavaTerms, type JavaTermsSummary } from './terms-java.client.js';
 import { TERMS_KINDS, TERMS_KIND_NAMES, type TermsKind } from './terms.types.js';
 
 const dateTime = (value: string | null) => (value === null ? null : kstToIso(value));
@@ -21,11 +21,8 @@ const draftFirstThenEffectiveDateDesc = (
   return (b.effectiveDate ?? '').localeCompare(a.effectiveDate ?? '') || b.id - a.id;
 };
 
-/**
- * 변경 이력에 남기는 대상 이름: 약관 종류와 시행일. 같은 약관의 여러 버전을 구별한다. 공개한 버전은 시행일을 고칠 수 없어서
- * 한 버전의 등록·공개·철회 이력이 같은 이름으로 남는다.
- */
-function historyLabel(item: JavaTerms): string {
+/** 변경 이력의 대상 이름. 종류와 시행일로 같은 약관의 버전을 구별한다. */
+function historyLabel(item: JavaTermsSummary): string {
   const name = TERMS_KIND_NAMES[item.kind];
   return item.effectiveDate ? `${name} (시행 ${item.effectiveDate})` : name;
 }
@@ -78,7 +75,7 @@ export class TermsService {
 
   async publish(actor: MemberRow, id: number, version: number) {
     const item = await this.java.publish(id, version);
-    // 초안 저장은 이력 대상이 아니라서 새 버전 등록은 공개하는 시점에 함께 남긴다.
+    // 초안 저장은 이력 대상이 아니라 등록은 공개할 때 함께 남긴다.
     await this.record(actor, id, item, 'TERMS_VERSION_CREATED');
     await this.record(actor, id, item, 'TERMS_VERSION_PUBLISHED');
     return this.detail(item, [item]);
@@ -94,13 +91,13 @@ export class TermsService {
     await this.java.delete(id, version);
   }
 
-  private summaries(versions: readonly JavaTerms[]) {
+  private summaries(versions: readonly JavaTermsSummary[]) {
     const today = todayInKst();
     const currentId = currentVersionId(versions, today);
     return versions.map((v) => this.summary(v, today, currentId));
   }
 
-  private summary(item: JavaTerms, today: string, currentId: number | undefined) {
+  private summary(item: JavaTermsSummary, today: string, currentId: number | undefined) {
     return {
       id: item.id,
       kind: item.kind,
@@ -113,11 +110,8 @@ export class TermsService {
     };
   }
 
-  /**
-   * `versions`는 현행 버전을 가리는 데 쓰는 같은 종류의 전체 버전이다. 방금 만들거나 공개·철회한 버전은 초안이거나 철회됐거나
-   * 공개일로부터 7일 이후라서 현행이 될 수 없으므로 그 버전만 넘겨도 상태가 같다.
-   */
-  private detail(item: JavaTerms, versions: readonly JavaTerms[]) {
+  /** `versions`는 현행 판정용 같은 종류의 전체 버전. 방금 만들거나 공개·철회한 버전은 현행이 될 수 없어 그 버전만 넘겨도 된다. */
+  private detail(item: JavaTerms, versions: readonly JavaTermsSummary[]) {
     const today = todayInKst();
     return {
       ...this.summary(item, today, currentVersionId(versions, today)),
@@ -129,7 +123,7 @@ export class TermsService {
   private record(
     actor: MemberRow,
     id: number,
-    item: JavaTerms,
+    item: JavaTermsSummary,
     action: Extract<ChangeLogInput, { target: { type: 'TERMS_VERSION' } }>['action']
   ) {
     return recordChangeBestEffort(this.database, this.logger, {

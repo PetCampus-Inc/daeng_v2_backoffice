@@ -4,8 +4,8 @@ import type { ChangeLogInput } from '../change-log/record.js';
 import { kstToIso } from '../common/time.js';
 import { DatabaseService } from '../database/database.service.js';
 import type { MemberRow } from '../database/schema.js';
-import type { ContentBody } from '../java-api/java-content.js';
-import { NoticeJavaClient, type JavaNotice } from './notice-java.client.js';
+import type { ContentBody } from '../java-api/content-body.js';
+import { NoticeJavaClient, type JavaNotice, type JavaNoticeSummary } from './notice-java.client.js';
 
 const dateTime = (value: string | null) => (value === null ? null : kstToIso(value));
 
@@ -37,7 +37,7 @@ export class NoticesService {
   }
 
   async update(actor: MemberRow, id: number, body: { version: number; title?: string; body?: ContentBody }) {
-    // 게시된 적 있는 공지만 변경 이력 대상이라 쓰기 전에 현재 상태를 읽는다. 사이에 끼어든 변경은 버전 충돌로 막힌다.
+    // 게시된 적 있는 공지만 이력 대상이라 쓰기 전에 읽는다.
     const before = await this.java.get(id);
     const { version, ...data } = body;
     const result = await this.java.update(id, data, version);
@@ -66,7 +66,7 @@ export class NoticesService {
     return this.java.uploadUrls(body);
   }
 
-  private summary(item: JavaNotice) {
+  private summary(item: JavaNoticeSummary) {
     return {
       id: item.id,
       title: item.title,
@@ -89,7 +89,7 @@ export class NoticesService {
   private record(
     actor: MemberRow,
     id: number,
-    item: JavaNotice,
+    item: JavaNoticeSummary,
     action: Extract<ChangeLogInput, { target: { type: 'NOTICE' } }>['action']
   ) {
     return recordChangeBestEffort(this.database, this.logger, {

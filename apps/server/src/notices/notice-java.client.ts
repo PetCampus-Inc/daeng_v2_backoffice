@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { JavaApiClient } from '../java-api/java-api.client.js';
+import type { ContentBody } from '../java-api/content-body.js';
 import {
   boError,
   invalidBodyError,
@@ -7,7 +8,6 @@ import {
   requestData,
   type JavaErrors,
   type JavaPage,
-  type ContentBody,
   type JavaTemporal,
 } from '../java-api/java-content.js';
 
@@ -25,8 +25,8 @@ const NOTICE_ERRORS: JavaErrors = {
   'PLATFORM-400-3': boError(400, 'NOTICE_CONTENT_REQUIRED'),
 };
 
-/** Java 공지. 시각은 KST 문자열로 정규화돼 있고 상태는 Java 값(`HIDDEN`)이다. */
-export interface JavaNotice {
+/** Java 공지 목록 항목. 상태는 Java 값(`HIDDEN`)이다. */
+export interface JavaNoticeSummary {
   id: number;
   title: string;
   status: string;
@@ -34,51 +34,61 @@ export interface JavaNotice {
   createdAt: string;
   updatedAt: string;
   rowVersion: number;
-  /** 다시 저장할 원본. 이미지는 `imageId`로 들어 있다. */
+}
+
+export interface JavaNotice extends JavaNoticeSummary {
+  /** 다시 저장할 원본(이미지는 `imageId`) */
   body: ContentBody;
-  /** 표시용. 이미지 노드에 임시 URL이 들어 있다. */
+  /** 표시용(이미지에 임시 URL) */
   previewBody: ContentBody;
 }
 
-type RawNotice = Omit<JavaNotice, 'publishedAt' | 'createdAt' | 'updatedAt'> & {
+type RawNoticeSummary = Omit<JavaNoticeSummary, 'publishedAt' | 'createdAt' | 'updatedAt'> & {
   publishedAt: JavaTemporal | null;
   createdAt: JavaTemporal;
   updatedAt: JavaTemporal;
 };
+type RawNotice = RawNoticeSummary & Pick<JavaNotice, 'body' | 'previewBody'>;
 
-const normalize = (raw: RawNotice): JavaNotice => ({
+const normalizeSummary = (raw: RawNoticeSummary): JavaNoticeSummary => ({
   ...raw,
   publishedAt: javaDateTime(raw.publishedAt),
   createdAt: javaDateTime(raw.createdAt)!,
   updatedAt: javaDateTime(raw.updatedAt)!,
 });
 
+const normalize = (raw: RawNotice): JavaNotice => ({
+  ...normalizeSummary(raw),
+  body: raw.body,
+  previewBody: raw.previewBody,
+});
+
 export interface NoticeListQuery {
-  /** BO의 1부터 시작하는 페이지 번호. */
+  /** 1부터 시작 */
   page: number;
   size: number;
   keyword?: string;
-  /** BO 상태 값. `UNPUBLISHED`는 Java의 `HIDDEN`으로 바꿔 보낸다. */
+  /** `UNPUBLISHED`는 Java `HIDDEN`으로 바꿔 보낸다. */
   status?: string;
 }
 
-/** Java 공지 관리 API의 경로·요청·오류 계약을 감싼다. 서비스는 Java 주소와 오류 코드를 모른다. */
+/** Java 공지 관리 API 호출과 오류 변환 */
 @Injectable()
 export class NoticeJavaClient {
   constructor(@Inject(JavaApiClient) private readonly java: JavaApiClient) {}
 
-  async list(query: NoticeListQuery): Promise<JavaPage<JavaNotice>> {
+  async list(query: NoticeListQuery): Promise<JavaPage<JavaNoticeSummary>> {
     const params = new URLSearchParams({ page: String(query.page - 1), size: String(query.size) });
     if (query.keyword) params.set('query', query.keyword);
     if (query.status) params.set('status', query.status === 'UNPUBLISHED' ? 'HIDDEN' : query.status);
-    const page = await requestData<JavaPage<RawNotice>>(
+    const page = await requestData<JavaPage<RawNoticeSummary>>(
       this.java,
       'GET',
       `${NOTICE}?${params}`,
       undefined,
       NOTICE_ERRORS
     );
-    return { ...page, items: page.items.map(normalize) };
+    return { ...page, items: page.items.map(normalizeSummary) };
   }
 
   get(id: number): Promise<JavaNotice> {

@@ -72,7 +72,6 @@ describe('content HTTP authorization and validation', () => {
       content: { schemaVersion: 1, blocks: [] },
     });
     expect(await invalidDate.json()).toMatchObject({ code: 'TERMS_EFFECTIVE_DATE_INVALID_FORMAT' });
-    // 본문은 블록 JSON 객체만 받는다. 문자열은 입력 검증 오류다.
     const stringBody = await request('/notices', 'OPERATOR', 'POST', { title: '공지', body: '마크다운' });
     expect(stringBody.status).toBe(400);
     expect(await stringBody.json()).toMatchObject({ code: 'VALIDATION_FAILED' });
