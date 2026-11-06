@@ -8,6 +8,7 @@
  */
 
 export * from './create-notice-request';
+export * from './delete-notice-params';
 export * from './list-notices-params';
 export * from './notice-content-error-code';
 export * from './notice-content-error';
@@ -19,7 +20,6 @@ export * from './notice-image-invalid-error-code';
 export * from './notice-image-invalid-error';
 export * from './notice-image-upload-request';
 export * from './notice-image-upload-url';
-export * from './notice-images-item';
 export * from './notice-not-draft-error-code';
 export * from './notice-not-draft-error';
 export * from './notice-not-found-error-code';
@@ -28,7 +28,6 @@ export * from './notice-not-found-response';
 export * from './notice-not-published-error-code';
 export * from './notice-not-published-error';
 export * from './notice-page';
-export * from './notice-pending-image';
 export * from './notice-publish-conflict-error-code';
 export * from './notice-publish-conflict-error';
 export * from './notice-status';
@@ -38,4 +37,5 @@ export * from './notice-version-conflict-error';
 export * from './notice-version-conflict-response';
 export * from './notice-version-request';
 export * from './notice';
+export * from './unpublish-notice-params';
 export * from './update-notice-request';

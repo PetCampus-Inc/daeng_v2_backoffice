@@ -8,6 +8,8 @@
  */
 
 export * from './create-terms-version-request';
+export * from './delete-terms-version-params';
+export * from './terms-draft-template-content';
 export * from './terms-draft-template';
 export * from './terms-effective-date-error-code';
 export * from './terms-effective-date-error';
@@ -30,3 +32,4 @@ export * from './terms-version';
 export * from './terms-withdraw-not-allowed-error-code';
 export * from './terms-withdraw-not-allowed-error';
 export * from './update-terms-version-request';
+export * from './withdraw-terms-version-params';

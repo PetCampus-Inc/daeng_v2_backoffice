@@ -6,10 +6,12 @@ const OPERATOR = 'ops@knockdog.test';
 const OPERATORS = ['admin@knockdog.test', OPERATOR, 'ops2@knockdog.test'];
 
 describe('R-알림대상: 서버가 정하는 수신자(활성 계정만)', () => {
-  // 추가 문의(02~06)는 기획과 달리 담당자와 관계없이 활성 최고 관리자·운영자 모두가 받는다(OQ-D30).
+  // 추가 문의(02~06)는 담당자가 활성이면 담당자와 최고 관리자만, 아니면 활성 최고 관리자·운영자 전원이 받는다(OQ-D30).
   test.each<[string, NotificationEvent, string[]]>([
     ['01', { type: 'newInquiry', targetId: 1042 }, OPERATORS],
-    ['02~04 서버 동작(OQ-D30)', { type: 'followUp', targetId: 1041 }, OPERATORS],
+    ['02~04', { type: 'followUp', targetId: 1041, assigneeEmail: OPERATOR }, ['admin@knockdog.test', OPERATOR]],
+    ['05', { type: 'followUp', targetId: 1041, assigneeEmail: null }, OPERATORS],
+    ['06', { type: 'followUp', targetId: 1041, assigneeEmail: 'inactive@knockdog.test' }, OPERATORS],
     [
       '07',
       { type: 'assigneeChanged', targetId: 1041, previousEmail: 'ops2@knockdog.test', actorName: '김운영 · PM' },
@@ -30,7 +32,7 @@ describe('R-알림대상: 서버가 정하는 수신자(활성 계정만)', () =
 
 test.each<[NotificationEvent, string]>([
   [{ type: 'newInquiry', targetId: 1042 }, '새 1:1 문의가 접수되었습니다.'],
-  [{ type: 'followUp', targetId: 1041 }, '문의에 사용자가 추가 문의를 남겼습니다.'],
+  [{ type: 'followUp', targetId: 1041, assigneeEmail: null }, '문의에 사용자가 추가 문의를 남겼습니다.'],
   [
     { type: 'assigneeChanged', targetId: 1041, previousEmail: OPERATOR, actorName: '김운영 · PM' },
     '김운영 · PM님이 문의의 담당자를 변경했습니다.',

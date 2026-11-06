@@ -20,13 +20,14 @@ import {
   useTermDeleteOptions,
 } from '../api/term-query';
 import { useDeleteTermsVersion, useWithdrawTermsVersion } from '../api/use-terms';
-import { TERM_KIND_LABELS, type TermSummary } from '../type/term-ui';
+import { TERM_KIND_LABELS, type Term } from '../type/term-ui';
 import { getTermErrorGuide, readTermError } from '../util/term-error';
 import { displayTermDate } from '../util/term-policy';
 
 /**
- * 초안 삭제와 공개 철회 확인창. 서버는 이 두 동작에서 버전 충돌(`version`)을 확인하지 않아 번호만 보낸다(OQ-D32).
- * 서버가 거절하면(이미 공개·삭제됨 409, 철회 불가 409, 없음 404) 최신 상태를 다시 읽는다.
+ * 초안 삭제와 공개 철회 확인창. 화면을 열 때 받은 동시 수정 값(`revision`)을 `version`으로 함께 보내고,
+ * 서버가 최신 값과 다르다고 거절하면(409) 수정 저장의 충돌과 같은 안내를 보여 준다.
+ * 서버가 거절하면(충돌·이미 공개·삭제됨 409, 철회 불가 409, 없음 404) 최신 상태를 다시 읽는다.
  */
 export function TermConfirm({
   term,
@@ -34,7 +35,7 @@ export function TermConfirm({
   onDeleted,
   onFailed,
 }: {
-  term: TermSummary;
+  term: Term;
   action: 'delete' | 'withdraw';
   onDeleted?: () => void;
   onFailed?: (status: number | undefined, code: string | undefined) => void;
@@ -53,9 +54,10 @@ export function TermConfirm({
     if (busy.current || isPending) return;
     busy.current = true;
     try {
-      // 화면의 버전 번호(`version`)가 서버 `id`다.
-      if (action === 'delete') await deleteMutation.mutateAsync({ id: term.version });
-      else await withdrawMutation.mutateAsync({ id: term.version });
+      // 화면의 버전 번호(`version`)가 서버 `id`, 동시 수정 값(`revision`)이 서버 `version`이다.
+      const request = { id: term.version, params: { version: term.revision } };
+      if (action === 'delete') await deleteMutation.mutateAsync(request);
+      else await withdrawMutation.mutateAsync(request);
       setOpen(false);
       toast.success(action === 'delete' ? '초안을 삭제했습니다.' : '공개를 철회했습니다.');
       if (action === 'delete') onDeleted?.();
@@ -63,6 +65,8 @@ export function TermConfirm({
       const { status, code } = readTermError(error);
       setOpen(false);
       if (action === 'delete' && onFailed) {
+        // 편집 화면은 없는 초안(404)이면 오류 박스의 '목록으로'를 보여 줘야 하므로, 충돌(409)일 때만 다시 읽는다.
+        if (status === 409) invalidateTerms();
         onFailed(status, code);
       } else {
         const guide = status === 404 || status === 409 ? getTermErrorGuide(status, code) : null;

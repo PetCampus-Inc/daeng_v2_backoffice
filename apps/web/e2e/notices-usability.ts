@@ -254,17 +254,16 @@ test('S-공지-065/066 미방문 페이지의 위치·스크롤·키보드 복�
     await openList(page);
     await page.evaluate(() =>
       localStorage.setItem(
-        'daeng-bo-mock-notices-v2',
+        'daeng-bo-mock-notices-v3',
         JSON.stringify(
           Array.from({ length: 25 }, (_, index) => ({
             id: 101 + index,
             status: 'PUBLISHED',
             title: `공지 ${String(index + 1).padStart(2, '0')}`,
-            body: JSON.stringify({
+            body: {
               schemaVersion: 1,
               blocks: [{ type: 'paragraph', children: [{ text: '페이지 검증 본문' }] }],
-            }),
-            images: [],
+            },
             createdAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
             publishedAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),
             updatedAt: new Date(Date.UTC(2026, 8, index + 1)).toISOString(),

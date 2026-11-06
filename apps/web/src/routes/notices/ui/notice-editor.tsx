@@ -8,8 +8,10 @@ import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
-import { RichContentEditor, RichContentView } from '@/ui/organisms/rich-content-editor';
-import { sameRichContent } from '@/util/rich-content';
+import { RichContentEditor } from '@/ui/organisms/rich-content-editor';
+import { RichContentViewer } from '@/ui/organisms/rich-content-viewer';
+import { RichContentImageSourcesContext } from '@/ui/organisms/rich-content-viewer/util';
+import { fromContentBody, getImageUrlsById, sameRichContent } from '@/util/rich-content';
 import { Label } from '@/ui/atoms/label';
 import {
   AlertDialog,
@@ -25,12 +27,18 @@ import { formatDate, formatTime } from '@/util/date-format';
 import { useAutoSave } from '@/util/use-auto-save';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { getNoticeChangeMutationKey, toNotice, useNoticeChangeOptions } from '../api/notice-query';
+import { useNoticeImageUpload } from '../api/notice-image-upload';
 import { useCreateNotice, usePublishNotice, useUpdateNotice } from '../api/use-notices';
 import type { Notice as ServerNotice } from '../type';
 import type { Notice, NoticeInput } from '../type/notice-ui';
-import { toNoticeBodyRequest } from '../util/notice-body';
 import { getNoticeErrorGuide, readNoticeError } from '../util/notice-error';
-import { createNoticeBody, getNoticeText, validateNotice } from '../util/notice-policy';
+import {
+  confirmNoticeImages,
+  createNoticeBody,
+  getNoticeText,
+  NOTICE_IMAGE_ACCEPT,
+  validateNotice,
+} from '../util/notice-policy';
 import { useNoticeListSearchParams } from '../util/list-search-params';
 import { NoticeActions } from './notice-actions';
 import { NoticeBreadcrumb } from './notice-breadcrumb';
@@ -55,6 +63,11 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
   const [isDiscarded, setIsDiscarded] = useState(false);
   const [isPublishOpen, setIsPublishOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('write');
+  const imageUpload = useNoticeImageUpload(savedNotice?.id);
+  const isImageUploading = imageUpload.isUploading;
+  // 저장으로 확정된 이미지(tempKey → imageId)와 저장된 이미지의 보기 주소. 저장 본문에는 주소를 넣지 않으므로 화면이 따로 쥔다.
+  const [confirmedImages, setConfirmedImages] = useState<Record<string, number>>({});
+  const [savedImageUrls, setSavedImageUrls] = useState(() => getImageUrlsById(notice?.previewBody ?? body));
   const [saveError, setSaveError] = useState<{ title: string; description: string; isMissing: boolean } | null>(null);
   const isBusy = useRef(false);
   const publishButtonRef = useRef<HTMLButtonElement>(null);
@@ -65,23 +78,32 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
   const isDirty = hasChanged && !isDiscarded;
   const isDraft = !savedNotice || savedNotice.status === 'draft';
   const pageTitle = isDraft ? (savedNotice ? '초안 수정' : '새 공지 작성') : '공지 수정';
-  useLeaveGuard({ isDirty, description: '저장하지 않은 공지 내용이 사라집니다.', discard: () => setIsDiscarded(true) });
+  useLeaveGuard({
+    isDirty: isDirty || (isImageUploading && !isDiscarded),
+    description: '저장하지 않은 공지 내용이 사라집니다.',
+    discard: () => setIsDiscarded(true),
+  });
 
   const leaveAfterSuccess = (action: () => void) => {
     flushSync(() => setIsDiscarded(true));
     action();
   };
 
-  /** 저장 응답을 화면 상태로 바꾼다. 방금 저장한 제목·본문을 기준으로 삼아, 저장 직후에는 변경 없음으로 본다. */
-  const toSavedNotice = (response: ServerNotice, saved: NoticeInput): Notice => ({
-    ...toNotice(response),
-    title: saved.title,
-    body: saved.body,
-  });
+  /**
+   * 저장 응답을 화면 상태로 바꾼다. 방금 저장한 제목·본문을 기준으로 삼아, 저장 직후에는 변경 없음으로 본다.
+   * 서버가 확정한 새 이미지는 본문의 `tempKey`를 `imageId`로 바꾸고(편집기에도 알린다), 이미지 보기 주소를 응답에서 받는다.
+   */
+  const toSavedNotice = (response: ServerNotice, saved: NoticeInput): Notice => {
+    const next = toNotice(response);
+    const { body: confirmedBody, confirmed } = confirmNoticeImages(saved.body, fromContentBody(response.body));
+    if (Object.keys(confirmed).length > 0) setConfirmedImages((prev) => ({ ...prev, ...confirmed }));
+    setSavedImageUrls((prev) => ({ ...prev, ...getImageUrlsById(next.previewBody) }));
+    return { ...next, title: saved.title, body: confirmedBody };
+  };
 
   /** 초안이 없으면 새로 만들고, 있으면 그 공지를 저장한다(서버 저장은 상태를 바꾸지 않는다). */
   const saveNotice = async (target: Notice | undefined) => {
-    const data = { title: input.title, body: toNoticeBodyRequest(input.body) };
+    const data = { title: input.title, body: input.body };
     const response = target
       ? await updateMutation.mutateAsync({ id: target.id, data: { ...data, version: target.version } })
       : await createMutation.mutateAsync({ data });
@@ -93,7 +115,8 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
    * 저장은 됐는데 게시만 실패하면 저장된 초안(새 번호·version)을 화면 상태로 삼아, 다시 눌러도 새 초안을 만들지 않는다.
    */
   const handleSave = async (action: 'save' | 'publish') => {
-    if (isBusy.current || !validation.canSave || (action === 'publish' && !validation.canPublish)) return;
+    const isBlocked = isBusy.current || isImageUploading || !validation.canSave;
+    if (isBlocked || (action === 'publish' && !validation.canPublish)) return;
     isBusy.current = true;
     setIsSubmitting(true);
     setSaveError(null);
@@ -175,6 +198,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
       (title.trim().length > 0 || getNoticeText(body).trim().length > 0) &&
       !isSubmitting &&
       !isMutating &&
+      !isImageUploading &&
       !isPublishOpen,
     contentKey,
     save: autoSaveNotice,
@@ -184,6 +208,15 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
     },
   });
   const isAutoSaving = autoSave.status === 'saving';
+  const { previewUrls } = imageUpload;
+  // 방금 올린 이미지는 내 컴퓨터 파일로 보여 주고(저장 뒤에도 같은 파일), 저장된 이미지는 응답의 보기 주소로 보여 준다.
+  const imageSources = useMemo(() => {
+    const byImageId = { ...savedImageUrls };
+    for (const [tempKey, imageId] of Object.entries(confirmedImages)) {
+      if (previewUrls[tempKey]) byImageId[imageId] = previewUrls[tempKey];
+    }
+    return { byTempKey: previewUrls, byImageId };
+  }, [savedImageUrls, confirmedImages, previewUrls]);
 
   const handleCancelEdit = () =>
     void navigate({ pathname: `${PAGES.notices.path}/${savedNotice!.id}`, search: listSearch });
@@ -206,7 +239,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
       : '';
 
   return (
-    <>
+    <RichContentImageSourcesContext.Provider value={imageSources}>
       <title>{formatDocumentTitle(pageTitle)}</title>
       <NoticeBreadcrumb title={pageTitle} listSearch={listSearch} />
       <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -235,14 +268,14 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
               )}
               <Button
                 variant='outline'
-                disabled={isPending || !validation.canSave || (!!savedNotice && !hasChanged)}
+                disabled={isPending || isImageUploading || !validation.canSave || (!!savedNotice && !hasChanged)}
                 onClick={() => void handleSave('save')}
               >
                 초안 저장
               </Button>
               <Button
                 ref={publishButtonRef}
-                disabled={isPending || !validation.canPublish}
+                disabled={isPending || isImageUploading || !validation.canPublish}
                 onClick={() => setIsPublishOpen(true)}
               >
                 공지 게시
@@ -254,7 +287,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
                 수정 취소
               </Button>
               <Button
-                disabled={isPending || !hasChanged || !validation.canPublish}
+                disabled={isPending || isImageUploading || !hasChanged || !validation.canPublish}
                 onClick={() => void handleSave('save')}
               >
                 변경 저장
@@ -306,6 +339,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
         <span>{savedNotice ? formatDate(savedNotice.updatedAt, true) : '저장 전'}</span>
         {hasChanged && <span className='text-kd-warning-foreground'>저장하지 않은 변경</span>}
         {isPending && !isAutoSaving && <span role='status'>처리 중…</span>}
+        {isImageUploading && <span role='status'>이미지를 올리는 중…</span>}
         <span className='ml-auto'>* {isDraft ? '게시할 때 필수' : '필수 입력'}</span>
       </div>
       <div
@@ -382,6 +416,12 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
                 aria-describedby={bodyError ? 'notice-body-error' : undefined}
                 onChange={setBody}
                 readOnly={isPending && !isAutoSaving}
+                imageUpload={{
+                  accept: NOTICE_IMAGE_ACCEPT,
+                  isUploading: isImageUploading,
+                  upload: imageUpload.upload,
+                  confirmed: confirmedImages,
+                }}
               />
               {bodyError && (
                 <p id='notice-body-error' className='text-kd-caption text-kd-error-foreground'>
@@ -408,7 +448,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
               <p className='mt-2 text-kd-caption text-kd-foreground-muted'>
                 {savedNotice?.publishedAt ? formatDate(savedNotice.publishedAt) : formatDate(previewDate)}
               </p>
-              <RichContentView value={body} className='mt-6' />
+              <RichContentViewer value={body} className='mt-6' />
             </div>
           </div>
         </aside>
@@ -438,7 +478,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </RichContentImageSourcesContext.Provider>
   );
 }
 

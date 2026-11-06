@@ -6,11 +6,12 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { TermsDraftTemplateContent } from './terms-draft-template-content';
 
 export interface TermsDraftTemplate {
   /**
-   * 시작 본문. 공개한 버전이 없으면 `null`
+   * 시작 본문 블록 JSON(`{schemaVersion, blocks}`). 공개한 버전이 없으면 `null`
    * @nullable
    */
-  content: string | null;
+  content: TermsDraftTemplateContent;
 }

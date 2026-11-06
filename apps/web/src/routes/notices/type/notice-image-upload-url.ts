@@ -10,6 +10,6 @@
 export interface NoticeImageUploadUrl {
   /** 파일을 직접 올릴 주소(유효시간이 짧습니다) */
   uploadUrl: string;
-  /** 업로드한 임시 파일의 키입니다. 공지를 저장할 때 `pendingImages`에 담아 보냅니다. */
+  /** 업로드한 임시 파일의 키입니다. 공지를 저장할 때 본문의 이미지 블록에 넣어 보냅니다. */
   tempKey: string;
 }

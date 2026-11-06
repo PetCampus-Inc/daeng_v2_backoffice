@@ -10,14 +10,15 @@ import {
   TermsWithdrawNotAllowedErrorCode,
   type TermsVersion,
 } from '@/routes/terms/type';
-import { fromTermBodyResponse, toTermBodyRequest } from '@/routes/terms/util/term-body';
 import { fillTermDates, getInitialTermBody } from '@/routes/terms/util/term-policy';
+import type { ContentBody } from '@/type/content-body';
 import { ForbiddenErrorCode } from '@/type/forbidden-error-code';
 import { ValidationFailedErrorCode } from '@/type/validation-failed-error-code';
-import { createRichContent, getRichText } from '@/util/rich-content';
+import { countRichTextLength, createRichContent, fromContentBody, getRichText } from '@/util/rich-content';
 import {
   canWithdrawTerm,
   checkPublishDate,
+  fillPublishedTermDates,
   getTermList,
   isTermDate,
   kstDateOf,
@@ -31,15 +32,17 @@ import {
 import { mockUrl } from '../util/response';
 import { authenticateMockRequest } from '../util/session';
 
-// 서버 모양(번호는 종류 구분 없이 하나씩 늘어남, 대문자 상태, 본문 문자열, version)으로 저장 모양을 바꿔 저장 키를 바꿨다.
-// 이전 키(`daeng-bo-mock-terms`)의 값은 더 읽지 않는다.
-const STORAGE_KEY = 'daeng-bo-mock-terms-v2';
+// 본문이 마크다운 문자열에서 블록 JSON 객체로 바뀌어 저장 키를 바꿨다. 이전 키의 값은 더 읽지 않는다.
+const STORAGE_KEY = 'daeng-bo-mock-terms-v3';
+
+/** 서버 명세의 약관 본문 글자 수 상한. */
+const MOCK_TERM_BODY_MAX = 100_000;
 const SEQUENCE_KEY = `${STORAGE_KEY}-sequence`;
 
 /** KST로 적은 시각을 서버 응답처럼 UTC 문자열로 바꾼다. */
 const toUtcIso = (kst: string) => new Date(kst).toISOString();
 
-/** 공개한 버전. 본문 맨 아래 공고일자·시행일자는 공개 때 채워진 상태로 저장한다. 본문은 서버가 문자열로만 받는다(OQ-P4). */
+/** 공개한 버전. 본문 맨 아래 공고일자·시행일자는 공개 때 채워진 상태로 저장한다. 본문은 블록 JSON 객체다. */
 function publishedFixture(
   id: number,
   kind: TermsKind,
@@ -61,7 +64,7 @@ function publishedFixture(
     publishStatus: status,
     publishedAt: publishedUtc,
     updatedAt: publishedUtc,
-    content: toTermBodyRequest(body),
+    content: body,
     announcedDate: kstDateOf(new Date(publishedUtc)),
     version: 1,
   };
@@ -89,7 +92,7 @@ export const createDefaultTerms = (): MockTerm[] => {
       effectiveDate: item.effectiveDate ?? '',
       publishedAt: item.publishedAt,
       updatedAt: item.updatedAt,
-      body: fromTermBodyResponse(item.content),
+      body: fromContentBody(item.content),
       revision: item.version,
     }))
   );
@@ -100,7 +103,7 @@ export const createDefaultTerms = (): MockTerm[] => {
     publishStatus: TermsPublishStatus.DRAFT,
     publishedAt: null,
     updatedAt: toUtcIso('2026-10-06T15:00:00+09:00'),
-    content: toTermBodyRequest(startBody),
+    content: startBody,
     announcedDate: null,
     version: 1,
   };
@@ -172,6 +175,26 @@ const authorizeTermRequest = (isWrite = false) => {
 const readVersion = (value: unknown) =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
 
+/** 쿼리 `version`을 읽는다. 0 이상의 정수 문자열이 아니면(없음 포함) undefined. */
+const readVersionQuery = (request: Request) => {
+  const raw = new URL(request.url).searchParams.get('version');
+  return raw !== null && /^\d+$/.test(raw) && Number.isSafeInteger(Number(raw)) ? Number(raw) : undefined;
+};
+
+/** 문자열·배열·null이 아닌 JSON 객체인지 본다. 서버는 블록 안쪽 모양은 검사하지 않는다. */
+const isBodyObject = (value: unknown): value is ContentBody =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** 본문 검사: JSON 객체여야 하고 글자는 100,000자 이하다. 수정에서는 생략할 수 있다. */
+const checkContent = (content: unknown, isRequired: boolean): MockTermIssue[] => {
+  if (content === undefined && !isRequired) return [];
+  if (!isBodyObject(content)) return [{ field: 'content', reason: '본문 블록 JSON 객체여야 합니다.' }];
+  if (countRichTextLength(content) > MOCK_TERM_BODY_MAX) {
+    return [{ field: 'content', reason: `${MOCK_TERM_BODY_MAX.toLocaleString()}자 이하의 글자여야 합니다.` }];
+  }
+  return [];
+};
+
 const versionIssue = (): MockTermIssue => ({ field: 'version', reason: '0 이상의 정수여야 합니다.' });
 
 /** 새 번호. 종류와 관계없이 하나씩 늘어나며, 삭제한 번호는 다시 쓰지 않는다. */
@@ -193,10 +216,12 @@ const respondTerm = (item: MockTerm, all: MockTerm[], status = 200) =>
 
 /**
  * 약관 가짜 API. 명세대로 응답을 `data`로 감싸지 않는다. 저장(`POST`·`PATCH`, 항상 초안)과 공개(`PUT …/publication`)가 따로이고,
- * 시행일은 초안 저장부터 `YYYY-MM-DD`여야 한다(400 `TERMS_EFFECTIVE_DATE_INVALID_FORMAT`). 공개할 때 시행일은 공개일로부터 7일 이후,
+ * 시행일은 초안에서 비울 수 있고(생성은 생략, 수정은 `null`) 적었다면 `YYYY-MM-DD`여야 한다(400 `TERMS_EFFECTIVE_DATE_INVALID_FORMAT`).
+ * 시행일이 없는 버전은 공개할 수 없다(400 `TERMS_EFFECTIVE_DATE_REQUIRED`). 공개할 때 시행일은 공개일로부터 7일 이후,
  * 같은 종류의 공개 버전 중 가장 늦은 시행일 뒤여야 한다. 공개한 버전은 수정·삭제·재공개할 수 없고(409 `TERMS_VERSION_NOT_DRAFT`),
- * 낡은 `version`은 409 `TERMS_VERSION_CONFLICT`다. 삭제·철회는 `version`을 확인하지 않는다.
- * 약관 3종 요약(`GET /terms`)과 새 버전 시작 내용(`draft-template`)은 화면이 쓰지 않아 두지 않는다.
+ * 낡은 `version`은 409 `TERMS_VERSION_CONFLICT`다. 삭제·철회는 쿼리 `version`이 필수라 없거나 정수가 아니면 400, 다르면 409다.
+ * 목록은 초안이 맨 위에 최근 생성순, 나머지는 시행일 내림차순(같으면 번호가 큰 것 먼저)이다.
+ * 본문(`content`)은 블록 JSON 객체이며 글자 100,000자 이하다. 약관 3종 요약(`GET /terms`)과 새 버전 시작 내용(`draft-template`)은 화면이 쓰지 않아 두지 않는다.
  */
 export const TERM_HANDLERS = [
   http.get(mockUrl('/terms/:kind/versions'), ({ params }) => {
@@ -214,22 +239,19 @@ export const TERM_HANDLERS = [
     const kind = parseTermKind(params.kind);
     if (!kind) return invalidKindResponse();
     const input = (await request.json().catch(() => null)) as { effectiveDate?: unknown; content?: unknown } | null;
+    // 시행일은 생략할 수 있다(초안). 보냈다면 날짜여야 한다.
     if (input && 'effectiveDate' in input && !isTermDate(input.effectiveDate)) return invalidDateResponse();
-    const issues: MockTermIssue[] = [];
-    if (typeof input?.effectiveDate !== 'string') {
-      issues.push({ field: 'effectiveDate', reason: '날짜(YYYY-MM-DD)여야 합니다.' });
-    }
-    if (typeof input?.content !== 'string') issues.push({ field: 'content', reason: '글자여야 합니다.' });
+    const issues = checkContent(input?.content, true);
     if (issues.length > 0) return rejectInvalidInput(issues);
     const all = getMockTerms();
     const item: MockTerm = {
       id: nextTermId(all),
       kind,
-      effectiveDate: input!.effectiveDate as string,
+      effectiveDate: (input!.effectiveDate as string | undefined) ?? null,
       publishStatus: TermsPublishStatus.DRAFT,
       publishedAt: null,
       updatedAt: new Date().toISOString(),
-      content: input!.content as string,
+      content: input!.content as ContentBody,
       announcedDate: null,
       version: 1,
     };
@@ -255,12 +277,12 @@ export const TERM_HANDLERS = [
       content?: unknown;
       version?: unknown;
     } | null;
-    if (input && 'effectiveDate' in input && !isTermDate(input.effectiveDate)) return invalidDateResponse();
-    const version = readVersion(input?.version);
-    const issues: MockTermIssue[] = [];
-    if (input?.content !== undefined && typeof input.content !== 'string') {
-      issues.push({ field: 'content', reason: '글자여야 합니다.' });
+    // 시행일: 보내지 않으면 유지, `null`이면 비움, 그 밖에는 날짜여야 한다.
+    if (input && 'effectiveDate' in input && input.effectiveDate !== null && !isTermDate(input.effectiveDate)) {
+      return invalidDateResponse();
     }
+    const version = readVersion(input?.version);
+    const issues = checkContent(input?.content, false);
     if (version === undefined) issues.push(versionIssue());
     if (issues.length > 0) return rejectInvalidInput(issues);
     const all = getMockTerms();
@@ -271,8 +293,8 @@ export const TERM_HANDLERS = [
     if (item.version !== version) return versionConflictResponse();
     const next: MockTerm = {
       ...item,
-      effectiveDate: (input!.effectiveDate as string | undefined) ?? item.effectiveDate,
-      content: (input!.content as string | undefined) ?? item.content,
+      effectiveDate: 'effectiveDate' in input! ? (input!.effectiveDate as string | null) : item.effectiveDate,
+      content: (input!.content as ContentBody | undefined) ?? item.content,
       updatedAt: new Date().toISOString(),
       version: item.version + 1,
     };
@@ -280,15 +302,18 @@ export const TERM_HANDLERS = [
     saveMockTerms(all);
     return respondTerm(next, all);
   }),
-  http.delete(mockUrl('/term-versions/:id'), ({ params }) => {
+  http.delete(mockUrl('/term-versions/:id'), ({ request, params }) => {
     const denied = authorizeTermRequest(true);
     if (denied) return denied;
     const id = parseTermId(params.id);
     if (id === undefined) return invalidIdResponse();
+    const version = readVersionQuery(request);
+    if (version === undefined) return rejectInvalidInput([versionIssue()]);
     const all = getMockTerms();
     const item = all.find((other) => other.id === id);
     if (!item) return notFoundResponse();
     if (item.publishStatus !== TermsPublishStatus.DRAFT) return notDraftResponse();
+    if (item.version !== version) return versionConflictResponse();
     // 삭제한 번호를 다시 쓰지 않도록 지금까지의 가장 큰 번호를 기억해 둔다.
     localStorage.setItem(
       SEQUENCE_KEY,
@@ -316,7 +341,7 @@ export const TERM_HANDLERS = [
       all.filter((other) => other.kind === item.kind)
     );
     if (dateError) return rejectTermRequest(400, dateError.code, dateError.message);
-    const body = fromTermBodyResponse(item.content);
+    const body = fromContentBody(item.content);
     // 서버는 빈 본문을 거절하지 않지만, 가짜 서버는 글자가 없는 본문의 공개를 입력 오류로 막는다(개발상 방어 처리).
     if (!getRichText(body).trim()) return rejectInvalidInput([{ field: 'content', reason: '본문이 비어 있습니다.' }]);
     const now = new Date();
@@ -326,7 +351,7 @@ export const TERM_HANDLERS = [
       publishStatus: TermsPublishStatus.PUBLISHED,
       publishedAt: now.toISOString(),
       announcedDate: kstDateOf(now),
-      content: toTermBodyRequest(fillTermDates(body, item.effectiveDate!, now)),
+      content: fillPublishedTermDates(body, item.effectiveDate!, now),
       updatedAt: now.toISOString(),
       version: item.version + 1,
     };
@@ -334,11 +359,13 @@ export const TERM_HANDLERS = [
     saveMockTerms(all);
     return respondTerm(next, all);
   }),
-  http.delete(mockUrl('/term-versions/:id/publication'), ({ params }) => {
+  http.delete(mockUrl('/term-versions/:id/publication'), ({ request, params }) => {
     const denied = authorizeTermRequest(true);
     if (denied) return denied;
     const id = parseTermId(params.id);
     if (id === undefined) return invalidIdResponse();
+    const version = readVersionQuery(request);
+    if (version === undefined) return rejectInvalidInput([versionIssue()]);
     const all = getMockTerms();
     const index = all.findIndex((other) => other.id === id);
     if (index < 0) return notFoundResponse();
@@ -350,6 +377,7 @@ export const TERM_HANDLERS = [
         '시행일이 지났거나 공개 상태가 아니라 철회할 수 없습니다.'
       );
     }
+    if (item.version !== version) return versionConflictResponse();
     const next: MockTerm = {
       ...item,
       publishStatus: TermsPublishStatus.WITHDRAWN,

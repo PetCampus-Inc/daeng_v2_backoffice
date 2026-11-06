@@ -6,8 +6,10 @@ import { TermsWithdrawNotAllowedErrorCode } from '../../type/terms-withdraw-not-
 import {
   getTermDateTooSoonMessage,
   TERM_DATE_FORMAT_MESSAGE,
+  TERM_DATE_DUPLICATED_MESSAGE,
   TERM_DATE_NOT_LATEST_MESSAGE,
   TERM_DATE_PAST_MESSAGE,
+  TERM_DATE_REQUIRED_MESSAGE,
 } from '../term-policy';
 
 /** 약관 요청이 거절됐을 때 화면 위 빨간 박스나 토스트에 보여 줄 안내. `field`가 있으면 그 입력 칸을 가리킨다. */
@@ -45,6 +47,10 @@ function getDateMessage(code: string | undefined, now: Date): string | null {
   switch (code) {
     case TermsEffectiveDateErrorCode.TERMS_EFFECTIVE_DATE_INVALID_FORMAT:
       return TERM_DATE_FORMAT_MESSAGE;
+    case TermsEffectiveDateErrorCode.TERMS_EFFECTIVE_DATE_DUPLICATED:
+      return TERM_DATE_DUPLICATED_MESSAGE;
+    case TermsEffectiveDateErrorCode.TERMS_EFFECTIVE_DATE_REQUIRED:
+      return TERM_DATE_REQUIRED_MESSAGE;
     case TermsEffectiveDateErrorCode.TERMS_EFFECTIVE_DATE_IN_PAST:
       return TERM_DATE_PAST_MESSAGE;
     case TermsEffectiveDateErrorCode.TERMS_EFFECTIVE_DATE_TOO_SOON:

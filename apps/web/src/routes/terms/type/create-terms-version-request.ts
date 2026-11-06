@@ -6,9 +6,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ContentBody } from '@/type/content-body';
 
 export interface CreateTermsVersionRequest {
-  effectiveDate: string;
-  /** 마크다운입니다. 공고일·시행일 자리에 `{{공고일}}`·`{{시행일}}`을 적어 두면 공개할 때 자동으로 채워집니다. */
-  content: string;
+  /** 시행일입니다. 초안에서는 비워 둘 수 있고 공개할 때 필수입니다. */
+  effectiveDate?: string;
+  /** 약관 본문 블록 JSON입니다. 글자는 100,000자 이하여야 합니다. */
+  content: ContentBody;
 }

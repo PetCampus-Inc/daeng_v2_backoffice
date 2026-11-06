@@ -15,6 +15,8 @@ export interface NoticeSummary {
   id: number;
   /** 초안은 빈 문자열일 수 있습니다. */
   title: string;
+  /** 동시 수정을 막기 위한 값입니다. 게시·숨김·삭제 요청에 그대로 보냅니다. */
+  version: number;
   status: NoticeStatus;
   /**
    * 최초 게시 일시입니다. 게시 전에는 `null`이고, 수정·재게시해도 바뀌지 않습니다.

@@ -9,6 +9,8 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright') as typeof import('playwright');
 const BASE = process.env.BO_QA_BASE_URL || 'http://127.0.0.1:5186';
 const OUTPUT = process.env.BO_QA_OUTPUT_DIR || path.resolve('.local/test-results/terms');
+/** 서버가 받는 약관 본문(블록 JSON 객체). */
+const BODY = { schemaVersion: 1, blocks: [{ type: 'paragraph', children: [{ text: 'x' }] }] };
 let browser: Browser;
 before(async () => {
   await mkdir(OUTPUT, { recursive: true });
@@ -143,10 +145,10 @@ test('최초 로딩 뒤 서비스 약관 목록과 상태를 표시한다', asyn
       await page.getByRole('status').filter({ hasText: '불러오는 중입니다' }).waitFor();
       await page.getByRole('button', { name: '#4', exact: true }).waitFor();
       assert.deepEqual(await page.locator('tbody tr').allTextContents(), [
+        '#4초안',
         '#3예정2026. 10. 20.2026. 10. 01.',
         '#2현행2026. 09. 01.2026. 08. 20.',
         '#1과거2026. 03. 01.2026. 02. 20.',
-        '#4초안',
       ]);
     },
     { initialDelay: 1500 }
@@ -489,16 +491,19 @@ for (const role of ['운영자', '조회자'] as const) {
 }
 
 for (const [name, method, url, body, status] of [
-  ['현행 버전 철회', 'DELETE', '/term-versions/2/publication', undefined, 409],
+  ['현행 버전 철회', 'DELETE', '/term-versions/2/publication?version=1', undefined, 409],
   ['철회한 버전의 공개', 'PUT', '/term-versions/6/publication', { version: 1 }, 409],
-  ['낡은 version 저장', 'PATCH', '/term-versions/4', { version: 0, content: 'x' }, 409],
-  ['공개 버전 삭제', 'DELETE', '/term-versions/2', undefined, 409],
+  ['낡은 version 저장', 'PATCH', '/term-versions/4', { version: 0, content: BODY }, 409],
+  ['공개 버전 삭제', 'DELETE', '/term-versions/2?version=1', undefined, 409],
+  ['version 없는 삭제', 'DELETE', '/term-versions/4', undefined, 400],
+  ['version 없는 철회', 'DELETE', '/term-versions/3/publication', undefined, 400],
+  ['문자열 본문 저장', 'POST', '/terms/PRIVACY_POLICY/versions', { content: '마크다운' }, 400],
   ['시행일 없는 초안 공개', 'PUT', '/term-versions/4/publication', { version: 1 }, 400],
   [
     '형식이 틀린 시행일 저장',
     'POST',
     '/terms/PRIVACY_POLICY/versions',
-    { content: 'x', effectiveDate: '2026-10-1' },
+    { content: BODY, effectiveDate: '2026-10-1' },
     400,
   ],
 ] as const) {
@@ -511,14 +516,14 @@ for (const [name, method, url, body, status] of [
 test('삭제한 초안 번호를 다음 버전에서 재사용하지 않는다', async () =>
   scenario('api-version-sequence', async (page) => {
     const saved = await api(page, 'POST', '/terms/LOCATION_TERMS/versions', {
-      content: 'x',
+      content: BODY,
       effectiveDate: '2026-12-01',
     });
     assert.equal(saved.status, 201);
     assert.equal(saved.body.id, 7);
-    assert.equal((await api(page, 'DELETE', '/term-versions/7')).status, 204);
+    assert.equal((await api(page, 'DELETE', '/term-versions/7?version=1')).status, 204);
     const next = await api(page, 'POST', '/terms/LOCATION_TERMS/versions', {
-      content: 'x',
+      content: BODY,
       effectiveDate: '2026-12-01',
     });
     assert.equal(next.body.id, 8);
@@ -610,7 +615,7 @@ for (const width of [1440, 1200, 1199, 390] as const) {
         await page.locator('summary').click();
         await text(
           page,
-          '초안 저장에도 시행일 형식(예: 2026. 10. 20.)이 필요합니다. 과거 날짜는 저장할 수 있고 공개할 때 검증합니다.'
+          '초안은 시행일을 비워 두고 저장할 수 있습니다. 적었다면 형식(예: 2026. 10. 20.)이 맞아야 하고, 과거 날짜도 저장할 수 있습니다. 공개할 때 시행일이 필수이며 위 규칙을 검증합니다.'
         );
       },
       { width }

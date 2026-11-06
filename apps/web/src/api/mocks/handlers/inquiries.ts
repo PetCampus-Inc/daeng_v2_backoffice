@@ -564,8 +564,10 @@ export const INQUIRY_HANDLERS = [
       ],
     };
     saveMockInquiries(inquiries);
-    recordMockNotification(getMockTeamMembers(), { type: 'followUp', targetId: inquiry.id });
-    return okResponse(toInquiryDetail(inquiries[index], getMockTeamMembers()));
+    const members = getMockTeamMembers();
+    const assignee = members.find((item) => item.id === inquiry.assigneeId);
+    recordMockNotification(members, { type: 'followUp', targetId: inquiry.id, assigneeEmail: assignee?.email ?? null });
+    return okResponse(toInquiryDetail(inquiries[index], members));
   }),
   http.post(mockUrl('/dev/inquiries/:id/close'), ({ params }) => {
     const inquiries = getMockInquiries();

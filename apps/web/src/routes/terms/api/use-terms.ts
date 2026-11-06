@@ -24,6 +24,7 @@ import type {
 
 import type {
   CreateTermsVersionRequest,
+  DeleteTermsVersionParams,
   TermsDraftTemplate,
   TermsEffectiveDateError,
   TermsInputError,
@@ -36,6 +37,7 @@ import type {
   TermsVersionSummary,
   TermsWithdrawNotAllowedError,
   UpdateTermsVersionRequest,
+  WithdrawTermsVersionParams,
 } from '@/routes/terms/type';
 import type { ForbiddenResponse, UnauthorizedResponse } from '@/type';
 
@@ -265,7 +267,7 @@ export function useListTermsVersions<
 }
 
 /**
- * 약관 새 버전을 초안으로 저장합니다. 시행일은 공개할 때 검증합니다.
+ * 약관 새 버전을 초안으로 저장합니다. 시행일은 비워 둘 수 있고, 공개할 때 필수이며 그때 검증합니다.
  * 시작 내용은 `getTermsDraftTemplate`로 받을 수 있습니다.
  * @summary 약관 새 버전 초안 저장
  */
@@ -697,14 +699,16 @@ export const useUpdateTermsVersion = <
 };
 /**
  * 약관 초안을 삭제합니다. 초안만 삭제할 수 있습니다.
+ * `version`이 다르면 409로 실패합니다.
  * @summary 약관 초안 삭제
  */
 export const deleteTermsVersion = (
   id: number,
+  params: DeleteTermsVersionParams,
   options?: SecondParameter<typeof customInstance>,
   signal?: AbortSignal
 ) => {
-  return customInstance<void>({ url: `/term-versions/${id}`, method: 'DELETE', signal }, options);
+  return customInstance<void>({ url: `/term-versions/${id}`, method: 'DELETE', params, signal }, options);
 };
 
 export const getDeleteTermsVersionMutationKey = () => ['deleteTermsVersion'] as const;
@@ -739,9 +743,9 @@ export const getDeleteTermsVersionMutationOptions = <
     Awaited<ReturnType<typeof deleteTermsVersion>>,
     DeleteTermsVersionMutationVariables
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, params } = props ?? {};
 
-    return deleteTermsVersion(id, requestOptions);
+    return deleteTermsVersion(id, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -752,7 +756,7 @@ export type DeleteTermsVersionMutationResult = NonNullable<Awaited<ReturnType<ty
 export type DeleteTermsVersionMutationError = ErrorType<
   UnauthorizedResponse | ForbiddenResponse | TermsVersionNotFoundResponse | TermsVersionNotDraftError
 >;
-export type DeleteTermsVersionMutationVariables = { id: number };
+export type DeleteTermsVersionMutationVariables = { id: number; params: DeleteTermsVersionParams };
 
 /**
  * @summary 약관 초안 삭제
@@ -783,6 +787,7 @@ export const useDeleteTermsVersion = <
 };
 /**
  * 약관 버전을 공개합니다.
+ * 시행일이 비어 있으면 공개할 수 없습니다(`TERMS_EFFECTIVE_DATE_REQUIRED`).
  * 시행일은 공개일(KST)로부터 7일 이후여야 하고, 같은 약관의 공개된 버전 중 가장 늦은 시행일보다 뒤여야 합니다.
  * 공개하면 `{{공고일}}`·`{{시행일}}`이 실제 날짜로 채워지고, 이후에는 수정·삭제할 수 없습니다.
  * @summary 약관 버전 공개
@@ -893,15 +898,19 @@ export const usePublishTermsVersion = <
 };
 /**
  * 시행 전인 예정 버전의 공개를 철회합니다. 철회한 버전은 이력에 남고 앱에서 내려가며, 다시 공개할 수 없습니다.
- * 시행일이 지났거나 공개 상태가 아니면 철회할 수 없습니다.
+ * 시행일이 지났거나 공개 상태가 아니면 철회할 수 없습니다. `version`이 다르면 409로 실패합니다.
  * @summary 약관 예정 버전 공개 철회
  */
 export const withdrawTermsVersion = (
   id: number,
+  params: WithdrawTermsVersionParams,
   options?: SecondParameter<typeof customInstance>,
   signal?: AbortSignal
 ) => {
-  return customInstance<TermsVersion>({ url: `/term-versions/${id}/publication`, method: 'DELETE', signal }, options);
+  return customInstance<TermsVersion>(
+    { url: `/term-versions/${id}/publication`, method: 'DELETE', params, signal },
+    options
+  );
 };
 
 export const getWithdrawTermsVersionMutationKey = () => ['withdrawTermsVersion'] as const;
@@ -936,9 +945,9 @@ export const getWithdrawTermsVersionMutationOptions = <
     Awaited<ReturnType<typeof withdrawTermsVersion>>,
     WithdrawTermsVersionMutationVariables
   > = (props) => {
-    const { id } = props ?? {};
+    const { id, params } = props ?? {};
 
-    return withdrawTermsVersion(id, requestOptions);
+    return withdrawTermsVersion(id, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -949,7 +958,7 @@ export type WithdrawTermsVersionMutationResult = NonNullable<Awaited<ReturnType<
 export type WithdrawTermsVersionMutationError = ErrorType<
   UnauthorizedResponse | ForbiddenResponse | TermsVersionNotFoundResponse | TermsWithdrawNotAllowedError
 >;
-export type WithdrawTermsVersionMutationVariables = { id: number };
+export type WithdrawTermsVersionMutationVariables = { id: number; params: WithdrawTermsVersionParams };
 
 /**
  * @summary 약관 예정 버전 공개 철회

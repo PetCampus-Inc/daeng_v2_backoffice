@@ -5,7 +5,12 @@ import {
   type GetTermsVersionQueryError,
   type ListTermsVersionsQueryError,
 } from '../use-terms';
-import type { TermsVersion as ServerTerm, TermsVersionSummary as ServerTermSummary } from '../../type';
+import type {
+  CreateTermsVersionRequest,
+  TermsVersion as ServerTerm,
+  TermsVersionSummary as ServerTermSummary,
+  UpdateTermsVersionRequest,
+} from '../../type';
 import {
   TERM_KIND_FROM_SERVER,
   TERM_KIND_REQUEST_VALUES,
@@ -14,7 +19,7 @@ import {
   type TermKind,
   type TermSummary,
 } from '../../type/term-ui';
-import { fromTermBodyResponse, toTermBodyRequest } from '../../util/term-body';
+import { fromContentBody } from '@/util/rich-content';
 
 /** 약관 변경 요청(저장·공개·삭제·철회)이 진행 중인지 화면 여러 곳에서 함께 보는 키. 계정마다 따로다. */
 export const getTermChangeMutationKey = (email: string) => ['terms', email, 'change'] as const;
@@ -39,14 +44,23 @@ export const toTermSummary = (term: ServerTermSummary): TermSummary => ({
 /** 서버 약관 상세를 화면 값으로 바꾼다. 서버 `version`(동시 수정 값)이 화면의 `revision`이 되고, 본문은 블록 값이 된다. */
 export const toTerm = (term: ServerTerm): Term => ({
   ...toTermSummary(term),
-  body: fromTermBodyResponse(term.content),
+  body: fromContentBody(term.content),
   revision: term.version,
 });
 
-/** 저장 요청 본문(`POST`·`PATCH`)에 넣는 시행일(`YYYY-MM-DD`)과 본문 문자열. 본문은 `util/term-body`에서만 문자열이 된다. */
-export const toTermSaveRequest = (effectiveDate: string, body: Term['body']) => ({
+/** 초안 생성 요청 본문(`POST`). 시행일이 비어 있으면 필드를 보내지 않는다. 본문은 블록 값 그대로 보낸다. */
+export const toTermCreateRequest = (effectiveDate: string | null, body: Term['body']): CreateTermsVersionRequest => ({
+  ...(effectiveDate ? { effectiveDate } : {}),
+  content: body,
+});
+
+/** 초안 수정 요청 본문(`PATCH`). 시행일이 비어 있으면 `null`을 보내 서버의 시행일도 비운다(보내지 않으면 유지). */
+export const toTermUpdateRequest = (
+  effectiveDate: string | null,
+  body: Term['body']
+): Omit<UpdateTermsVersionRequest, 'version'> => ({
   effectiveDate,
-  content: toTermBodyRequest(body),
+  content: body,
 });
 
 /** 약관 목록 조회 키인지 본다. 목록 키는 `/terms/{kind}/versions`, 상세 키는 `/term-versions/{id}`다. */
@@ -56,7 +70,7 @@ const isTermQuery = (query: Query) => isTermListQuery(query) || String(query.que
 
 /**
  * 생성 훅 `useListTermsVersions`에 넘기는 조회 옵션. 생성 키는 `/terms/{kind}/versions`뿐이라 로그인 계정을 키 끝에 붙이고,
- * 계정이 바뀌면 이전 계정의 결과를 쓰지 않는다. 서버 순서(시행일 내림차순, 시행일이 없으면 맨 뒤, 같으면 번호가 큰 것 먼저)를 그대로 쓴다.
+ * 계정이 바뀌면 이전 계정의 결과를 쓰지 않는다. 서버 순서(초안이 맨 위에 최근 생성순, 나머지는 시행일 내림차순·같으면 번호가 큰 것 먼저)를 그대로 쓰고 화면에서 다시 정렬하지 않는다.
  */
 export const termListQueryOptions = (
   email: string,

@@ -6,16 +6,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ContentBody } from '@/type/content-body';
 import type { TermsVersionSummary } from './terms-version-summary';
 
 export type TermsVersion = TermsVersionSummary & {
-  /** 마크다운입니다. 제목 없이 약관 본문으로 시작하고, 맨 아래에 공고일자·시행일자가 들어갑니다. */
-  content: string;
+  /** 약관 본문 블록 JSON입니다. 제목 없이 약관 본문으로 시작하고, 맨 아래에 공고일자·시행일자가 들어갑니다. */
+  content: ContentBody;
   /**
    * 공고일(공개한 날짜, KST). 공개 전에는 `null`
    * @nullable
    */
   announcedDate: string | null;
-  /** 동시 수정을 막기 위한 값입니다. 수정·공개 요청에 그대로 보냅니다. */
-  version: number;
 };

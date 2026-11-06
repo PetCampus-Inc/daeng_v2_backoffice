@@ -9,7 +9,8 @@ import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
 import { Card, CardContent } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
-import { RichContentEditor, RichContentView } from '@/ui/organisms/rich-content-editor';
+import { RichContentEditor } from '@/ui/organisms/rich-content-editor';
+import { RichContentViewer } from '@/ui/organisms/rich-content-viewer';
 import type { RichContent } from '@/type/rich-content';
 import { getRichText, sameRichContent } from '@/util/rich-content';
 import { Label } from '@/ui/atoms/label';
@@ -30,7 +31,8 @@ import {
   getTermChangeMutationKey,
   toServerTermKind,
   toTerm,
-  toTermSaveRequest,
+  toTermCreateRequest,
+  toTermUpdateRequest,
   useTermChangeOptions,
 } from '../api/term-query';
 import type { TermsVersion as ServerTerm } from '../type';
@@ -38,10 +40,17 @@ import { useCreateTermsVersion, usePublishTermsVersion, useUpdateTermsVersion } 
 import { TERM_KIND_LABELS, type Term, type TermKind, type TermSummary } from '../type/term-ui';
 import { getTermErrorGuide, readTermError } from '../util/term-error';
 import {
+  countTermBody,
   displayTermDate,
+  findSplitTermPlaceholders,
   getInitialTermBody,
+  getSplitPlaceholderMessage,
+  getTermBodyOverMessage,
   parseTermDate,
+  readTermDateInput,
   TERM_DATE_FORMAT_MESSAGE,
+  TERM_BODY_MAX_LENGTH,
+  TERM_DATE_REQUIRED_MESSAGE,
   validateEffectiveDate,
 } from '../util/term-policy';
 import { termListPath, termPath } from '../util/term-navigation';
@@ -100,6 +109,8 @@ export function TermEditor({
   const dateRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const publishRef = useRef<HTMLButtonElement>(null);
+  const { count: bodyCount, isOverLimit: isBodyOver } = countTermBody(body);
+  const bodyOverMessage = isBodyOver ? getTermBodyOverMessage(bodyCount) : '';
   const hasChanged =
     !sameRichContent(body, saved?.body ?? initialBody) ||
     date !== (saved?.effectiveDate ? displayTermDate(saved.effectiveDate) : '');
@@ -129,30 +140,41 @@ export function TermEditor({
       showPublishError('본문을 입력해 주세요.', 'body');
       return;
     }
+    // 서식으로 쪼개진 {{공고일}}·{{시행일}}은 서버가 못 채워 그대로 공개되고, 공개 뒤에는 고칠 수 없어 서버 요청 전에 막는다.
+    const splits = findSplitTermPlaceholders(body);
+    if (splits.length > 0) {
+      showPublishError(getSplitPlaceholderMessage(splits), 'body');
+      return;
+    }
     setError(null);
     setPublishOpen(true);
   };
   /** 저장 응답을 화면 상태로 바꾼다. 방금 저장한 본문을 기준으로 삼아, 저장 직후에는 변경 없음으로 본다. */
   const toSavedTerm = (response: ServerTerm): Term => ({ ...toTerm(response), body });
 
-  /** 초안이 없으면 새로 만들고, 있으면 그 초안을 수정한다(서버 저장은 항상 초안). */
-  const saveTerm = async (target: Term | undefined, effectiveDate: string) => {
-    const data = toTermSaveRequest(effectiveDate, body);
+  /** 초안이 없으면 새로 만들고, 있으면 그 초안을 수정한다(서버 저장은 항상 초안). 시행일이 `null`이면 비운 채 저장한다. */
+  const saveTerm = async (target: Term | undefined, effectiveDate: string | null) => {
     // 화면의 버전 번호(`version`)가 서버 `id`, 동시 수정 값(`revision`)이 서버 `version`이다.
     const response = target
-      ? await updateMutation.mutateAsync({ id: target.version, data: { ...data, version: target.revision } })
-      : await createMutation.mutateAsync({ kind: toServerTermKind(kind), data });
+      ? await updateMutation.mutateAsync({
+          id: target.version,
+          data: { ...toTermUpdateRequest(effectiveDate, body), version: target.revision },
+        })
+      : await createMutation.mutateAsync({
+          kind: toServerTermKind(kind),
+          data: toTermCreateRequest(effectiveDate, body),
+        });
     return toSavedTerm(response);
   };
 
   const handleSave = async (action: 'save' | 'publish') => {
     if (busy.current || isPending) return;
     const errorTitle = action === 'publish' ? PUBLISH_ERROR_TITLE : SAVE_ERROR_TITLE;
-    // 서버는 초안 저장부터 시행일(YYYY-MM-DD)이 필요하다. 서버가 비우기를 허락하기 전까지(OQ-P10) 저장 단계에서 형식을 검사한다.
-    const effectiveDate = parseTermDate(date);
-    if (!effectiveDate) {
+    // 시행일은 초안 저장에서는 비워 둘 수 있고(null), 적었다면 형식이 맞아야 한다. 공개할 때는 반드시 있어야 한다.
+    const effectiveDate = readTermDateInput(date);
+    if (effectiveDate === undefined || (action === 'publish' && !effectiveDate)) {
       setPublishOpen(false);
-      showFieldError(errorTitle, TERM_DATE_FORMAT_MESSAGE);
+      showFieldError(errorTitle, effectiveDate === undefined ? TERM_DATE_FORMAT_MESSAGE : TERM_DATE_REQUIRED_MESSAGE);
       return;
     }
     busy.current = true;
@@ -203,11 +225,11 @@ export function TermEditor({
   };
   /**
    * 작성 중 자동 임시저장. 기존 저장 함수(`saveTerm`)를 그대로 쓰되 토스트·이동·오류 박스는 쓰지 않는다.
-   * 처음 한 번만 만들고 이후에는 받은 번호·`revision`으로 같은 초안을 저장한다. 시행일 형식이 맞을 때만 부른다.
+   * 처음 한 번만 만들고 이후에는 받은 번호·`revision`으로 같은 초안을 저장한다. 시행일이 비어 있거나 형식이 맞을 때만 부른다.
    */
   const autoSaveTerm = async () => {
-    const effectiveDate = parseTermDate(date);
-    if (busy.current || !effectiveDate) return;
+    const effectiveDate = readTermDateInput(date);
+    if (busy.current || effectiveDate === undefined) return;
     busy.current = true;
     try {
       const savedTerm = await saveTerm(saved, effectiveDate);
@@ -226,7 +248,7 @@ export function TermEditor({
     // 이 화면은 초안만 다루고, 공개 성공 뒤에는 화면을 떠나므로(`isDiscarded`) 그때부터 멈춘다.
     enabled: !isDiscarded,
     hasChanged,
-    canSave: !!parseTermDate(date) && !isSubmitting && !isMutating && !publishOpen,
+    canSave: readTermDateInput(date) !== undefined && !isBodyOver && !isSubmitting && !isMutating && !publishOpen,
     contentKey,
     save: autoSaveTerm,
     isPermanentError: (caught) => {
@@ -269,12 +291,12 @@ export function TermEditor({
           )}
           <Button
             variant='outline'
-            disabled={isPending || (!!saved && !hasChanged)}
+            disabled={isPending || isBodyOver || (!!saved && !hasChanged)}
             onClick={() => void handleSave('save')}
           >
             초안 저장
           </Button>
-          <Button ref={publishRef} disabled={isPending} onClick={preparePublish}>
+          <Button ref={publishRef} disabled={isPending || isBodyOver} onClick={preparePublish}>
             공개하기
           </Button>
         </div>
@@ -333,7 +355,7 @@ export function TermEditor({
                     onChange={(event) => setDate(event.target.value)}
                   />
                   <p id='term-date-help' className='text-kd-caption text-kd-foreground-muted'>
-                    공개한 날로부터 7일 뒤부터 고를 수 있어요. 초안 저장에도 시행일이 필요해요.
+                    공개한 날로부터 7일 뒤부터 고를 수 있어요. 초안은 시행일을 비워 두고 저장할 수 있어요.
                   </p>
                   <details className='text-kd-sub'>
                     <summary className='w-fit cursor-pointer rounded-kd-2 focus-visible:outline-2 focus-visible:outline-kd-primary'>
@@ -344,25 +366,35 @@ export function TermEditor({
                       <li>공개일로부터 7일 이후 날짜를 선택해 주세요.</li>
                       <li>같은 약관의 가장 최근 공개 시행일보다 이후여야 합니다. 초안·철회 버전은 제외합니다.</li>
                       <li>
-                        초안 저장에도 시행일 형식(예: 2026. 10. 20.)이 필요합니다. 과거 날짜는 저장할 수 있고 공개할 때
-                        검증합니다.
+                        초안은 시행일을 비워 두고 저장할 수 있습니다. 적었다면 형식(예: 2026. 10. 20.)이 맞아야 하고,
+                        과거 날짜도 저장할 수 있습니다. 공개할 때 시행일이 필수이며 위 규칙을 검증합니다.
                       </li>
                     </ul>
                   </details>
                 </div>
                 <div className='space-y-2'>
-                  <Label htmlFor='term-body' onClick={() => bodyRef.current?.focus()}>
-                    본문 *
-                  </Label>
+                  <div className='flex items-center justify-between'>
+                    <Label htmlFor='term-body' onClick={() => bodyRef.current?.focus()}>
+                      본문 *
+                    </Label>
+                    <span className='text-kd-caption text-kd-foreground-muted'>
+                      {bodyCount.toLocaleString()} / {TERM_BODY_MAX_LENGTH.toLocaleString()}
+                    </span>
+                  </div>
                   <BodyEditor
                     ref={bodyRef}
                     id='term-body'
                     value={body}
                     readOnly={isPending && !isAutoSaving}
-                    aria-invalid={error?.field === 'body'}
-                    aria-describedby='term-body-help'
+                    aria-invalid={error?.field === 'body' || isBodyOver}
+                    aria-describedby={isBodyOver ? 'term-body-help term-body-error' : 'term-body-help'}
                     onChange={setBody}
                   />
+                  {isBodyOver && (
+                    <p id='term-body-error' className='text-kd-caption text-kd-error-foreground'>
+                      {bodyOverMessage}
+                    </p>
+                  )}
                   <p id='term-body-help' className='text-kd-caption text-kd-foreground-muted'>
                     {
                       '약관 이름은 앱 상단에 나오므로 본문에 쓰지 않아요. {{공고일}}·{{시행일}}은 공개할 때 자동으로 채워져요.'
@@ -387,7 +419,7 @@ export function TermEditor({
                   <p className='text-kd-caption text-kd-foreground-muted'>
                     시행일 {parseTermDate(date) ? displayTermDate(parseTermDate(date)!) : date || '미정'}
                   </p>
-                  <RichContentView value={body} className='mt-5' />
+                  <RichContentViewer value={body} className='mt-5' />
                 </div>
               </div>
             </aside>

@@ -30,10 +30,11 @@ export const HISTORY_TARGET_TYPE_FROM_SERVER: Record<ChangeLogTargetType, Histor
 
 /**
  * 서버가 기록하는 동작의 화면 글자(PRD 6.6 용어). 서버의 `NOTICE_CREATED`는 '처음 게시'를 뜻해 '게시'로 보인다(OQ-D26).
- * 문의 담당 해제 실행 취소는 서버가 임시로 '맡기'로 남겨 그대로 보인다(OQ-D27).
+ * 서버는 처음 맡기와 담당 해제 실행 취소를 모두 `INQUIRY_ASSIGNED`(없음 → 이름)로 남겨 화면이 구분할 수 없으므로
+ * '담당자 변경'으로 표시한다(OQ-D27, OQ-P12).
  */
 export const HISTORY_ACTION_LABELS: Record<ChangeLogAction, string> = {
-  [ChangeLogAction.INQUIRY_ASSIGNED]: '맡기',
+  [ChangeLogAction.INQUIRY_ASSIGNED]: '담당자 변경',
   [ChangeLogAction.INQUIRY_ASSIGNEE_CHANGED]: '담당자 변경',
   [ChangeLogAction.INQUIRY_ASSIGNEE_RELEASED]: '담당 해제',
   [ChangeLogAction.INQUIRY_REPLIED]: '답변 저장',
