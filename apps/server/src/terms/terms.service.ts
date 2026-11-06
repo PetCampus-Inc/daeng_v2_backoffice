@@ -4,7 +4,7 @@ import type { ChangeLogInput } from '../change-log/record.js';
 import { kstToIso, todayInKst } from '../common/time.js';
 import { DatabaseService } from '../database/database.service.js';
 import type { MemberRow } from '../database/schema.js';
-import { requireMarkdownBody } from '../java-api/java-content.js';
+import type { ContentBody } from '../java-api/java-content.js';
 import { currentVersionId, effectiveStatusOf } from './terms-status.js';
 import { TermsJavaClient, type JavaTerms } from './terms-java.client.js';
 import { TERMS_KINDS, TERMS_KIND_NAMES, type TermsKind } from './terms.types.js';
@@ -49,7 +49,8 @@ export class TermsService {
   }
 
   async draftTemplate(kind: TermsKind) {
-    return { content: (await this.java.draftTemplate(kind)) || null };
+    const content = await this.java.draftTemplate(kind);
+    return { content: Array.isArray(content.blocks) && content.blocks.length === 0 ? null : content };
   }
 
   async get(id: number) {
@@ -57,19 +58,17 @@ export class TermsService {
     return this.detail(item, await this.java.allVersions(item.kind));
   }
 
-  async create(kind: TermsKind, body: { effectiveDate: string; content: string }) {
+  async create(kind: TermsKind, body: { effectiveDate: string; content: ContentBody }) {
     const item = await this.java.create(kind, body);
     return this.detail(item, [item]);
   }
 
-  async update(id: number, body: { version: number; content?: string; effectiveDate?: string }) {
+  async update(id: number, body: { version: number; content?: ContentBody; effectiveDate?: string }) {
     const { version, ...data } = body;
-    if (data.content === undefined) requireMarkdownBody('Terms', id, (await this.java.get(id)).body);
     return this.detail(await this.java.update(id, data, version), []);
   }
 
   async publish(actor: MemberRow, id: number, version: number) {
-    requireMarkdownBody('Terms', id, (await this.java.get(id)).body);
     const item = await this.java.publish(id, version);
     // 초안 저장은 이력 대상이 아니라서 새 버전 등록은 공개하는 시점에 함께 남긴다.
     await this.record(actor, id, item, 'TERMS_VERSION_CREATED');
@@ -79,7 +78,6 @@ export class TermsService {
 
   async withdraw(actor: MemberRow, id: number) {
     const before = await this.java.get(id);
-    requireMarkdownBody('Terms', id, before.body);
     const item = await this.java.withdraw(id, before.rowVersion);
     await this.record(actor, id, item, 'TERMS_VERSION_WITHDRAWN');
     return this.detail(item, [item]);
@@ -105,6 +103,7 @@ export class TermsService {
       effectiveStatus: effectiveStatusOf(item, today, currentId),
       publishedAt: dateTime(item.publishedAt),
       updatedAt: dateTime(item.updatedAt),
+      version: item.rowVersion,
     };
   }
 
@@ -113,13 +112,11 @@ export class TermsService {
    * 공개일로부터 7일 이후라서 현행이 될 수 없으므로 그 버전만 넘겨도 상태가 같다.
    */
   private detail(item: JavaTerms, versions: readonly JavaTerms[]) {
-    const content = requireMarkdownBody('Terms', item.id, item.body);
     const today = todayInKst();
     return {
       ...this.summary(item, today, currentVersionId(versions, today)),
-      content,
+      content: item.body,
       announcedDate: item.announcedDate,
-      version: item.rowVersion,
     };
   }
 

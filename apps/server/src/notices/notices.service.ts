@@ -4,7 +4,7 @@ import type { ChangeLogInput } from '../change-log/record.js';
 import { kstToIso } from '../common/time.js';
 import { DatabaseService } from '../database/database.service.js';
 import type { MemberRow } from '../database/schema.js';
-import { requireMarkdownBody } from '../java-api/java-content.js';
+import type { ContentBody } from '../java-api/java-content.js';
 import { NoticeJavaClient, type JavaNotice } from './notice-java.client.js';
 
 const dateTime = (value: string | null) => (value === null ? null : kstToIso(value));
@@ -32,18 +32,13 @@ export class NoticesService {
     return this.detail(await this.java.get(id));
   }
 
-  async create(body: unknown) {
+  async create(body: { title: string; body: ContentBody }) {
     return this.detail(await this.java.create(body));
   }
 
-  async update(
-    actor: MemberRow,
-    id: number,
-    body: { version: number; title?: string; body?: string; pendingImages?: unknown[] }
-  ) {
+  async update(actor: MemberRow, id: number, body: { version: number; title?: string; body?: ContentBody }) {
     // 게시된 적 있는 공지만 변경 이력 대상이라 쓰기 전에 현재 상태를 읽는다. 사이에 끼어든 변경은 버전 충돌로 막힌다.
     const before = await this.java.get(id);
-    this.detail(before);
     const { version, ...data } = body;
     const result = await this.java.update(id, data, version);
     if (before.publishedAt !== null) await this.record(actor, id, result, 'NOTICE_EDITED');
@@ -52,7 +47,6 @@ export class NoticesService {
 
   async publish(actor: MemberRow, id: number, version: number) {
     const before = await this.java.get(id);
-    this.detail(before);
     const result = await this.java.publish(id, version);
     await this.record(actor, id, result, before.publishedAt === null ? 'NOTICE_CREATED' : 'NOTICE_REPUBLISHED');
     return this.detail(result);
@@ -60,7 +54,6 @@ export class NoticesService {
 
   async unpublish(actor: MemberRow, id: number) {
     const before = await this.java.get(id);
-    this.detail(before);
     const result = await this.java.unpublish(id, before.rowVersion);
     await this.record(actor, id, result, 'NOTICE_UNPUBLISHED');
     return this.detail(result);
@@ -83,15 +76,15 @@ export class NoticesService {
       publishedAt: dateTime(item.publishedAt),
       createdAt: dateTime(item.createdAt),
       updatedAt: dateTime(item.updatedAt),
+      version: item.rowVersion,
     };
   }
 
   private detail(item: JavaNotice) {
     return {
       ...this.summary(item),
-      body: requireMarkdownBody('Notice', item.id, item.body),
-      version: item.rowVersion,
-      images: item.images ?? [],
+      body: item.body,
+      previewBody: item.previewBody,
     };
   }
 

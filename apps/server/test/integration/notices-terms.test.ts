@@ -28,7 +28,7 @@ let terms = {
   id: 9,
   title: '서비스 이용약관',
   type: 'TERMS_OF_SERVICE',
-  body: '약관 본문',
+  body: { schemaVersion: 1, blocks: [{ type: 'p', children: [{ text: '약관 본문' }] }] },
   status: 'DRAFT',
   effectiveDate: '2099-11-20',
   announcedDate: null as string | null,
@@ -40,13 +40,13 @@ let terms = {
 let notice = {
   id: 1,
   title: '공지',
-  body: '본문',
+  body: { schemaVersion: 1, blocks: [{ type: 'p', children: [{ text: '본문' }] }] },
+  previewBody: { schemaVersion: 1, blocks: [{ type: 'p', children: [{ text: '본문' }] }] },
   status: 'DRAFT',
   publishedAt: null as string | null,
   createdAt: '2026-10-20T12:00:00',
   updatedAt: '2026-10-20T12:00:00',
   rowVersion: 1,
-  images: [],
 };
 const database = {
   db: {

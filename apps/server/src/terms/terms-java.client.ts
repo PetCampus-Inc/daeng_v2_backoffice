@@ -6,6 +6,7 @@ import {
   javaDate,
   javaDateTime,
   requestData,
+  type ContentBody,
   type JavaErrors,
   type JavaPage,
   type JavaTemporal,
@@ -35,7 +36,8 @@ const TERMS_ERRORS: JavaErrors = {
   'PLATFORM-409-5': boError(409, 'TERMS_VERSION_NOT_DRAFT'),
   'PLATFORM-409-6': boError(409, 'TERMS_VERSION_NOT_DRAFT'),
   'PLATFORM-409-9': boError(409, 'TERMS_WITHDRAW_NOT_ALLOWED'),
-  'PLATFORM-409-11': boError(400, 'TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST'),
+  'PLATFORM-409-7': boError(400, 'TERMS_EFFECTIVE_DATE_REQUIRED'),
+  'PLATFORM-409-11': boError(400, 'TERMS_EFFECTIVE_DATE_DUPLICATED'),
   'PLATFORM-409-14': boError(400, 'TERMS_EFFECTIVE_DATE_IN_PAST'),
   'PLATFORM-409-15': boError(400, 'TERMS_EFFECTIVE_DATE_TOO_SOON'),
   'PLATFORM-409-16': boError(400, 'TERMS_EFFECTIVE_DATE_NOT_AFTER_LATEST'),
@@ -51,7 +53,7 @@ export interface JavaTerms {
   createdAt: string;
   updatedAt: string;
   rowVersion: number;
-  body: unknown;
+  body: ContentBody;
   effectiveDate: string | null;
   announcedDate: string | null;
 }
@@ -107,9 +109,9 @@ export class TermsJavaClient {
     return this.item('GET', `${TERMS}/${id}`);
   }
 
-  /** 공개된 버전이 없으면 빈 문자열이다. */
-  async draftTemplate(kind: TermsKind): Promise<string> {
-    const result = await requestData<{ content: string }>(
+  /** 공개된 버전이 없으면 `blocks`가 빈 본문이다. */
+  async draftTemplate(kind: TermsKind): Promise<ContentBody> {
+    const result = await requestData<{ content: ContentBody }>(
       this.java,
       'GET',
       `${TERMS}/types/${TO_JAVA_KIND[kind]}/draft-template`,
@@ -119,14 +121,14 @@ export class TermsJavaClient {
     return result.content;
   }
 
-  create(kind: TermsKind, body: { content: string; effectiveDate: string }): Promise<JavaTerms> {
+  create(kind: TermsKind, body: { content: ContentBody; effectiveDate: string }): Promise<JavaTerms> {
     return this.item('POST', `${TERMS}/types/${TO_JAVA_KIND[kind]}/versions`, {
       body: body.content,
       effectiveDate: body.effectiveDate,
     });
   }
 
-  update(id: number, data: { content?: string; effectiveDate?: string }, rowVersion: number): Promise<JavaTerms> {
+  update(id: number, data: { content?: ContentBody; effectiveDate?: string }, rowVersion: number): Promise<JavaTerms> {
     const { content, ...rest } = data;
     return this.item('PATCH', `${TERMS}/${id}`, {
       ...rest,

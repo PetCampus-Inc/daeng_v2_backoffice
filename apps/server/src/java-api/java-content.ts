@@ -33,9 +33,9 @@ export const javaDateTime = (value: JavaTemporal | null | undefined): string | n
 export const boError = (status: number, code: string) => () =>
   new ApiException(status, code, '요청을 처리할 수 없습니다.');
 
-/** Java가 본문(마크다운 또는 이미지 참조)을 거부한 경우의 입력 검증 오류. */
+/** Java가 본문(블록 JSON, 글자 수 또는 이미지 참조)을 거부한 경우의 입력 검증 오류. */
 export const invalidBodyError = () =>
-  new ValidationFailedException([{ field: 'body', reason: '본문 또는 이미지 참조가 올바르지 않습니다.' }]);
+  new ValidationFailedException([{ field: 'body', reason: '본문 형식 또는 이미지 참조가 올바르지 않습니다.' }]);
 
 /** Java 응답의 `data`를 꺼낸다. */
 export async function requestData<T>(
@@ -49,8 +49,5 @@ export async function requestData<T>(
   return result?.data as T;
 }
 
-/** BO 명세는 본문이 마크다운 문자열이다. 이전하지 않은 기존 JSON 본문은 변환하지 않고 막는다. */
-export function requireMarkdownBody(label: 'Notice' | 'Terms', id: number, body: unknown): string {
-  if (typeof body !== 'string') throw new Error(`${label} ${id} has legacy JSON body; migration required`);
-  return body;
-}
+/** 에디터가 내보내는 블록 JSON. 블록 규칙·글자 수·이미지 검증은 Java가 하므로 객체인지만 본다. */
+export type ContentBody = Record<string, unknown>;

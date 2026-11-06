@@ -7,6 +7,7 @@ import {
   requestData,
   type JavaErrors,
   type JavaPage,
+  type ContentBody,
   type JavaTemporal,
 } from '../java-api/java-content.js';
 
@@ -33,8 +34,10 @@ export interface JavaNotice {
   createdAt: string;
   updatedAt: string;
   rowVersion: number;
-  body: unknown;
-  images?: { imageId: number; previewUrl: string | null }[];
+  /** 다시 저장할 원본. 이미지는 `imageId`로 들어 있다. */
+  body: ContentBody;
+  /** 표시용. 이미지 노드에 임시 URL이 들어 있다. */
+  previewBody: ContentBody;
 }
 
 type RawNotice = Omit<JavaNotice, 'publishedAt' | 'createdAt' | 'updatedAt'> & {

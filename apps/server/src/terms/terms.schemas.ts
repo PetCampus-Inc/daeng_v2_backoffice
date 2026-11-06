@@ -1,15 +1,16 @@
 import { z } from 'zod';
 import { ApiException } from '../common/api-error.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { contentBodySchema } from '../java-api/content-body.schema.js';
 import { TERMS_KINDS } from './terms.types.js';
 
 export const kindPipe = new ZodValidationPipe(z.enum(TERMS_KINDS), 'kind');
 
 const date = z.iso.date();
-export const createTermsSchema = z.object({ effectiveDate: date, content: z.string() });
+export const createTermsSchema = z.object({ effectiveDate: date, content: contentBodySchema });
 export const updateTermsSchema = z.object({
   effectiveDate: date.optional(),
-  content: z.string().optional(),
+  content: contentBodySchema.optional(),
   version: z.number().int().nonnegative(),
 });
 export const termsVersionSchema = z.object({ version: z.number().int().nonnegative() });
