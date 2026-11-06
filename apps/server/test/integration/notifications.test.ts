@@ -8,6 +8,8 @@ import { JavaApiClient } from '../../src/java-api/java-api.client.js';
 import { NotificationEventClient } from '../../src/notifications/notification-event-client.js';
 import { NotificationEventPoller } from '../../src/notifications/notification-event-poller.js';
 import { NotificationsService } from '../../src/notifications/notifications.service.js';
+import { ServiceDatabaseService } from '../../src/service-database/service-database.service.js';
+import { ServiceFixture } from '../support/service-fixture.js';
 import { hasDatabase, readTestDatabaseConfig } from '../support/test-database.js';
 
 const run = `notice-test-${Date.now()}`;
@@ -18,6 +20,11 @@ const eventIds = [
   '9007199254740004',
   '9007199254740005',
   '9007199254740006',
+  '9007199254740007',
+  '9007199254740008',
+  '9007199254740009',
+  '9007199254740010',
+  '9007199254740011',
 ];
 const event = {
   eventId: eventIds[0]!,
@@ -32,14 +39,19 @@ const event = {
 };
 describe.skipIf(!hasDatabase)('notification storage and processing', () => {
   let db: DatabaseService;
+  let serviceDb: ServiceDatabaseService;
+  let fixture: ServiceFixture;
   let service: NotificationsService;
   let processor: NotificationEventProcessor;
   let operatorId: number;
   let viewerId: number;
   beforeAll(async () => {
-    db = new DatabaseService(readTestDatabaseConfig());
+    const config = readTestDatabaseConfig();
+    db = new DatabaseService(config);
+    serviceDb = new ServiceDatabaseService(config);
+    fixture = await ServiceFixture.create(config, run);
     service = new NotificationsService(db);
-    processor = new NotificationEventProcessor(db);
+    processor = new NotificationEventProcessor(db, serviceDb);
     await db.db.insert(members).values([
       { email: `${run}-op@example.com`, role: 'OPERATOR', status: 'ACTIVE' },
       { email: `${run}-viewer@example.com`, role: 'VIEWER', status: 'ACTIVE' },
@@ -56,6 +68,8 @@ describe.skipIf(!hasDatabase)('notification storage and processing', () => {
     await db.db.delete(notifications).where(inArray(notifications.eventId, eventIds));
     await db.db.delete(processedNotificationEvents).where(inArray(processedNotificationEvents.eventId, eventIds));
     await db.db.delete(members).where(inArray(members.email, [`${run}-op@example.com`, `${run}-viewer@example.com`]));
+    await fixture?.close();
+    await serviceDb?.onApplicationShutdown();
     await db.onApplicationShutdown();
   });
   test('stores exactly once even under concurrent duplicate delivery and snapshots recipients', async () => {
@@ -207,5 +221,87 @@ describe.skipIf(!hasDatabase)('notification storage and processing', () => {
     expect(after.readAt).toBe(earlier.readAt);
     await service.readAll(operatorId);
     expect(await service.unreadCount(operatorId)).toEqual({ count: 0 });
+  });
+
+  describe('additional inquiry recipients', () => {
+    const additional = (eventId: string, targetId: number) => ({
+      ...event,
+      eventId,
+      type: 'ADDITIONAL_INQUIRY' as const,
+      targetId,
+      messageId: 1,
+    });
+    const recipientsOf = async (eventId: string, memberIds: number[]) =>
+      (await db.db.select().from(notifications).where(eq(notifications.eventId, eventId)))
+        .map((row) => row.recipientId)
+        .filter((id) => memberIds.includes(id))
+        .sort();
+    let adminId: number;
+    let assigneeId: number;
+    let otherId: number;
+    let ids: number[];
+    const inquiry = async (assigneeMemberId: number | null) =>
+      fixture.addInquiry({
+        user: await fixture.addUser(`n${Math.random().toString(36).slice(2, 7)}`),
+        title: '추가 문의',
+        assigneeMemberId,
+        lastActivityAt: new Date(),
+      });
+    beforeAll(async () => {
+      const emails = ['admin', 'assignee', 'other'].map((name) => `${run}-add-${name}@example.com`);
+      await db.db.insert(members).values([
+        { email: emails[0]!, role: 'SUPER_ADMIN', status: 'ACTIVE' },
+        { email: emails[1]!, role: 'OPERATOR', status: 'ACTIVE' },
+        { email: emails[2]!, role: 'OPERATOR', status: 'ACTIVE' },
+      ]);
+      const rows = await db.db.select().from(members).where(inArray(members.email, emails));
+      [adminId, assigneeId, otherId] = emails.map((email) => rows.find((m) => m.email === email)!.id) as [
+        number,
+        number,
+        number,
+      ];
+      ids = [adminId, assigneeId, otherId];
+    });
+    afterAll(async () => {
+      if (!db) return;
+      await db.db.delete(notifications).where(inArray(notifications.recipientId, ids));
+      await db.db.delete(members).where(inArray(members.id, ids));
+    });
+
+    test('active assignee gets it with super admins, other operators do not', async () => {
+      const e = additional(eventIds[6]!, await inquiry(assigneeId));
+      await processor.process(e);
+      const got = await recipientsOf(e.eventId, ids);
+      expect(got).toContain(adminId);
+      expect(got).toContain(assigneeId);
+      expect(got).not.toContain(otherId);
+    });
+
+    test('an assignee who is a super admin gets exactly one notification', async () => {
+      const e = additional(eventIds[7]!, await inquiry(adminId));
+      await processor.process(e);
+      const got = await recipientsOf(e.eventId, ids);
+      expect(got.filter((id) => id === adminId)).toHaveLength(1);
+      expect(got).not.toContain(otherId);
+    });
+
+    test('unassigned inquiry goes to every active super admin and operator', async () => {
+      const e = additional(eventIds[8]!, await inquiry(null));
+      await processor.process(e);
+      expect(await recipientsOf(e.eventId, ids)).toEqual([...ids].sort());
+    });
+
+    test('inactive assignee falls back to every active super admin and operator', async () => {
+      await db.db.update(members).set({ status: 'INACTIVE' }).where(eq(members.id, assigneeId));
+      const e = additional(eventIds[9]!, await inquiry(assigneeId));
+      await processor.process(e);
+      expect(await recipientsOf(e.eventId, ids)).toEqual([adminId, otherId].sort());
+    });
+
+    test('a missing inquiry falls back to everyone instead of failing', async () => {
+      const e = additional(eventIds[10]!, 2_000_000_000);
+      await processor.process(e);
+      expect(await recipientsOf(e.eventId, ids)).toContain(otherId);
+    });
   });
 });

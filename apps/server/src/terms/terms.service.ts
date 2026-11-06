@@ -10,8 +10,16 @@ import { TermsJavaClient, type JavaTerms } from './terms-java.client.js';
 import { TERMS_KINDS, TERMS_KIND_NAMES, type TermsKind } from './terms.types.js';
 
 const dateTime = (value: string | null) => (value === null ? null : kstToIso(value));
-const byEffectiveDateDesc = (a: { effectiveDate: string | null; id: number }, b: typeof a) =>
-  (b.effectiveDate ?? '').localeCompare(a.effectiveDate ?? '') || b.id - a.id;
+const draftFirstThenEffectiveDateDesc = (
+  a: { publishStatus: string; effectiveDate: string | null; id: number },
+  b: typeof a
+) => {
+  const aDraft = a.publishStatus === 'DRAFT';
+  const bDraft = b.publishStatus === 'DRAFT';
+  if (aDraft !== bDraft) return aDraft ? -1 : 1;
+  if (aDraft) return b.id - a.id;
+  return (b.effectiveDate ?? '').localeCompare(a.effectiveDate ?? '') || b.id - a.id;
+};
 
 /**
  * 변경 이력에 남기는 대상 이름: 약관 종류와 시행일. 같은 약관의 여러 버전을 구별한다. 공개한 버전은 시행일을 고칠 수 없어서
@@ -45,7 +53,7 @@ export class TermsService {
 
   async listVersions(kind: TermsKind) {
     const all = await this.java.allVersions(kind);
-    return this.summaries(all).sort(byEffectiveDateDesc);
+    return this.summaries(all).sort(draftFirstThenEffectiveDateDesc);
   }
 
   async draftTemplate(kind: TermsKind) {
@@ -58,12 +66,12 @@ export class TermsService {
     return this.detail(item, await this.java.allVersions(item.kind));
   }
 
-  async create(kind: TermsKind, body: { effectiveDate: string; content: ContentBody }) {
+  async create(kind: TermsKind, body: { effectiveDate?: string | null; content: ContentBody }) {
     const item = await this.java.create(kind, body);
     return this.detail(item, [item]);
   }
 
-  async update(id: number, body: { version: number; content?: ContentBody; effectiveDate?: string }) {
+  async update(id: number, body: { version: number; content?: ContentBody; effectiveDate?: string | null }) {
     const { version, ...data } = body;
     return this.detail(await this.java.update(id, data, version), []);
   }
@@ -76,16 +84,14 @@ export class TermsService {
     return this.detail(item, [item]);
   }
 
-  async withdraw(actor: MemberRow, id: number) {
-    const before = await this.java.get(id);
-    const item = await this.java.withdraw(id, before.rowVersion);
+  async withdraw(actor: MemberRow, id: number, version: number) {
+    const item = await this.java.withdraw(id, version);
     await this.record(actor, id, item, 'TERMS_VERSION_WITHDRAWN');
     return this.detail(item, [item]);
   }
 
-  async delete(id: number) {
-    const before = await this.java.get(id);
-    await this.java.delete(id, before.rowVersion);
+  async delete(id: number, version: number) {
+    await this.java.delete(id, version);
   }
 
   private summaries(versions: readonly JavaTerms[]) {

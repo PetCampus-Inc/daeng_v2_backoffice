@@ -884,8 +884,10 @@ paths:
       summary: 공지 초안 삭제
       description: |-
         공지 초안을 삭제합니다. 초안만 삭제할 수 있습니다.
+        `version`이 다르면 409로 실패합니다.
       parameters:
         - $ref: '#/components/parameters/NoticeId'
+        - $ref: '#/components/parameters/VersionQuery'
       responses:
         '204':
           description: 삭제됨
@@ -950,9 +952,11 @@ paths:
       operationId: unpublishNotice
       summary: 공지 게시 해제
       description: |-
-        공지 게시를 해제합니다. 다시 게시할 수 있습니다. 게시 중이 아니면 실패하며, `version`은 확인하지 않습니다.
+        공지 게시를 해제합니다. 다시 게시할 수 있습니다. 게시 중이 아니면 실패합니다.
+        `version`이 다르면 409로 실패합니다.
       parameters:
         - $ref: '#/components/parameters/NoticeId'
+        - $ref: '#/components/parameters/VersionQuery'
       responses:
         '200':
           description: 게시 해제된 공지
@@ -1054,7 +1058,7 @@ paths:
       operationId: createTermsVersion
       summary: 약관 새 버전 초안 저장
       description: |-
-        약관 새 버전을 초안으로 저장합니다. 시행일은 공개할 때 검증합니다.
+        약관 새 버전을 초안으로 저장합니다. 시행일은 비워 둘 수 있고, 공개할 때 필수이며 그때 검증합니다.
         시작 내용은 `getTermsDraftTemplate`로 받을 수 있습니다.
       parameters:
         - $ref: '#/components/parameters/TermsKind'
@@ -1165,8 +1169,10 @@ paths:
       summary: 약관 초안 삭제
       description: |-
         약관 초안을 삭제합니다. 초안만 삭제할 수 있습니다.
+        `version`이 다르면 409로 실패합니다.
       parameters:
         - $ref: '#/components/parameters/TermsVersionId'
+        - $ref: '#/components/parameters/VersionQuery'
       responses:
         '204':
           description: 삭제됨
@@ -1190,6 +1196,7 @@ paths:
       summary: 약관 버전 공개
       description: |-
         약관 버전을 공개합니다.
+        시행일이 비어 있으면 공개할 수 없습니다(`TERMS_EFFECTIVE_DATE_REQUIRED`).
         시행일은 공개일(KST)로부터 7일 이후여야 하고, 같은 약관의 공개된 버전 중 가장 늦은 시행일보다 뒤여야 합니다.
         공개하면 `{{공고일}}`·`{{시행일}}`이 실제 날짜로 채워지고, 이후에는 수정·삭제할 수 없습니다.
       parameters:
@@ -1228,9 +1235,10 @@ paths:
       summary: 약관 예정 버전 공개 철회
       description: |-
         시행 전인 예정 버전의 공개를 철회합니다. 철회한 버전은 이력에 남고 앱에서 내려가며, 다시 공개할 수 없습니다.
-        시행일이 지났거나 공개 상태가 아니면 철회할 수 없습니다.
+        시행일이 지났거나 공개 상태가 아니면 철회할 수 없습니다. `version`이 다르면 409로 실패합니다.
       parameters:
         - $ref: '#/components/parameters/TermsVersionId'
+        - $ref: '#/components/parameters/VersionQuery'
       responses:
         '200':
           description: 철회된 버전
@@ -1533,6 +1541,15 @@ components:
       description: 약관 버전 ID
       schema:
         type: integer
+
+    VersionQuery:
+      name: version
+      in: query
+      required: true
+      description: 화면을 열 때 받은 `version`. 서버의 최신 값과 다르면 409로 실패합니다.
+      schema:
+        type: integer
+        minimum: 0
 
   responses:
     Unauthorized:
@@ -2713,11 +2730,12 @@ components:
 
     CreateTermsVersionRequest:
       type: object
-      required: [effectiveDate, content]
+      required: [content]
       properties:
         effectiveDate:
           type: string
           format: date
+          description: 시행일입니다. 초안에서는 비워 둘 수 있고 공개할 때 필수입니다.
         content:
           allOf:
             - $ref: '#/components/schemas/ContentBody'
@@ -2730,6 +2748,8 @@ components:
         effectiveDate:
           type: string
           format: date
+          nullable: true
+          description: 보내지 않으면 유지하고, `null`을 보내면 시행일을 비웁니다.
         content:
           $ref: '#/components/schemas/ContentBody'
         version:
@@ -2751,10 +2771,10 @@ components:
       required: [content]
       properties:
         content:
-          allOf:
-            - $ref: '#/components/schemas/ContentBody'
+          type: object
+          additionalProperties: true
           nullable: true
-          description: 시작 본문 블록 JSON. 공개한 버전이 없으면 `null`
+          description: 시작 본문 블록 JSON(`{schemaVersion, blocks}`). 공개한 버전이 없으면 `null`
 
     NotificationKind:
       type: string
@@ -3093,7 +3113,6 @@ components:
       required:
         - id
         - userId
-        - userName
         - schoolId
         - kindergartenPlaceId
         - kindergartenType
@@ -3114,8 +3133,6 @@ components:
         id:
           type: integer
         userId:
-          type: string
-        userName:
           type: string
         schoolId:
           type: integer

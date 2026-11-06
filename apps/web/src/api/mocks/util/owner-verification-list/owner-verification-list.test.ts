@@ -5,7 +5,7 @@ import { getOwnerVerificationList, type OwnerVerificationListQuery } from './ind
 /** fixtures.md `인증-기본`에서 규칙에 필요한 값만 둔다. */
 const createItem = (
   id: number,
-  userName: string,
+  representativeName: string,
   kindergartenName: string,
   status: ServiceVerification['status'],
   submittedAt: string | null,
@@ -13,7 +13,6 @@ const createItem = (
 ): ServiceVerification => ({
   id,
   userId,
-  userName,
   kindergartenName,
   schoolId: null,
   kindergartenPlaceId: null,
@@ -25,7 +24,7 @@ const createItem = (
   submittedAt,
   ownerGrantedAt: null,
   businessRegistrationNumber: null,
-  representativeName: userName,
+  representativeName,
   representativePhone: null,
   revokedAt: null,
   ownerRevokedAt: null,
