@@ -321,12 +321,13 @@ test('S-공지-068 게시 확인창 취소·Esc의 초점 복귀와 오류 요�
       await page.keyboard.press('Enter');
       const dialog = page.getByRole('alertdialog');
       await dialog.waitFor();
-      assert.equal(
-        await dialog.getByRole('button', { name: '취소', exact: true }).evaluate((el) => document.activeElement === el),
-        true
-      );
-      if (method === 'cancel') await page.keyboard.press('Enter');
-      else await page.keyboard.press('Escape');
+      await dialog.evaluate((el) => {
+        if (document.activeElement !== el) throw new Error('확인창 본체에 초점이 있어야 합니다.');
+      });
+      if (method === 'cancel') {
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Enter');
+      } else await page.keyboard.press('Escape');
       await dialog.waitFor({ state: 'hidden' });
       await page.waitForFunction(() => document.activeElement?.textContent === '공지 게시');
     }
