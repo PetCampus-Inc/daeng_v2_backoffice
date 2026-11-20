@@ -14,15 +14,7 @@ import { Field, FieldLabel, FieldError, FieldGroup } from '@/ui/atoms/field';
 import { Input } from '@/ui/atoms/input';
 import { RadioGroup, RadioGroupItem } from '@/ui/atoms/radio-group';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/atoms/table';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import { showErrorToast, showSuccessToast } from '@/ui/atoms/sonner';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
@@ -64,15 +56,21 @@ const getMemberErrorMessage = (error: unknown) =>
 const MemberRoleField = ({
   role,
   onChange,
-  disabled,
+  isPending,
 }: {
   role: Role;
   onChange: (role: Role) => void;
-  disabled: boolean;
+  isPending: boolean;
 }) => (
   <Field>
     <FieldLabel>역할</FieldLabel>
-    <RadioGroup value={role} onValueChange={(value) => onChange(value as Role)} disabled={disabled}>
+    <RadioGroup
+      value={role}
+      aria-disabled={isPending}
+      onValueChange={(value) => {
+        if (!isPending) onChange(value as Role);
+      }}
+    >
       {ROLE_OPTIONS.map((value) => (
         <RadioGroupItem key={value} value={value}>
           {ROLE_LABELS[value]}
@@ -99,12 +97,14 @@ export default function TeamMembersRoute() {
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
   const [memberEmail, setMemberEmail] = useState('');
   const [selectedRole, setSelectedRole] = useState<Role>('VIEWER');
-  const [emailError, setEmailError] = useState('');
+  const [isEmailEdited, setIsEmailEdited] = useState(false);
   const [roleMember, setRoleMember] = useState<TeamMember | null>(null);
   const [isClosePending, setIsClosePending] = useState(false);
   const registerButtonRef = useRef<HTMLButtonElement>(null);
   const memberButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const members = membersQuery.data ?? [];
+  const parsedEmail = memberEmailSchema.safeParse(memberEmail);
+  const emailError = isEmailEdited && !parsedEmail.success ? '올바른 이메일 주소를 입력해 주세요.' : '';
   const isDirty = isRegisterOpen && memberEmail.length > 0;
   const isPending = [
     registerMemberMutation,
@@ -130,24 +130,21 @@ export default function TeamMembersRoute() {
   const closeRegisterDialog = () => {
     setIsRegisterOpen(false);
     setMemberEmail('');
-    setEmailError('');
+    setIsEmailEdited(false);
     setSelectedRole('VIEWER');
   };
   // 이메일을 입력한 채 화면을 벗어나면(브라우저 뒤로 등) 앱 이탈 확인창(AppLayout)을 거친다.
   useLeaveGuard({ isDirty, description: '입력한 이메일과 역할을 버립니다.', discard: closeRegisterDialog });
   /** 이메일을 입력했다면 버릴지 먼저 묻는다. */
   const handleCloseRegister = () => {
+    if (isPending) return;
     if (isDirty) setIsClosePending(true);
     else closeRegisterDialog();
   };
-  /** 등록 성공 때만 창을 닫는다. */
+  /** 등록이 성공하면 창을 닫고, 실패하면 입력을 유지한다. */
   const handleSubmitMember = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const parsedEmail = memberEmailSchema.safeParse(memberEmail);
-    if (!parsedEmail.success) {
-      setEmailError('올바른 이메일 주소를 입력해 주세요.');
-      return;
-    }
+    if (!parsedEmail.success || isPending) return;
     try {
       const member = await registerMemberMutation.mutateAsync({
         data: { email: parsedEmail.data, role: selectedRole },
@@ -155,14 +152,13 @@ export default function TeamMembersRoute() {
       closeRegisterDialog();
       showSuccessToast(`${member.email} 계정을 등록했습니다.`);
     } catch (error) {
-      setEmailError(getMemberErrorMessage(error));
+      showErrorToast(getMemberErrorMessage(error));
     }
   };
   /** 계정 변경 후 목록을 갱신하고 결과를 알린다. */
   const handleUpdateMember = async (input: MemberAction) => {
     try {
       await requestMemberAction(input);
-      setRoleMember(null);
       showSuccessToast(ACTION_MESSAGES[input.action]);
     } catch (error) {
       showErrorToast(getMemberErrorMessage(error));
@@ -182,7 +178,9 @@ export default function TeamMembersRoute() {
         <h1 className='text-kd-title-1'>팀원·권한</h1>
         <Button
           ref={registerButtonRef}
+          aria-disabled={isPending}
           onClick={() => {
+            if (isPending) return;
             setSelectedRole('VIEWER');
             setIsRegisterOpen(true);
           }}
@@ -190,6 +188,11 @@ export default function TeamMembersRoute() {
           팀원 등록
         </Button>
       </div>
+      {isPending && !isRegisterOpen && (
+        <p role='status' className='mt-4 text-kd-sub'>
+          팀원 정보를 처리 중입니다…
+        </p>
+      )}
       <section
         aria-label='팀원 목록'
         className='mt-6 overflow-hidden rounded-kd-4 border border-kd-border bg-kd-background'
@@ -250,7 +253,13 @@ export default function TeamMembersRoute() {
                               else memberButtonRefs.current.delete(member.email);
                             }}
                             aria-label={`${member.email} 동작`}
-                            disabled={isPending}
+                            aria-disabled={isPending}
+                            onPointerDown={(event) => {
+                              if (isPending) event.preventDefault();
+                            }}
+                            onKeyDown={(event) => {
+                              if (isPending) event.preventDefault();
+                            }}
                           />
                           <DropdownMenuContent>
                             {isEnabled ? (
@@ -307,7 +316,7 @@ export default function TeamMembersRoute() {
           isPending={isPending}
           onRestoreFocus={() => registerButtonRef.current?.focus()}
         >
-          <form onSubmit={handleSubmitMember} noValidate>
+          <form onSubmit={handleSubmitMember} aria-busy={registerMemberMutation.isPending} noValidate>
             <FieldGroup>
               <Field invalid={!!emailError}>
                 <FieldLabel>구글 이메일</FieldLabel>
@@ -316,24 +325,25 @@ export default function TeamMembersRoute() {
                   autoComplete='off'
                   placeholder='name@example.com'
                   value={memberEmail}
-                  disabled={isPending}
+                  aria-disabled={isPending}
                   onChange={(event) => {
+                    if (isPending) return;
                     setMemberEmail(event.target.value);
-                    setEmailError('');
+                    setIsEmailEdited(true);
                   }}
                 />
                 <FieldError>{emailError}</FieldError>
               </Field>
-              <MemberRoleField role={selectedRole} onChange={setSelectedRole} disabled={isPending} />
+              <MemberRoleField role={selectedRole} onChange={setSelectedRole} isPending={isPending} />
             </FieldGroup>
             <p className='mt-5 text-kd-caption text-kd-foreground-muted'>
               안내 메일은 보내지 않습니다. 등록한 분께 직접 알려 주세요.
             </p>
             <div className='mt-6 flex justify-end gap-2'>
-              <Button type='button' variant='outline' onClick={handleCloseRegister} disabled={isPending}>
+              <Button type='button' variant='outline' onClick={handleCloseRegister} aria-disabled={isPending}>
                 취소
               </Button>
-              <Button type='submit' disabled={isPending}>
+              <Button type='submit' disabled={!parsedEmail.success} aria-disabled={isPending}>
                 등록
               </Button>
             </div>
@@ -350,33 +360,41 @@ export default function TeamMembersRoute() {
           <p className='mb-5 text-kd-body text-kd-foreground-muted'>
             {roleMember.email} · 지금 역할: {ROLE_LABELS[roleMember.role]}
           </p>
-          <MemberRoleField role={selectedRole} onChange={setSelectedRole} disabled={isPending} />
+          <MemberRoleField role={selectedRole} onChange={setSelectedRole} isPending={isPending} />
           <p className='mt-5 text-kd-body'>다음 요청부터 바로 적용됩니다.</p>
           <div className='mt-6 flex justify-end gap-2'>
-            <Button variant='outline' disabled={isPending} onClick={() => setRoleMember(null)}>
+            <Button
+              variant='outline'
+              aria-disabled={isPending}
+              onClick={() => {
+                if (!isPending) setRoleMember(null);
+              }}
+            >
               취소
             </Button>
             <Button
-              disabled={isPending || selectedRole === roleMember.role}
-              onClick={() =>
-                void handleUpdateMember({ memberId: roleMember.id, action: 'changeRole', role: selectedRole })
-              }
+              disabled={selectedRole === roleMember.role}
+              aria-disabled={isPending}
+              onClick={() => {
+                if (isPending) return;
+                setRoleMember(null);
+                void handleUpdateMember({ memberId: roleMember.id, action: 'changeRole', role: selectedRole });
+              }}
             >
               역할 변경
             </Button>
           </div>
         </MemberDialog>
       )}
-      <AlertDialog open={isClosePending} onOpenChange={setIsClosePending}>
-        <AlertDialogContent>
-          <AlertDialogTitle>작성 중인 내용이 사라집니다. 나갈까요?</AlertDialogTitle>
-          <AlertDialogDescription>입력한 이메일과 역할을 버립니다.</AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDiscardChanges}>나가기</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={isClosePending}
+        onOpenChange={setIsClosePending}
+        title='작성 중인 내용이 사라집니다. 나갈까요?'
+        description='입력한 이메일과 역할을 버립니다.'
+        cancelLabel='취소'
+        confirmLabel='나가기'
+        onConfirm={handleDiscardChanges}
+      />
     </>
   );
 }

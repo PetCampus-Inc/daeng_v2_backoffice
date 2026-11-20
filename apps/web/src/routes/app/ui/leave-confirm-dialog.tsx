@@ -2,16 +2,7 @@ import { useRef } from 'react';
 import { useBeforeUnload, useBlocker } from 'react-router';
 
 import { useLeaveGuardStore } from '@/store/leave-guard';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 
 /**
  * 작성 중 이탈 확인창(PRD 4.6). 앱에서 이탈 차단(useBlocker)은 여기 한 곳에서만 건다.
@@ -64,29 +55,25 @@ export function LeaveConfirmDialog() {
   };
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={(nextOpen) => !nextOpen && isOpen && handleCancelLeave()}>
-      <AlertDialogContent
-        onOpenAutoFocus={() => {
-          returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        }}
-        onCloseAutoFocus={(event) => {
-          // 확인으로 이동한 경우에는 이전 화면으로 초점을 되돌리지 않는다.
-          const target = returnFocusRef.current;
-          if (target?.isConnected) {
-            event.preventDefault();
-            target.focus({ preventScroll: true });
-          }
-        }}
-      >
-        <AlertDialogHeader>
-          <AlertDialogTitle>작성 중인 내용이 사라집니다. 나갈까요?</AlertDialogTitle>
-          <AlertDialogDescription>{guards.at(-1)?.description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>취소</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirmLeave}>나가기</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+      open={isOpen}
+      onOpenChange={(nextOpen) => !nextOpen && isOpen && handleCancelLeave()}
+      title='작성 중인 내용이 사라집니다. 나갈까요?'
+      description={guards.at(-1)?.description}
+      cancelLabel='취소'
+      onOpenAutoFocus={() => {
+        returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      }}
+      onCloseAutoFocus={(event) => {
+        // 확인으로 이동한 경우에는 이전 화면으로 초점을 되돌리지 않는다.
+        const target = returnFocusRef.current;
+        if (target?.isConnected) {
+          event.preventDefault();
+          target.focus({ preventScroll: true });
+        }
+      }}
+      confirmLabel='나가기'
+      onConfirm={handleConfirmLeave}
+    />
   );
 }

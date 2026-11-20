@@ -54,29 +54,14 @@ import { ImageElement } from '@/ui/organisms/rich-content-viewer/ui/rich-content
 import { Button } from '@/ui/atoms/button';
 import { Input } from '@/ui/atoms/input';
 import { Label } from '@/ui/atoms/label';
-import { Dialog as DialogPrimitive } from 'radix-ui';
 import { cn } from '@/util/cn';
-
-const Dialog = DialogPrimitive.Root;
-const DialogTitle = DialogPrimitive.Title;
-function DialogContent(props: ComponentProps<typeof DialogPrimitive.Content>) {
-  return (
-    <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className='fixed inset-0 z-50 bg-black/40' />
-      <DialogPrimitive.Content
-        {...props}
-        aria-describedby={undefined}
-        className='fixed top-1/2 left-1/2 z-50 w-[calc(100%_-_2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 space-y-4 rounded-kd-3 border border-kd-border bg-kd-background p-6 shadow-kd-float'
-      />
-    </DialogPrimitive.Portal>
-  );
-}
-function DialogHeader(props: ComponentProps<'div'>) {
-  return <div {...props} className='text-kd-title-2' />;
-}
-function DialogFooter(props: ComponentProps<'div'>) {
-  return <div {...props} className='flex justify-end gap-2' />;
-}
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from '@/ui/atoms/alert-dialog';
 
 const PLUGINS = [
   createPlatePlugin({ key: 'fontSize', node: { isLeaf: true } }),
@@ -210,7 +195,8 @@ function EditorToolbar({ readOnly, imageUpload }: { readOnly: boolean; imageUplo
   }, [selection]);
   const [linkOpen, setLinkOpen] = useState(false);
   const [url, setUrl] = useState('');
-  const [linkError, setLinkError] = useState(false);
+  const isValidLink = isHttpUrl(url);
+  const linkError = url.length > 0 && !isValidLink;
   const act = (run: () => void) => {
     if (readOnly) return;
     // 브라우저의 selectionchange가 처리되기 전 빠르게 툴바를 눌러도 현재 선택을 적용한다.
@@ -283,7 +269,6 @@ function EditorToolbar({ readOnly, imageUpload }: { readOnly: boolean; imageUplo
       run: () => {
         const entry = editor.api.node({ match: { type: 'a' } });
         setUrl(String(entry?.[0].url ?? ''));
-        setLinkError(false);
         setLinkOpen(true);
       },
     },
@@ -405,27 +390,24 @@ function EditorToolbar({ readOnly, imageUpload }: { readOnly: boolean; imageUplo
           </div>
         )}
       </div>
-      <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
-        <DialogContent
+      <AlertDialog open={linkOpen} onOpenChange={setLinkOpen}>
+        <AlertDialogContent
+          role='dialog'
+          aria-describedby={undefined}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             editor.tf.focus();
           }}
         >
-          <DialogHeader>
-            <DialogTitle>링크 설정</DialogTitle>
-          </DialogHeader>
+          <AlertDialogTitle>링크 설정</AlertDialogTitle>
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              if (!isHttpUrl(url)) {
-                setLinkError(true);
-                return;
-              }
+              if (!isValidLink || readOnly) return;
+              setLinkOpen(false);
               act(() => {
                 upsertLink(editor, { url, target: '_blank' });
               });
-              setLinkOpen(false);
             }}
             className='space-y-4'
           >
@@ -443,17 +425,15 @@ function EditorToolbar({ readOnly, imageUpload }: { readOnly: boolean; imageUplo
                 http 또는 https 주소를 입력해 주세요.
               </p>
             )}
-            <DialogFooter>
-              <Button type='button' variant='outline' onClick={() => setLinkOpen(false)}>
-                취소
-              </Button>
-              <Button type='submit' disabled={readOnly}>
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <Button type='submit' disabled={readOnly || !isValidLink}>
                 적용
               </Button>
-            </DialogFooter>
+            </AlertDialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
