@@ -144,12 +144,6 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
       }
       if (isDraft) {
         toast.success('초안을 저장했습니다.');
-        if (!savedNotice) {
-          leaveAfterSuccess(
-            () =>
-              void navigate({ pathname: `${PAGES.notices.path}/${target!.id}`, search: listSearch }, { replace: true })
-          );
-        }
       } else {
         toast.success('변경 내용을 저장했습니다.');
         leaveAfterSuccess(
