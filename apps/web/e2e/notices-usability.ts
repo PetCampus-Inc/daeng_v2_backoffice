@@ -12,6 +12,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright') as t
 const BASE_URL = process.env.NOTICE_TEST_BASE_URL || 'http://localhost:5173';
 const OUTPUT_DIR = process.env.NOTICE_TEST_OUTPUT_DIR || path.resolve('.local/test-results/notices');
 const RESULTS: Record<string, unknown>[] = [];
+const OFFLINE_MESSAGE = '인터넷 연결이 끊겼습니다. 연결을 확인해 주세요.';
+const ONLINE_MESSAGE = '인터넷 연결이 복구되었습니다.';
 let browser: Browser;
 
 before(async () => {
@@ -431,6 +433,145 @@ test('S-공지-069 저장 실패 복구·게시 대기·중복 요청 방지', (
       successfulPublishRequests: 1,
       successLeaveWarning: false,
     };
+  }));
+
+test('QA3-315 요청 없이 연결 중단과 복구를 전역 토스트로 표시', () =>
+  scenario('QA3-315 요청 없이 연결 중단과 복구를 전역 토스트로 표시', async (page) => {
+    await login(page, '최고관리자', '/notices/new');
+    await page.getByLabel('제목 *', { exact: true }).waitFor();
+
+    const offlineToast = page.getByText(OFFLINE_MESSAGE, { exact: true });
+    const onlineToast = page.getByText(ONLINE_MESSAGE, { exact: true });
+    assert.equal(await onlineToast.count(), 0);
+    await page.context().setOffline(true);
+    await offlineToast.waitFor({ timeout: 2000 });
+    await page.screenshot({ path: path.join(OUTPUT_DIR, 'QA3-315-offline-toast.png') });
+    await page.context().setOffline(false);
+    await offlineToast.waitFor({ state: 'hidden' });
+    await onlineToast.waitFor({ timeout: 2000 });
+    await page.screenshot({ path: path.join(OUTPUT_DIR, 'QA3-315-online-toast.png') });
+    return { offlineToastWithoutAction: true, onlineToastWithoutAction: true };
+  }));
+
+test('QA3-315 오프라인 초안 저장 실패와 재연결 후 재시도', () =>
+  scenario('QA3-315 오프라인 초안 저장 실패와 재연결 후 재시도', async (page) => {
+    await login(page, '최고관리자', '/notices/new');
+    const title = page.getByLabel('제목 *', { exact: true });
+    const body = page.getByLabel('본문 *', { exact: true });
+    const save = page.getByRole('button', { name: '초안 저장', exact: true });
+    const offlineToast = page.getByText(OFFLINE_MESSAGE, { exact: true });
+    const apiErrorToast = page.getByText('일시적 오류로 요청을 완료하지 못했습니다.', { exact: true });
+    await title.fill('오프라인 보존 제목');
+    await body.fill('오프라인 보존 본문');
+    await page.evaluate(async () => {
+      const { network } = await import('/@id/__x00__virtual:msw');
+      const { http } = await import('/node_modules/.vite/deps/msw.js');
+      window.__noticeWrite = { fail: true, requests: 0 };
+      network.use(
+        http.post('/api/v0/admin/notices', async () => {
+          window.__noticeWrite.requests++;
+          if (window.__noticeWrite.fail) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            return Response.error();
+          }
+        })
+      );
+    });
+    await page.context().setOffline(true);
+    await offlineToast.waitFor();
+    await offlineToast.locator('xpath=ancestor::li').getByRole('button', { name: '닫기' }).click();
+    await offlineToast.waitFor({ state: 'hidden' });
+
+    await save.click();
+    await page.getByText('처리 중…', { exact: true }).waitFor();
+    assert.equal(await apiErrorToast.count(), 0);
+    await apiErrorToast.waitFor();
+    await page.waitForFunction(
+      () =>
+        [...document.querySelectorAll('button')].some(
+          (button) => button.textContent === '초안 저장' && !button.disabled
+        ),
+      undefined,
+      { timeout: 2000 }
+    );
+    assert.equal(await page.getByText('처리 중…', { exact: true }).count(), 0);
+    assert.equal(await offlineToast.count(), 0);
+    assert.equal(await title.inputValue(), '오프라인 보존 제목');
+    assert.equal(await body.innerText(), '오프라인 보존 본문');
+    assert.equal(await page.evaluate(() => window.__noticeWrite.requests), 1);
+    await page.screenshot({ path: path.join(OUTPUT_DIR, 'QA3-315-draft-preserved.png') });
+
+    await page.context().setOffline(false);
+    await page.getByText(ONLINE_MESSAGE, { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => window.__noticeWrite.requests), 1);
+    await page.evaluate(() => {
+      window.__noticeWrite.fail = false;
+    });
+    await save.click();
+    await page.getByText('초안을 저장했습니다.', { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).pathname, '/notices/new');
+    assert.equal(await title.inputValue(), '오프라인 보존 제목');
+    assert.equal(await body.innerText(), '오프라인 보존 본문');
+    assert.equal(await page.evaluate(() => window.__noticeWrite.requests), 2);
+    return { failedCreateRequests: 1, successfulCreateRequests: 1, inputPreserved: true, genericApiErrorToast: true };
+  }));
+
+test('QA3-315 기본 MSW에서 오프라인 저장 실패 후 같은 화면에서 저장', () =>
+  scenario('QA3-315 기본 MSW에서 오프라인 저장 실패 후 같은 화면에서 저장', async (page) => {
+    await login(page, '최고관리자', '/notices/new');
+    const title = page.getByLabel('제목 *', { exact: true });
+    const body = page.getByLabel('본문 *', { exact: true });
+    const save = page.getByRole('button', { name: '초안 저장', exact: true });
+    const deleteDraft = page.getByRole('button', { name: '초안 삭제', exact: true });
+    await title.fill('저장된 초안 제목');
+    await body.fill('저장된 초안 본문');
+    const editor = await body.elementHandle();
+    await page.evaluate(async () => {
+      const { network } = await import('/@id/__x00__virtual:msw');
+      const { http } = await import('/node_modules/.vite/deps/msw.js');
+      window.__noticeWrite = { fail: false, requests: 0 };
+      network.use(
+        http.patch('/api/v0/admin/notices/15', () => {
+          window.__noticeWrite.requests++;
+        })
+      );
+    });
+
+    await page.context().setOffline(true);
+    await page.getByText(OFFLINE_MESSAGE, { exact: true }).waitFor();
+    await save.click();
+    await page.getByText('일시적 오류로 요청을 완료하지 못했습니다.', { exact: true }).waitFor();
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('button')].some((button) => button.textContent === '초안 저장' && !button.disabled)
+    );
+    assert.equal(await deleteDraft.count(), 0);
+    assert.equal(await page.getByText('초안을 저장했습니다.', { exact: true }).count(), 0);
+    assert.equal(await title.inputValue(), '저장된 초안 제목');
+    assert.equal(await body.innerText(), '저장된 초안 본문');
+
+    await page.context().setOffline(false);
+    await page.getByText(ONLINE_MESSAGE, { exact: true }).waitFor();
+    await save.click();
+    await page.getByText('초안을 저장했습니다.', { exact: true }).waitFor();
+    await page.getByRole('heading', { name: '초안 수정', exact: true }).waitFor();
+    await deleteDraft.waitFor();
+    assert.equal(new URL(page.url()).pathname, '/notices/new');
+    assert.equal(await editor.evaluate((element) => element.isConnected), true);
+    assert.equal(await title.inputValue(), '저장된 초안 제목');
+    assert.equal(await body.innerText(), '저장된 초안 본문');
+
+    await body.fill('이어서 수정한 본문');
+    await save.click();
+    await page.waitForFunction(
+      () =>
+        document.querySelector<HTMLButtonElement>('#notice-title')?.disabled === false &&
+        [...document.querySelectorAll('button')].some((button) => button.textContent === '초안 저장' && button.disabled)
+    );
+    assert.equal(await page.evaluate(() => window.__noticeWrite.requests), 1);
+    assert.equal(new URL(page.url()).pathname, '/notices/new');
+    assert.equal(await editor.evaluate((element) => element.isConnected), true);
+    assert.equal(await body.innerText(), '이어서 수정한 본문');
+    return { offlineSaveFailed: true, deleteHiddenUntilSaved: true, editorPreserved: true, updatedExistingDraft: true };
   }));
 
 test('S-공지-070 수정 취소의 단일 확인과 게시 상태 일관성', () =>
