@@ -18,8 +18,9 @@ function Toaster(props: ToasterProps) {
         unstyled: true,
         closeButtonAriaLabel: '닫기',
         classNames: {
+          // 모달이 페이지의 포인터 입력을 잠가도 표시 중인 토스트는 조작할 수 있다.
           toast:
-            'flex w-full items-center gap-3 rounded-kd-3 bg-kd-foreground px-4 py-3 text-kd-body text-kd-background shadow-kd-float',
+            'data-[visible=true]:pointer-events-auto flex w-full items-center gap-3 rounded-kd-3 bg-kd-foreground px-4 py-3 text-kd-body text-kd-background shadow-kd-float',
           icon: 'hidden',
           content: 'min-w-0 flex-1',
           title: 'font-normal',

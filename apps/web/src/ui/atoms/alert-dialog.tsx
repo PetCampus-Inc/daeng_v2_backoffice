@@ -19,6 +19,7 @@ function AlertDialogContent({
   className,
   role = 'alertdialog',
   onOpenAutoFocus,
+  onPointerDownOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content>) {
   return (
@@ -37,6 +38,14 @@ function AlertDialogContent({
             event.preventDefault();
             event.target.focus({ preventScroll: true });
           }
+        }}
+        onPointerDownOutside={(event) => {
+          const target = event.detail.originalEvent.target;
+          if (target instanceof Element && target.closest('[data-sonner-toast]')) {
+            event.preventDefault();
+            return;
+          }
+          onPointerDownOutside?.(event);
         }}
         {...props}
       />
