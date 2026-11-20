@@ -3,7 +3,7 @@ import { Toaster as Sonner, toast, type ToasterProps } from 'sonner';
 
 /**
  * design.md 3.7 토스트. 화면 아래 가운데, `--kd-foreground` 바탕 흰 글자, 한 문장 + 오른쪽 × 닫기.
- * 앱 루트(RootLayout)에 한 번만 둔다. 띄울 때는 아래 showToast* 함수를 쓴다.
+ * 앱 루트에 한 번만 둔다. 띄울 때는 아래 showToast* 함수를 쓴다.
  */
 function Toaster(props: ToasterProps) {
   return (

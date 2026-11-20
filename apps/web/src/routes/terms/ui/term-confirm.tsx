@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useIsMutating } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { handleApiError } from '@/api/handle-api-error';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
 import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
@@ -29,7 +30,7 @@ export function TermConfirm({
   term: Term;
   action: 'delete' | 'withdraw';
   onDeleted?: () => void;
-  onFailed?: (status: number | undefined, code: string | undefined) => void;
+  onFailed?: (status: number | undefined, code: string | undefined) => boolean;
 }) {
   const email = useAuthStore((state) => state.user?.email) ?? '';
   const deleteMutation = useDeleteTermsVersion(useTermDeleteOptions(email));
@@ -53,19 +54,22 @@ export function TermConfirm({
       toast.success(action === 'delete' ? '초안을 삭제했습니다.' : '공개를 철회했습니다.');
       if (action === 'delete') onDeleted?.();
     } catch (error) {
-      const { status, code } = readTermError(error);
       setOpen(false);
-      if (action === 'delete' && onFailed) {
-        // 편집 화면은 없는 초안(404)이면 오류 박스의 '목록으로'를 보여 줘야 하므로, 충돌(409)일 때만 다시 읽는다.
-        if (status === 409) invalidateTerms();
-        onFailed(status, code);
-      } else {
-        const guide = status === 404 || status === 409 ? getTermErrorGuide(status, code) : null;
-        if (guide) {
+      await handleApiError(error, {
+        onError: (error) => {
+          const { status, code } = readTermError(error);
+          if (action === 'delete' && onFailed) {
+            // 편집 화면에서 404는 '목록으로'를 안내하고, 충돌(409)일 때만 다시 읽는다.
+            if (status === 409) invalidateTerms();
+            return onFailed(status, code);
+          }
+          const guide = status === 404 || status === 409 ? getTermErrorGuide(status, code) : null;
+          if (!guide) return false;
           toast.error(guide.description);
           invalidateTerms();
-        } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
-      }
+          return true;
+        },
+      });
     } finally {
       busy.current = false;
     }

@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useRef, useState, type SubmitEvent } from 'react';
+import { handleApiError } from '@/api/handle-api-error';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
 import { JOB_ROLE_LABELS } from '@/type/job-role-ui';
@@ -161,7 +162,7 @@ export default function TeamMembersRoute() {
       await requestMemberAction(input);
       showSuccessToast(ACTION_MESSAGES[input.action]);
     } catch (error) {
-      showErrorToast(getMemberErrorMessage(error));
+      void handleApiError(error, { message: getMemberErrorMessage(error), toastOptions: { duration: Infinity } });
       void membersQuery.refetch();
     }
   };

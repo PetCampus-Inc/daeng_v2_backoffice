@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { Tabs } from 'radix-ui';
 import { useIsMutating } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { handleApiError } from '@/api/handle-api-error';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
@@ -196,7 +197,7 @@ export function TermEditor({
         } catch (publishError) {
           if (!isSavedNow) throw publishError;
           setPublishOpen(false);
-          toast.error('임시저장은 됐지만 공개하지 못했어요. 다시 공개해 주세요.');
+          await handleApiError(publishError, { message: '임시저장은 됐지만 공개하지 못했어요. 다시 공개해 주세요.' });
         }
         return;
       }
@@ -204,11 +205,16 @@ export function TermEditor({
       if (!saved) leave(() => void navigate(termPath(kind, target!.version), { replace: true }));
     } catch (caught) {
       setPublishOpen(false);
-      const { status, code } = readTermError(caught);
-      const guide = getTermErrorGuide(status, code);
-      if (guide?.field) showFieldError(errorTitle, guide.description, guide.field);
-      else if (guide) setError({ title: errorTitle, description: guide.description, missing: guide.isMissing });
-      else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
+      await handleApiError(caught, {
+        onError: (error) => {
+          const { status, code } = readTermError(error);
+          const guide = getTermErrorGuide(status, code);
+          if (!guide) return false;
+          if (guide.field) showFieldError(errorTitle, guide.description, guide.field);
+          else setError({ title: errorTitle, description: guide.description, missing: guide.isMissing });
+          return true;
+        },
+      });
     } finally {
       busy.current = false;
       setIsSubmitting(false);
@@ -273,9 +279,9 @@ export function TermEditor({
               action='delete'
               onFailed={(status, code) => {
                 const guide = status === 404 || status === 409 ? getTermErrorGuide(status, code) : null;
-                if (guide) {
-                  setError({ title: '삭제하지 못했습니다.', description: guide.description, missing: guide.isMissing });
-                } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
+                if (!guide) return false;
+                setError({ title: '삭제하지 못했습니다.', description: guide.description, missing: guide.isMissing });
+                return true;
               }}
               onDeleted={() => leave(() => void navigate(termListPath(kind)))}
             />

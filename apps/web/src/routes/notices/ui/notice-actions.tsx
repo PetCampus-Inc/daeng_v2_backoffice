@@ -1,6 +1,7 @@
 import { useIsMutating } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { handleApiError } from '@/api/handle-api-error';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
 import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
@@ -52,12 +53,19 @@ export function NoticeActions({
 
   /** 요청이 거절되면 상태가 바뀐 것으로 보고 안내한 뒤 최신 상태를 다시 읽는다(수정 저장의 409와 같은 안내문). */
   const handleFailure = (error: unknown) => {
-    const { status, code } = readNoticeError(error);
-    if (status === 404 || status === 409) {
-      toast.error(getNoticeErrorGuide(status, code)?.description ?? STATE_CHANGED_MESSAGE);
-      invalidateNotices();
-    } else if (status === 400) toast.error(getNoticeErrorGuide(status, code)?.description ?? GENERIC_ERROR_MESSAGE);
-    else toast.error(GENERIC_ERROR_MESSAGE);
+    void handleApiError(error, {
+      onError: (error) => {
+        const { status, code } = readNoticeError(error);
+        if (status === 404 || status === 409) {
+          toast.error(getNoticeErrorGuide(status, code)?.description ?? STATE_CHANGED_MESSAGE);
+          invalidateNotices();
+          return true;
+        }
+        if (status !== 400) return false;
+        toast.error(getNoticeErrorGuide(status, code)?.description ?? GENERIC_ERROR_MESSAGE);
+        return true;
+      },
+    });
   };
 
   /** 게시 해제를 취소한다. 해제 응답의 새 `version`으로 다시 게시한다(서버는 재게시와 같은 API). */
