@@ -5,12 +5,20 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router/dom';
 
 import './index.css';
+import { Toaster } from './ui/atoms/sonner';
+import { NetworkStatusToasts } from './ui/organisms/network-status-toasts';
 import { initSentry } from './util/sentry.ts';
 
 // 라우터와 첫 요청보다 먼저 켜야 시작 단계의 에러도 잡힌다.
 initSentry();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    // 브라우저 연결 상태와 별개로 실제 요청 결과를 기다린다.
+    queries: { networkMode: 'always', refetchOnReconnect: true },
+    mutations: { networkMode: 'always' },
+  },
+});
 
 /**
  * 개발 서버에서만 가짜 API(MSW)를 켠다.
@@ -35,6 +43,8 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <RouterProvider router={router} />
+      <Toaster />
+      <NetworkStatusToasts />
       <ReactQueryDevtools />
     </QueryClientProvider>
   </StrictMode>
