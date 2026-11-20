@@ -323,12 +323,13 @@ test('S-공지-068 게시 확인창 취소·Esc의 초점 복귀와 오류 요�
       await page.keyboard.press('Enter');
       const dialog = page.getByRole('alertdialog');
       await dialog.waitFor();
-      assert.equal(
-        await dialog.getByRole('button', { name: '취소', exact: true }).evaluate((el) => document.activeElement === el),
-        true
-      );
-      if (method === 'cancel') await page.keyboard.press('Enter');
-      else await page.keyboard.press('Escape');
+      await dialog.evaluate((el) => {
+        if (document.activeElement !== el) throw new Error('확인창 본체에 초점이 있어야 합니다.');
+      });
+      if (method === 'cancel') {
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Enter');
+      } else await page.keyboard.press('Escape');
       await dialog.waitFor({ state: 'hidden' });
       await page.waitForFunction(() => document.activeElement?.textContent === '공지 게시');
     }
@@ -697,9 +698,14 @@ test('S-공지-069/070 초안 삭제 취소·409/404 입력 보존·이탈', () 
         .waitFor();
       assert.equal(await target.getByLabel('제목 *', { exact: true }).inputValue(), '입력 보존');
       await target.getByRole('button', { name: '목록으로', exact: true }).click();
-      await target.getByRole('alertdialog').getByRole('button', { name: '취소', exact: true }).waitFor();
+      const leaveDialog = target.getByRole('alertdialog');
+      const cancelLeave = leaveDialog.getByRole('button', { name: '취소', exact: true });
+      await leaveDialog.waitFor();
+      await target.waitForFunction(() => document.activeElement?.getAttribute('role') === 'alertdialog');
+      await target.keyboard.press('Tab');
+      assert.equal(await cancelLeave.evaluate((button) => button === document.activeElement), true);
       await target.keyboard.press('Enter');
-      await target.getByRole('alertdialog').waitFor({ state: 'hidden' });
+      await leaveDialog.waitFor({ state: 'hidden' });
       assert.equal(await target.getByLabel('제목 *', { exact: true }).inputValue(), '입력 보존');
       return {
         deleteCancelFocus: '초안 삭제',

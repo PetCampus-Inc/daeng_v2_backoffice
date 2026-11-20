@@ -4,16 +4,7 @@ import { toast } from 'sonner';
 import { handleApiError } from '@/api/handle-api-error';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import {
   getTermChangeMutationKey,
   useInvalidateTerms,
@@ -88,39 +79,29 @@ export function TermConfirm({
       <Button ref={triggerRef} variant='destructive-outline' disabled={isPending} onClick={() => setOpen(true)}>
         {label}
       </Button>
-      <AlertDialog open={open} onOpenChange={(value) => !isMutating && setOpen(value)}>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            if (triggerRef.current?.isConnected && !triggerRef.current.disabled) {
-              triggerRef.current.focus({ preventScroll: true });
-            } else document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>{action === 'delete' ? '초안을 삭제할까요?' : '공개를 철회할까요?'}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {action === 'delete'
-                ? `'${TERM_KIND_LABELS[term.kind]}' 초안을 삭제합니다. 삭제한 초안은 복구할 수 없습니다.`
-                : `버전 #${term.version}(시행일 ${displayTermDate(term.effectiveDate)})입니다. 철회하면 앱에서 바로 보이지 않고, 같은 버전을 다시 공개할 수 없습니다.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {isMutating && <p role='status'>{label} 중…</p>}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>취소</AlertDialogCancel>
-            <AlertDialogAction
-              variant='destructive'
-              disabled={isPending}
-              onClick={(event) => {
-                event.preventDefault();
-                void handleConfirm();
-              }}
-            >
-              {label}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={(value) => !isMutating && setOpen(value)}
+        title={action === 'delete' ? '초안을 삭제할까요?' : '공개를 철회할까요?'}
+        description={
+          action === 'delete'
+            ? `'${TERM_KIND_LABELS[term.kind]}' 초안을 삭제합니다. 삭제한 초안은 복구할 수 없습니다.`
+            : `버전 #${term.version}(시행일 ${displayTermDate(term.effectiveDate)})입니다. 철회하면 앱에서 바로 보이지 않고, 같은 버전을 다시 공개할 수 없습니다.`
+        }
+        cancelLabel='취소'
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (triggerRef.current?.isConnected && !triggerRef.current.disabled) {
+            triggerRef.current.focus({ preventScroll: true });
+          } else document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+        }}
+        status={isMutating ? `${label} 중…` : undefined}
+        closeOnConfirm={false}
+        areButtonsDisabled={isPending}
+        confirmVariant='destructive'
+        confirmLabel={label}
+        onConfirm={() => void handleConfirm()}
+      />
     </>
   );
 }

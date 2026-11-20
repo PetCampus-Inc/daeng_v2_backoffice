@@ -4,16 +4,7 @@ import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -452,44 +443,32 @@ function InquiryDetailContent({ id }: { id: number }) {
         </Card>
         <InquiryInfo inquiry={inquiry} />
       </div>
-      <AlertDialog open={confirmAssignee !== null} onOpenChange={(isOpen) => !isOpen && setConfirmAssignee(null)}>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>담당자를 변경할까요?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmAssignee && `${formatProfileName(confirmAssignee)}님이 담당 중인 문의입니다.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={() => confirmAssignee && void requestAssign(confirmAssignee.id)}>
-              담당자 변경
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={isReleaseConfirmOpen} onOpenChange={setIsReleaseConfirmOpen}>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>담당을 해제할까요?</AlertDialogTitle>
-            <AlertDialogDescription>작성 중인 답변이 사라집니다.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void requestRelease()}>담당 해제</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmAssignee !== null}
+        onOpenChange={(isOpen) => !isOpen && setConfirmAssignee(null)}
+        title='담당자를 변경할까요?'
+        description={confirmAssignee && `${formatProfileName(confirmAssignee)}님이 담당 중인 문의입니다.`}
+        cancelLabel='취소'
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
+        }}
+        confirmLabel='담당자 변경'
+        onConfirm={() => confirmAssignee && void requestAssign(confirmAssignee.id)}
+      />
+      <ConfirmDialog
+        open={isReleaseConfirmOpen}
+        onOpenChange={setIsReleaseConfirmOpen}
+        title='담당을 해제할까요?'
+        description='작성 중인 답변이 사라집니다.'
+        cancelLabel='취소'
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
+        }}
+        confirmLabel='담당 해제'
+        onConfirm={() => void requestRelease()}
+      />
     </>
   );
 }
