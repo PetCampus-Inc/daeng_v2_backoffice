@@ -8,6 +8,7 @@ import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
+import { handleApiError } from '@/api/handle-api-error';
 import { RichContentEditor } from '@/ui/organisms/rich-content-editor';
 import { RichContentViewer } from '@/ui/organisms/rich-content-viewer';
 import { RichContentImageSourcesContext } from '@/ui/organisms/rich-content-viewer/util';
@@ -138,7 +139,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
         } catch (error) {
           if (!isSavedNow) throw error;
           setIsPublishOpen(false);
-          toast.error('임시저장은 됐지만 게시하지 못했어요. 다시 게시해 주세요.');
+          await handleApiError(error, { message: '임시저장은 됐지만 게시하지 못했어요. 다시 게시해 주세요.' });
         }
         return;
       }
@@ -153,15 +154,19 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
       }
     } catch (error) {
       setIsPublishOpen(false);
-      const { status, code } = readNoticeError(error);
-      const guide = getNoticeErrorGuide(status, code);
-      if (guide) {
-        setSaveError({
-          title: action === 'publish' ? '공지를 게시하지 못했습니다.' : '저장하지 못했습니다.',
-          description: guide.description,
-          isMissing: guide.isMissing,
-        });
-      } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
+      await handleApiError(error, {
+        onError: (error) => {
+          const { status, code } = readNoticeError(error);
+          const guide = getNoticeErrorGuide(status, code);
+          if (!guide) return false;
+          setSaveError({
+            title: action === 'publish' ? '공지를 게시하지 못했습니다.' : '저장하지 못했습니다.',
+            description: guide.description,
+            isMissing: guide.isMissing,
+          });
+          return true;
+        },
+      });
     } finally {
       isBusy.current = false;
       setIsSubmitting(false);

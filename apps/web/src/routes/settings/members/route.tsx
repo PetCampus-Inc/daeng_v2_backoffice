@@ -23,7 +23,8 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/ui/atoms/alert-dialog';
-import { showErrorToast, showSuccessToast } from '@/ui/atoms/sonner';
+import { handleApiError } from '@/api/handle-api-error';
+import { showSuccessToast } from '@/ui/atoms/sonner';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle } from '@/util/page-config';
@@ -165,7 +166,7 @@ export default function TeamMembersRoute() {
       setRoleMember(null);
       showSuccessToast(ACTION_MESSAGES[input.action]);
     } catch (error) {
-      showErrorToast(getMemberErrorMessage(error));
+      void handleApiError(error, { message: getMemberErrorMessage(error), toastOptions: { duration: Infinity } });
       void membersQuery.refetch();
     }
   };

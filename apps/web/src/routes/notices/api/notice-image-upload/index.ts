@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { handleApiError } from '@/api/handle-api-error';
 import type { NoticeImageFileContentType, NoticeImageUploadUrl } from '../../type';
 import { getNoticeImageErrorMessage, NOTICE_IMAGE_FAILED_MESSAGE, readNoticeError } from '../../util/notice-error';
 import { checkNoticeImageFiles } from '../../util/notice-policy';
@@ -72,8 +73,13 @@ export function useNoticeImageUpload(noticeId?: number) {
         });
         if (issued.length !== files.length) throw new Error('업로드 주소 수가 파일 수와 다릅니다.');
       } catch (error) {
-        const { status, code } = readNoticeError(error);
-        toast.error(getNoticeImageErrorMessage(status, code));
+        await handleApiError(error, {
+          onError: (error) => {
+            const { status, code } = readNoticeError(error);
+            toast.error(getNoticeImageErrorMessage(status, code));
+            return true;
+          },
+        });
         return [];
       }
       const results = await Promise.allSettled(
