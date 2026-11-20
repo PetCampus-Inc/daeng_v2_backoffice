@@ -557,9 +557,14 @@ test('S-공지-069/070 초안 삭제 취소·409/404 입력 보존·이탈', () 
         .waitFor();
       assert.equal(await target.getByLabel('제목 *', { exact: true }).inputValue(), '입력 보존');
       await target.getByRole('button', { name: '목록으로', exact: true }).click();
-      await target.getByRole('alertdialog').getByRole('button', { name: '취소', exact: true }).waitFor();
+      const leaveDialog = target.getByRole('alertdialog');
+      const cancelLeave = leaveDialog.getByRole('button', { name: '취소', exact: true });
+      await leaveDialog.waitFor();
+      await target.waitForFunction(() => document.activeElement?.getAttribute('role') === 'alertdialog');
+      await target.keyboard.press('Tab');
+      assert.equal(await cancelLeave.evaluate((button) => button === document.activeElement), true);
       await target.keyboard.press('Enter');
-      await target.getByRole('alertdialog').waitFor({ state: 'hidden' });
+      await leaveDialog.waitFor({ state: 'hidden' });
       assert.equal(await target.getByLabel('제목 *', { exact: true }).inputValue(), '입력 보존');
       return {
         deleteCancelFocus: '초안 삭제',

@@ -11,16 +11,7 @@ import type { ApiError } from '@/type/api';
 import { JOB_ROLE_LABELS } from '@/type/job-role-ui';
 import { ProfileDisplayNameDuplicateErrorCode } from '@/type/profile-display-name-duplicate-error-code';
 import { ROLE_LABELS } from '@/type/role-ui';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import { Button } from '@/ui/atoms/button';
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/ui/atoms/popover';
 import { showErrorToast, showSuccessToast } from '@/ui/atoms/sonner';
@@ -155,18 +146,15 @@ export function ProfilePanel({ user }: { user: CompletedSessionUser }) {
           </form>
         </PopoverContent>
       </Popover>
-      <AlertDialog open={isClosePending} onOpenChange={setIsClosePending}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>작성 중인 내용이 사라집니다. 나갈까요?</AlertDialogTitle>
-            <AlertDialogDescription>저장하지 않은 표시명과 직무 변경을 버립니다.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDiscardChanges}>나가기</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={isClosePending}
+        onOpenChange={setIsClosePending}
+        title='작성 중인 내용이 사라집니다. 나갈까요?'
+        description='저장하지 않은 표시명과 직무 변경을 버립니다.'
+        cancelLabel='취소'
+        confirmLabel='나가기'
+        onConfirm={handleDiscardChanges}
+      />
     </>
   );
 }

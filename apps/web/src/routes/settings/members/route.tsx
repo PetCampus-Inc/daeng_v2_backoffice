@@ -14,15 +14,7 @@ import { Field, FieldLabel, FieldError, FieldGroup } from '@/ui/atoms/field';
 import { Input } from '@/ui/atoms/input';
 import { RadioGroup, RadioGroupItem } from '@/ui/atoms/radio-group';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/atoms/table';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import { showErrorToast, showSuccessToast } from '@/ui/atoms/sonner';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
@@ -394,16 +386,15 @@ export default function TeamMembersRoute() {
           </div>
         </MemberDialog>
       )}
-      <AlertDialog open={isClosePending} onOpenChange={setIsClosePending}>
-        <AlertDialogContent>
-          <AlertDialogTitle>작성 중인 내용이 사라집니다. 나갈까요?</AlertDialogTitle>
-          <AlertDialogDescription>입력한 이메일과 역할을 버립니다.</AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDiscardChanges}>나가기</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={isClosePending}
+        onOpenChange={setIsClosePending}
+        title='작성 중인 내용이 사라집니다. 나갈까요?'
+        description='입력한 이메일과 역할을 버립니다.'
+        cancelLabel='취소'
+        confirmLabel='나가기'
+        onConfirm={handleDiscardChanges}
+      />
     </>
   );
 }
