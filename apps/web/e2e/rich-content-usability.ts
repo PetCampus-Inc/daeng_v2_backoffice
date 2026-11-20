@@ -85,11 +85,12 @@ test('공지: 링크 주소 검증·선택 보존·해제·단축키·실행 취
     await formatAll(page, '링크');
     const dialog = page.getByRole('dialog', { name: '링크 설정' });
     await dialog.getByLabel('링크 주소', { exact: true }).fill('javascript:alert(1)');
-    await dialog.getByRole('button', { name: '적용', exact: true }).click();
     await dialog.getByRole('alert').waitFor();
+    assert.equal(await dialog.getByRole('button', { name: '적용', exact: true }).isDisabled(), true);
     assert.equal(await page.locator('#notice-preview-panel a').count(), 0);
     await dialog.getByLabel('링크 주소', { exact: true }).fill('https://knockdog.net/help');
     await dialog.getByRole('button', { name: '적용', exact: true }).click();
+    await dialog.waitFor({ state: 'hidden' });
     await body.locator('a').waitFor();
     assert.equal(await body.locator('a').innerText(), '링크 안내');
     assert.equal(await page.locator('#notice-preview-panel a').getAttribute('href'), 'https://knockdog.net/help');
