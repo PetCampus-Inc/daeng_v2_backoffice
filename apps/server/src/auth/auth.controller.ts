@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ApiException } from '../common/api-error.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import type { MemberRow } from '../database/schema.js';
+import { AccessLogService } from './access-log.service.js';
 import { AUTH_CONFIG, type AuthConfig } from './auth.constants.js';
 import { AuthService } from './auth.service.js';
 import { clearSessionCookie, readSessionId, setSessionCookie } from './cookies.js';
@@ -18,7 +19,8 @@ const devLoginBodySchema = z.object({ email: z.email() });
 export class AuthController {
   constructor(
     @Inject(AuthService) private readonly auth: AuthService,
-    @Inject(AUTH_CONFIG) private readonly config: AuthConfig
+    @Inject(AUTH_CONFIG) private readonly config: AuthConfig,
+    @Inject(AccessLogService) private readonly accessLog: AccessLogService
   ) {}
 
   @Public()
@@ -67,5 +69,15 @@ export class AuthController {
     if (!sessionId) throw new ApiException(401, 'UNAUTHENTICATED', '로그인이 필요합니다.');
     await this.auth.logout(sessionId, member);
     clearSessionCookie(response, this.config);
+  }
+
+  /**
+   * 권한 없는 화면 주소로 들어와 웹이 차단 화면을 보여 줄 때 부른다(FR-BO-001). 화면 차단은 서버 요청 없이 웹에서 끝나서,
+   * API 역할 검사(RoleGuard)만으로는 접속 기록이 남지 않는다. 기록은 로그인한 본인 이메일로만 남는다.
+   */
+  @Post('access-denials')
+  @HttpCode(204)
+  async recordAccessDenial(@CurrentMember() member: MemberRow): Promise<void> {
+    await this.accessLog.record({ event: 'ACCESS_DENIED', result: 'FORBIDDEN', email: member.email });
   }
 }

@@ -48,4 +48,5 @@ export const AUTH_HANDLERS: AnyHandler[] = [
     endMockSession();
     return new HttpResponse(null, { status: 204 });
   }),
+  http.post(mockUrl('/auth/access-denials'), () => new HttpResponse(null, { status: 204 })),
 ];
