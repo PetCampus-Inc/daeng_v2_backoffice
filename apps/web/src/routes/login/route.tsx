@@ -5,7 +5,7 @@ import { Navigate, useLocation } from 'react-router';
 import { useGoogleLogin } from '@/api/auth';
 import { useAuthStore, type LoginNotice } from '@/store/auth';
 import { Logo } from '@/ui/atoms/logo';
-import { showErrorToast } from '@/ui/atoms/sonner';
+import { handleApiError } from '@/api/handle-api-error';
 import { cn } from '@/util/cn';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { GoogleSignInButton } from '@/routes/login/ui/google-sign-in-button';
@@ -54,12 +54,15 @@ export default function LoginRoute() {
       { data: { idToken: credential } },
       {
         onError: (error) => {
-          // 미등록·비활성·등록 취소는 모두 같은 빨간 박스다(R-로그인판정-04~06).
-          if (axios.isAxiosError(error) && error.response?.status === 403) {
-            showLoginNotice('denied');
-            return;
-          }
-          showErrorToast('일시적 오류로 요청을 완료하지 못했습니다.');
+          void handleApiError(error, {
+            toastOptions: { duration: Infinity },
+            onError: (error) => {
+              // 미등록·비활성·등록 취소는 모두 같은 빨간 박스다(R-로그인판정-04~06).
+              if (!axios.isAxiosError(error) || error.response?.status !== 403) return false;
+              showLoginNotice('denied');
+              return true;
+            },
+          });
         },
       }
     );

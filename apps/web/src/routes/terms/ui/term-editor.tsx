@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { Tabs } from 'radix-ui';
 import { useIsMutating } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { handleApiError } from '@/api/handle-api-error';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
@@ -14,16 +15,7 @@ import { RichContentViewer } from '@/ui/organisms/rich-content-viewer';
 import type { RichContent } from '@/type/rich-content';
 import { getRichText, sameRichContent } from '@/util/rich-content';
 import { Label } from '@/ui/atoms/label';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import { formatDate, formatTime } from '@/util/date-format';
 import { useAutoSave } from '@/util/use-auto-save';
 import { formatDocumentTitle } from '@/util/page-config';
@@ -205,7 +197,7 @@ export function TermEditor({
         } catch (publishError) {
           if (!isSavedNow) throw publishError;
           setPublishOpen(false);
-          toast.error('임시저장은 됐지만 공개하지 못했어요. 다시 공개해 주세요.');
+          await handleApiError(publishError, { message: '임시저장은 됐지만 공개하지 못했어요. 다시 공개해 주세요.' });
         }
         return;
       }
@@ -213,11 +205,16 @@ export function TermEditor({
       if (!saved) leave(() => void navigate(termPath(kind, target!.version), { replace: true }));
     } catch (caught) {
       setPublishOpen(false);
-      const { status, code } = readTermError(caught);
-      const guide = getTermErrorGuide(status, code);
-      if (guide?.field) showFieldError(errorTitle, guide.description, guide.field);
-      else if (guide) setError({ title: errorTitle, description: guide.description, missing: guide.isMissing });
-      else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
+      await handleApiError(caught, {
+        onError: (error) => {
+          const { status, code } = readTermError(error);
+          const guide = getTermErrorGuide(status, code);
+          if (!guide) return false;
+          if (guide.field) showFieldError(errorTitle, guide.description, guide.field);
+          else setError({ title: errorTitle, description: guide.description, missing: guide.isMissing });
+          return true;
+        },
+      });
     } finally {
       busy.current = false;
       setIsSubmitting(false);
@@ -282,9 +279,9 @@ export function TermEditor({
               action='delete'
               onFailed={(status, code) => {
                 const guide = status === 404 || status === 409 ? getTermErrorGuide(status, code) : null;
-                if (guide) {
-                  setError({ title: '삭제하지 못했습니다.', description: guide.description, missing: guide.isMissing });
-                } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
+                if (!guide) return false;
+                setError({ title: '삭제하지 못했습니다.', description: guide.description, missing: guide.isMissing });
+                return true;
               }}
               onDeleted={() => leave(() => void navigate(termListPath(kind)))}
             />
@@ -426,41 +423,24 @@ export function TermEditor({
           </Tabs.Content>
         </div>
       </Tabs.Root>
-      <AlertDialog open={publishOpen} onOpenChange={(value) => !isPending && setPublishOpen(value)}>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            const target =
-              error?.field === 'date'
-                ? dateRef.current
-                : error?.field === 'body'
-                  ? bodyRef.current
-                  : publishRef.current;
-            target?.focus({ preventScroll: true });
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>약관을 공개할까요?</AlertDialogTitle>
-            <AlertDialogDescription>
-              시행일 {displayTermDate(parseTermDate(date) ?? '')} · 공개한 버전은 수정할 수 없습니다. 시행 전에는 공개를
-              철회할 수 있습니다.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {isPending && <p role='status'>공개 중…</p>}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>취소</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isPending}
-              onClick={(event) => {
-                event.preventDefault();
-                void handleSave('publish');
-              }}
-            >
-              공개하기
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={publishOpen}
+        onOpenChange={(value) => !isPending && setPublishOpen(value)}
+        title='약관을 공개할까요?'
+        description={`시행일 ${displayTermDate(parseTermDate(date) ?? '')} · 공개한 버전은 수정할 수 없습니다. 시행 전에는 공개를 철회할 수 있습니다.`}
+        cancelLabel='취소'
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          const target =
+            error?.field === 'date' ? dateRef.current : error?.field === 'body' ? bodyRef.current : publishRef.current;
+          target?.focus({ preventScroll: true });
+        }}
+        status={isPending ? '공개 중…' : undefined}
+        closeOnConfirm={false}
+        areButtonsDisabled={isPending}
+        confirmLabel='공개하기'
+        onConfirm={() => void handleSave('publish')}
+      />
     </>
   );
 }

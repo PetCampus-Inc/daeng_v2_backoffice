@@ -74,7 +74,8 @@ function TermDetail({ kind, version, edit }: { kind: TermKind; version: number; 
   if (term.status === 'draft' && user?.role === 'SUPER_ADMIN') {
     return <TermEditor key={`${kind}:${version}`} kind={kind} term={term} versions={versions.data} />;
   }
-  if (edit) return <Forbidden title='이용약관' />;
+  // 최고 관리자라도 초안이 아닌 버전은 편집할 수 없다. 역할 때문이 아니므로 접속 기록은 남기지 않는다.
+  if (edit) return <Forbidden title='이용약관' skipAccessLog />;
   const status = getTermStatus(term, versions.data, now);
   return (
     <>

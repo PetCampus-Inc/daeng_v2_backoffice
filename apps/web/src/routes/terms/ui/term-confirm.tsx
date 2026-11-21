@@ -1,18 +1,10 @@
 import { useRef, useState } from 'react';
 import { useIsMutating } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { handleApiError } from '@/api/handle-api-error';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import {
   getTermChangeMutationKey,
   useInvalidateTerms,
@@ -38,7 +30,7 @@ export function TermConfirm({
   term: Term;
   action: 'delete' | 'withdraw';
   onDeleted?: () => void;
-  onFailed?: (status: number | undefined, code: string | undefined) => void;
+  onFailed?: (status: number | undefined, code: string | undefined) => boolean;
 }) {
   const email = useAuthStore((state) => state.user?.email) ?? '';
   const deleteMutation = useDeleteTermsVersion(useTermDeleteOptions(email));
@@ -62,19 +54,22 @@ export function TermConfirm({
       toast.success(action === 'delete' ? '초안을 삭제했습니다.' : '공개를 철회했습니다.');
       if (action === 'delete') onDeleted?.();
     } catch (error) {
-      const { status, code } = readTermError(error);
       setOpen(false);
-      if (action === 'delete' && onFailed) {
-        // 편집 화면은 없는 초안(404)이면 오류 박스의 '목록으로'를 보여 줘야 하므로, 충돌(409)일 때만 다시 읽는다.
-        if (status === 409) invalidateTerms();
-        onFailed(status, code);
-      } else {
-        const guide = status === 404 || status === 409 ? getTermErrorGuide(status, code) : null;
-        if (guide) {
+      await handleApiError(error, {
+        onError: (error) => {
+          const { status, code } = readTermError(error);
+          if (action === 'delete' && onFailed) {
+            // 편집 화면에서 404는 '목록으로'를 안내하고, 충돌(409)일 때만 다시 읽는다.
+            if (status === 409) invalidateTerms();
+            return onFailed(status, code);
+          }
+          const guide = status === 404 || status === 409 ? getTermErrorGuide(status, code) : null;
+          if (!guide) return false;
           toast.error(guide.description);
           invalidateTerms();
-        } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
-      }
+          return true;
+        },
+      });
     } finally {
       busy.current = false;
     }
@@ -84,39 +79,29 @@ export function TermConfirm({
       <Button ref={triggerRef} variant='destructive-outline' disabled={isPending} onClick={() => setOpen(true)}>
         {label}
       </Button>
-      <AlertDialog open={open} onOpenChange={(value) => !isMutating && setOpen(value)}>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            if (triggerRef.current?.isConnected && !triggerRef.current.disabled) {
-              triggerRef.current.focus({ preventScroll: true });
-            } else document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>{action === 'delete' ? '초안을 삭제할까요?' : '공개를 철회할까요?'}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {action === 'delete'
-                ? `'${TERM_KIND_LABELS[term.kind]}' 초안을 삭제합니다. 삭제한 초안은 복구할 수 없습니다.`
-                : `버전 #${term.version}(시행일 ${displayTermDate(term.effectiveDate)})입니다. 철회하면 앱에서 바로 보이지 않고, 같은 버전을 다시 공개할 수 없습니다.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {isMutating && <p role='status'>{label} 중…</p>}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>취소</AlertDialogCancel>
-            <AlertDialogAction
-              variant='destructive'
-              disabled={isPending}
-              onClick={(event) => {
-                event.preventDefault();
-                void handleConfirm();
-              }}
-            >
-              {label}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={(value) => !isMutating && setOpen(value)}
+        title={action === 'delete' ? '초안을 삭제할까요?' : '공개를 철회할까요?'}
+        description={
+          action === 'delete'
+            ? `'${TERM_KIND_LABELS[term.kind]}' 초안을 삭제합니다. 삭제한 초안은 복구할 수 없습니다.`
+            : `버전 #${term.version}(시행일 ${displayTermDate(term.effectiveDate)})입니다. 철회하면 앱에서 바로 보이지 않고, 같은 버전을 다시 공개할 수 없습니다.`
+        }
+        cancelLabel='취소'
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (triggerRef.current?.isConnected && !triggerRef.current.disabled) {
+            triggerRef.current.focus({ preventScroll: true });
+          } else document.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+        }}
+        status={isMutating ? `${label} 중…` : undefined}
+        closeOnConfirm={false}
+        areButtonsDisabled={isPending}
+        confirmVariant='destructive'
+        confirmLabel={label}
+        onConfirm={() => void handleConfirm()}
+      />
     </>
   );
 }

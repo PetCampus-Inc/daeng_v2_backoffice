@@ -3,7 +3,7 @@ import { Toaster as Sonner, toast, type ToasterProps } from 'sonner';
 
 /**
  * design.md 3.7 토스트. 화면 아래 가운데, `--kd-foreground` 바탕 흰 글자, 한 문장 + 오른쪽 × 닫기.
- * 앱 루트(RootLayout)에 한 번만 둔다. 띄울 때는 아래 showToast* 함수를 쓴다.
+ * 앱 루트에 한 번만 둔다. 띄울 때는 아래 showToast* 함수를 쓴다.
  */
 function Toaster(props: ToasterProps) {
   return (
@@ -18,8 +18,9 @@ function Toaster(props: ToasterProps) {
         unstyled: true,
         closeButtonAriaLabel: '닫기',
         classNames: {
+          // 모달이 페이지의 포인터 입력을 잠가도 표시 중인 토스트는 조작할 수 있다.
           toast:
-            'flex w-full items-center gap-3 rounded-kd-3 bg-kd-foreground px-4 py-3 text-kd-body text-kd-background shadow-kd-float',
+            'data-[visible=true]:pointer-events-auto flex w-full items-center gap-3 rounded-kd-3 bg-kd-foreground px-4 py-3 text-kd-body text-kd-background shadow-kd-float',
           icon: 'hidden',
           content: 'min-w-0 flex-1',
           title: 'font-normal',

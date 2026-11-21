@@ -240,6 +240,55 @@ export const useLogout = <TError = ErrorType<UnauthorizedResponse | ForbiddenRes
   return useMutation(getLogoutMutationOptions(options), queryClient);
 };
 /**
+ * 역할에 허용되지 않은 화면 주소로 들어와 '접근 권한 없음' 화면이 보일 때 부릅니다. 로그인한 본인의 이메일로 접속 기록에
+ * '권한 없는 접근 시도'(결과: 권한 없음)를 남깁니다. API를 직접 부르다 역할 검사에 막힌 경우는 서버가 따로 기록하므로
+ * 부르지 않습니다.
+ * @summary 권한 없는 접근 시도 기록
+ */
+export const recordAccessDenial = (options?: SecondParameter<typeof customInstance>, signal?: AbortSignal) => {
+  return customInstance<void>({ url: `/auth/access-denials`, method: 'POST', signal }, options);
+};
+
+export const getRecordAccessDenialMutationKey = () => ['recordAccessDenial'] as const;
+
+export const getRecordAccessDenialMutationOptions = <
+  TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<Awaited<ReturnType<typeof recordAccessDenial>>, TError, void, TContext>;
+  request?: SecondParameter<typeof customInstance>;
+}): UseMutationOptions<Awaited<ReturnType<typeof recordAccessDenial>>, TError, void, TContext> => {
+  const mutationKey = getRecordAccessDenialMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<Awaited<ReturnType<typeof recordAccessDenial>>, void> = () => {
+    return recordAccessDenial(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RecordAccessDenialMutationResult = NonNullable<Awaited<ReturnType<typeof recordAccessDenial>>>;
+
+export type RecordAccessDenialMutationError = ErrorType<UnauthorizedResponse | ForbiddenResponse>;
+
+/**
+ * @summary 권한 없는 접근 시도 기록
+ */
+export const useRecordAccessDenial = <TError = ErrorType<UnauthorizedResponse | ForbiddenResponse>, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<Awaited<ReturnType<typeof recordAccessDenial>>, TError, void, TContext>;
+    request?: SecondParameter<typeof customInstance>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<Awaited<ReturnType<typeof recordAccessDenial>>, TError, void, TContext> => {
+  return useMutation(getRecordAccessDenialMutationOptions(options), queryClient);
+};
+/**
  * 내 계정 정보를 반환합니다. 첫 로그인 전에는 `displayName`, `jobRole`이 `null`입니다.
  * @summary 내 계정 조회
  */

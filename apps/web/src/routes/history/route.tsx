@@ -105,8 +105,8 @@ export default function HistoryRoute() {
     void setSearchParams({ page: nextPage === 1 ? null : nextPage });
   };
 
-  // 역할이 바뀐 뒤 서버가 거부하면 권한 없음 화면(PRD 4.5).
-  if (isForbiddenError(historiesQuery.error)) return <Forbidden title={PAGES.history.title} />;
+  // 역할이 바뀐 뒤 서버가 거부하면 권한 없음 화면(PRD 4.5). 거부 기록은 서버가 이미 남겼다.
+  if (isForbiddenError(historiesQuery.error)) return <Forbidden title={PAGES.history.title} skipAccessLog />;
 
   return (
     <>

@@ -4,16 +4,7 @@ import { useEffect, useRef, useState, type SubmitEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -25,6 +16,7 @@ import {
 import { Button } from '@/ui/atoms/button';
 import { Card } from '@/ui/atoms/card';
 import { Field, FieldCounter, FieldDescription, FieldError } from '@/ui/atoms/field';
+import { handleApiError } from '@/api/handle-api-error';
 import { showErrorToast, showSuccessToast, showUndoToast } from '@/ui/atoms/sonner';
 import { Textarea } from '@/ui/atoms/textarea';
 import { ListState } from '@/ui/molecules/list-state';
@@ -55,7 +47,6 @@ import { useInquiryListSearchParams } from '../util/list-search-params';
 import { Conversation } from './ui/conversation';
 import { InquiryInfo } from './ui/inquiry-info';
 
-const GENERIC_ERROR_MESSAGE = '일시적 오류로 요청을 완료하지 못했습니다.';
 const NOT_ASSIGNEE_NOTICE = "답변은 담당자만 할 수 있습니다. 직접 답변하려면 '내가 맡기'를 눌러 주세요.";
 const RESOLVED_NOTICE = '해결 완료된 문의라 답변과 담당 변경을 할 수 없습니다.';
 
@@ -165,27 +156,32 @@ function InquiryDetailContent({ id }: { id: number }) {
       setIsDraftLocked(false);
       showSuccessToast(expectedAssigneeId !== null ? '담당자를 변경했습니다.' : '문의를 맡았습니다.');
     } catch (error) {
-      const code = getInquiryErrorCode(error);
-      if (code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED) {
-        if (isRetry) {
-          showErrorToast('담당자가 변경되었습니다.');
-          await refetchInquiry();
-          return;
-        }
-        const latest = await refetchInquiry();
-        if (!latest) return;
-        const action = getAssignAction(latest.assignee?.id ?? null, currentId);
-        if (action === 'assign') {
-          actionPendingRef.current = false;
-          await requestAssign(null, true);
-        } else if (action === 'confirm') setConfirmAssignee(latest.assignee);
-        return;
-      }
-      if (code === InquiryConflictErrorCode.INQUIRY_RESOLVED) {
-        await handleResolvedRejection();
-        return;
-      }
-      showErrorToast(GENERIC_ERROR_MESSAGE);
+      await handleApiError(error, {
+        toastOptions: { duration: Infinity },
+        onError: async (error) => {
+          const code = getInquiryErrorCode(error);
+          if (code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED) {
+            if (isRetry) {
+              showErrorToast('담당자가 변경되었습니다.');
+              await refetchInquiry();
+              return true;
+            }
+            const latest = await refetchInquiry();
+            if (!latest) return true;
+            const action = getAssignAction(latest.assignee?.id ?? null, currentId);
+            if (action === 'assign') {
+              actionPendingRef.current = false;
+              await requestAssign(null, true);
+            } else if (action === 'confirm') setConfirmAssignee(latest.assignee);
+            return true;
+          }
+          if (code === InquiryConflictErrorCode.INQUIRY_RESOLVED) {
+            await handleResolvedRejection();
+            return true;
+          }
+          return false;
+        },
+      });
     } finally {
       actionPendingRef.current = false;
       setIsRequestPending(false);
@@ -208,21 +204,26 @@ function InquiryDetailContent({ id }: { id: number }) {
       await restoreMutation.mutateAsync({ id });
       showSuccessToast('담당 해제를 취소했습니다.');
     } catch (error) {
-      const code = getInquiryErrorCode(error);
-      if (
-        code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED ||
-        code === InquiryConflictErrorCode.INQUIRY_RESOLVED
-      ) {
-        // 이 화면을 떠난 뒤에 눌러도 같은 문의를 다시 읽게 한다.
-        await queryClient.invalidateQueries({ queryKey: inquiryDetailQueryOptions(currentEmail, id).queryKey });
-        showErrorToast(
-          code === InquiryConflictErrorCode.INQUIRY_RESOLVED
-            ? '해결 완료된 문의라 실행 취소할 수 없습니다.'
-            : '담당자가 변경되어 실행 취소할 수 없습니다.'
-        );
-        return;
-      }
-      showErrorToast(GENERIC_ERROR_MESSAGE);
+      await handleApiError(error, {
+        toastOptions: { duration: Infinity },
+        onError: async (error) => {
+          const code = getInquiryErrorCode(error);
+          if (
+            code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED ||
+            code === InquiryConflictErrorCode.INQUIRY_RESOLVED
+          ) {
+            // 이 화면을 떠난 뒤에 눌러도 같은 문의를 다시 읽게 한다.
+            await queryClient.invalidateQueries({ queryKey: inquiryDetailQueryOptions(currentEmail, id).queryKey });
+            showErrorToast(
+              code === InquiryConflictErrorCode.INQUIRY_RESOLVED
+                ? '해결 완료된 문의라 실행 취소할 수 없습니다.'
+                : '담당자가 변경되어 실행 취소할 수 없습니다.'
+            );
+            return true;
+          }
+          return false;
+        },
+      });
     } finally {
       actionPendingRef.current = false;
       setIsRequestPending(false);
@@ -240,13 +241,19 @@ function InquiryDetailContent({ id }: { id: number }) {
       setIsDraftLocked(false);
       showUndoToast('담당을 해제했습니다.', () => void handleUndoRelease());
     } catch (error) {
-      const code = getInquiryErrorCode(error);
-      if (code === InquiryConflictErrorCode.INQUIRY_RESOLVED) await handleResolvedRejection();
-      else if (code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED) {
-        setIsDraftLocked(draft !== '');
-        await refetchInquiry();
-        showErrorToast('담당자가 변경되었습니다.');
-      } else showErrorToast(GENERIC_ERROR_MESSAGE);
+      await handleApiError(error, {
+        toastOptions: { duration: Infinity },
+        onError: async (error) => {
+          const code = getInquiryErrorCode(error);
+          if (code === InquiryConflictErrorCode.INQUIRY_RESOLVED) await handleResolvedRejection();
+          else if (code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED) {
+            setIsDraftLocked(draft !== '');
+            await refetchInquiry();
+            showErrorToast('담당자가 변경되었습니다.');
+          } else return false;
+          return true;
+        },
+      });
     } finally {
       actionPendingRef.current = false;
       setIsRequestPending(false);
@@ -270,18 +277,23 @@ function InquiryDetailContent({ id }: { id: number }) {
       setDraft('');
       showSuccessToast('답변을 저장했습니다. 사용자에게 알림이 전달됩니다.');
     } catch (error) {
-      const code = getInquiryErrorCode(error);
-      if (code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED) {
-        setIsDraftLocked(true);
-        await refetchInquiry();
-        showErrorToast('담당자가 변경되었습니다.');
-        return;
-      }
-      if (code === InquiryConflictErrorCode.INQUIRY_RESOLVED) {
-        await handleResolvedRejection();
-        return;
-      }
-      showErrorToast(GENERIC_ERROR_MESSAGE);
+      await handleApiError(error, {
+        toastOptions: { duration: Infinity },
+        onError: async (error) => {
+          const code = getInquiryErrorCode(error);
+          if (code === InquiryConflictErrorCode.INQUIRY_ASSIGNEE_CHANGED) {
+            setIsDraftLocked(true);
+            await refetchInquiry();
+            showErrorToast('담당자가 변경되었습니다.');
+            return true;
+          }
+          if (code === InquiryConflictErrorCode.INQUIRY_RESOLVED) {
+            await handleResolvedRejection();
+            return true;
+          }
+          return false;
+        },
+      });
     } finally {
       actionPendingRef.current = false;
       setIsRequestPending(false);
@@ -431,44 +443,32 @@ function InquiryDetailContent({ id }: { id: number }) {
         </Card>
         <InquiryInfo inquiry={inquiry} />
       </div>
-      <AlertDialog open={confirmAssignee !== null} onOpenChange={(isOpen) => !isOpen && setConfirmAssignee(null)}>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>담당자를 변경할까요?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmAssignee && `${formatProfileName(confirmAssignee)}님이 담당 중인 문의입니다.`}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={() => confirmAssignee && void requestAssign(confirmAssignee.id)}>
-              담당자 변경
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={isReleaseConfirmOpen} onOpenChange={setIsReleaseConfirmOpen}>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>담당을 해제할까요?</AlertDialogTitle>
-            <AlertDialogDescription>작성 중인 답변이 사라집니다.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>취소</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void requestRelease()}>담당 해제</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmAssignee !== null}
+        onOpenChange={(isOpen) => !isOpen && setConfirmAssignee(null)}
+        title='담당자를 변경할까요?'
+        description={confirmAssignee && `${formatProfileName(confirmAssignee)}님이 담당 중인 문의입니다.`}
+        cancelLabel='취소'
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
+        }}
+        confirmLabel='담당자 변경'
+        onConfirm={() => confirmAssignee && void requestAssign(confirmAssignee.id)}
+      />
+      <ConfirmDialog
+        open={isReleaseConfirmOpen}
+        onOpenChange={setIsReleaseConfirmOpen}
+        title='담당을 해제할까요?'
+        description='작성 중인 답변이 사라집니다.'
+        cancelLabel='취소'
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          (actionButtonRef.current ?? replyInputRef.current ?? headingRef.current)?.focus({ preventScroll: true });
+        }}
+        confirmLabel='담당 해제'
+        onConfirm={() => void requestRelease()}
+      />
     </>
   );
 }

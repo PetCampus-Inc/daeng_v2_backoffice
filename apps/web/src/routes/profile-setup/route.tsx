@@ -10,7 +10,7 @@ import type { ApiError } from '@/type/api';
 import { ProfileDisplayNameDuplicateErrorCode } from '@/type/profile-display-name-duplicate-error-code';
 import { Button } from '@/ui/atoms/button';
 import { Card, CardContent } from '@/ui/atoms/card';
-import { showErrorToast } from '@/ui/atoms/sonner';
+import { handleApiError } from '@/api/handle-api-error';
 import { ProfileFields } from '@/ui/organisms/profile-fields';
 import { DISPLAY_NAME_ERROR, profileFormSchema, type ProfileFormInput, type ProfileFormValues } from '@/util/profile';
 import { formatDocumentTitle } from '@/util/page-config';
@@ -36,8 +36,8 @@ export default function ProfileSetupRoute() {
   }, [accountQuery.data, form, form.formState.isDirty]);
 
   useEffect(() => {
-    if (accountQuery.isError) showErrorToast('일시적 오류로 요청을 완료하지 못했습니다.');
-  }, [accountQuery.isError]);
+    if (accountQuery.error) void handleApiError(accountQuery.error, { toastOptions: { duration: Infinity } });
+  }, [accountQuery.error]);
 
   /** 프로필을 저장하고 세션을 활성 계정으로 바꾼다. */
   const handleSubmitProfile = form.handleSubmit(async (values) => {
@@ -47,14 +47,19 @@ export default function ProfileSetupRoute() {
       });
       updateProfile(account);
     } catch (error) {
-      if (
-        axios.isAxiosError<ApiError>(error) &&
-        error.response?.data.code === ProfileDisplayNameDuplicateErrorCode.PROFILE_DISPLAY_NAME_DUPLICATE
-      ) {
-        form.setError('displayName', { message: DISPLAY_NAME_ERROR }, { shouldFocus: true });
-        return;
-      }
-      showErrorToast('일시적 오류로 요청을 완료하지 못했습니다.');
+      await handleApiError(error, {
+        toastOptions: { duration: Infinity },
+        onError: (error) => {
+          if (
+            !axios.isAxiosError<ApiError>(error) ||
+            error.response?.data.code !== ProfileDisplayNameDuplicateErrorCode.PROFILE_DISPLAY_NAME_DUPLICATE
+          ) {
+            return false;
+          }
+          form.setError('displayName', { message: DISPLAY_NAME_ERROR }, { shouldFocus: true });
+          return true;
+        },
+      });
     }
   });
 

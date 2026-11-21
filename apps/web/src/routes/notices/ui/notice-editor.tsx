@@ -8,21 +8,13 @@ import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
+import { handleApiError } from '@/api/handle-api-error';
 import { RichContentEditor } from '@/ui/organisms/rich-content-editor';
 import { RichContentViewer } from '@/ui/organisms/rich-content-viewer';
 import { RichContentImageSourcesContext } from '@/ui/organisms/rich-content-viewer/util';
 import { fromContentBody, getImageUrlsById, sameRichContent } from '@/util/rich-content';
 import { Label } from '@/ui/atoms/label';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import { formatDate, formatTime } from '@/util/date-format';
 import { useAutoSave } from '@/util/use-auto-save';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
@@ -138,18 +130,12 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
         } catch (error) {
           if (!isSavedNow) throw error;
           setIsPublishOpen(false);
-          toast.error('임시저장은 됐지만 게시하지 못했어요. 다시 게시해 주세요.');
+          await handleApiError(error, { message: '임시저장은 됐지만 게시하지 못했어요. 다시 게시해 주세요.' });
         }
         return;
       }
       if (isDraft) {
         toast.success('초안을 저장했습니다.');
-        if (!savedNotice) {
-          leaveAfterSuccess(
-            () =>
-              void navigate({ pathname: `${PAGES.notices.path}/${target!.id}`, search: listSearch }, { replace: true })
-          );
-        }
       } else {
         toast.success('변경 내용을 저장했습니다.');
         leaveAfterSuccess(
@@ -159,15 +145,19 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
       }
     } catch (error) {
       setIsPublishOpen(false);
-      const { status, code } = readNoticeError(error);
-      const guide = getNoticeErrorGuide(status, code);
-      if (guide) {
-        setSaveError({
-          title: action === 'publish' ? '공지를 게시하지 못했습니다.' : '저장하지 못했습니다.',
-          description: guide.description,
-          isMissing: guide.isMissing,
-        });
-      } else toast.error('일시적 오류로 요청을 완료하지 못했습니다.');
+      await handleApiError(error, {
+        onError: (error) => {
+          const { status, code } = readNoticeError(error);
+          const guide = getNoticeErrorGuide(status, code);
+          if (!guide) return false;
+          setSaveError({
+            title: action === 'publish' ? '공지를 게시하지 못했습니다.' : '저장하지 못했습니다.',
+            description: guide.description,
+            isMissing: guide.isMissing,
+          });
+          return true;
+        },
+      });
     } finally {
       isBusy.current = false;
       setIsSubmitting(false);
@@ -453,31 +443,21 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
           </div>
         </aside>
       </div>
-      <AlertDialog open={isPublishOpen} onOpenChange={(open) => !isPending && setIsPublishOpen(open)}>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            publishButtonRef.current?.focus();
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>공지를 게시할까요?</AlertDialogTitle>
-            <AlertDialogDescription className='[overflow-wrap:anywhere]'>제목: {title}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>취소</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isPending}
-              onClick={(event) => {
-                event.preventDefault();
-                void handleSave('publish');
-              }}
-            >
-              공지 게시
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={isPublishOpen}
+        onOpenChange={(open) => !isPending && setIsPublishOpen(open)}
+        title='공지를 게시할까요?'
+        description={`제목: ${title}`}
+        cancelLabel='취소'
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          publishButtonRef.current?.focus();
+        }}
+        closeOnConfirm={false}
+        areButtonsDisabled={isPending}
+        confirmLabel='공지 게시'
+        onConfirm={() => void handleSave('publish')}
+      />
     </RichContentImageSourcesContext.Provider>
   );
 }

@@ -57,6 +57,10 @@ const ACCOUNT_HANDLERS: AnyHandler[] = [
 
 /** 가짜 API 주소별 응답 모음. */
 export const handlers: AnyHandler[] = [
+  // MSW도 브라우저 오프라인에서는 응답이나 저장을 성공시킬 수 없도록 전송 실패를 흉내 낸다.
+  http.all(mockUrl('/*'), () => {
+    if (globalThis.navigator?.onLine === false) return Response.error();
+  }),
   ...AUTH_HANDLERS,
   ...ACCOUNT_HANDLERS,
   ...TEAM_MEMBER_HANDLERS,

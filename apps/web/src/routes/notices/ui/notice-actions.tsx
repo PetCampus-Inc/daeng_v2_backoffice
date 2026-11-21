@@ -1,18 +1,10 @@
 import { useIsMutating } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { handleApiError } from '@/api/handle-api-error';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from '@/ui/atoms/alert-dialog';
+import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import {
   getNoticeChangeMutationKey,
   useInvalidateNotices,
@@ -61,12 +53,19 @@ export function NoticeActions({
 
   /** 요청이 거절되면 상태가 바뀐 것으로 보고 안내한 뒤 최신 상태를 다시 읽는다(수정 저장의 409와 같은 안내문). */
   const handleFailure = (error: unknown) => {
-    const { status, code } = readNoticeError(error);
-    if (status === 404 || status === 409) {
-      toast.error(getNoticeErrorGuide(status, code)?.description ?? STATE_CHANGED_MESSAGE);
-      invalidateNotices();
-    } else if (status === 400) toast.error(getNoticeErrorGuide(status, code)?.description ?? GENERIC_ERROR_MESSAGE);
-    else toast.error(GENERIC_ERROR_MESSAGE);
+    void handleApiError(error, {
+      onError: (error) => {
+        const { status, code } = readNoticeError(error);
+        if (status === 404 || status === 409) {
+          toast.error(getNoticeErrorGuide(status, code)?.description ?? STATE_CHANGED_MESSAGE);
+          invalidateNotices();
+          return true;
+        }
+        if (status !== 400) return false;
+        toast.error(getNoticeErrorGuide(status, code)?.description ?? GENERIC_ERROR_MESSAGE);
+        return true;
+      },
+    });
   };
 
   /** 게시 해제를 취소한다. 해제 응답의 새 `version`으로 다시 게시한다(서버는 재게시와 같은 API). */
@@ -137,38 +136,26 @@ export function NoticeActions({
       >
         {isRunning ? `${label} 중…` : label}
       </Button>
-      <AlertDialog open={isConfirmOpen} onOpenChange={(open) => !isPending && setIsConfirmOpen(open)}>
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            actionButtonRef.current?.focus();
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {action === 'delete' ? '초안을 삭제할까요?' : '공지를 다시 게시할까요?'}
-            </AlertDialogTitle>
-            <AlertDialogDescription className='[overflow-wrap:anywhere]'>
-              {action === 'delete'
-                ? `'${title || '제목 없음'}' 초안을 삭제합니다. 삭제한 초안은 복구할 수 없습니다.`
-                : '앱에 다시 노출됩니다.'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>취소</AlertDialogCancel>
-            <AlertDialogAction
-              variant={action === 'delete' ? 'destructive' : 'default'}
-              disabled={isPending}
-              onClick={(event) => {
-                event.preventDefault();
-                void handleAction();
-              }}
-            >
-              {label}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={isConfirmOpen}
+        onOpenChange={(open) => !isPending && setIsConfirmOpen(open)}
+        title={action === 'delete' ? '초안을 삭제할까요?' : '공지를 다시 게시할까요?'}
+        description={
+          action === 'delete'
+            ? `'${title || '제목 없음'}' 초안을 삭제합니다. 삭제한 초안은 복구할 수 없습니다.`
+            : '앱에 다시 노출됩니다.'
+        }
+        cancelLabel='취소'
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          actionButtonRef.current?.focus();
+        }}
+        closeOnConfirm={false}
+        areButtonsDisabled={isPending}
+        confirmVariant={action === 'delete' ? 'destructive' : 'default'}
+        confirmLabel={label}
+        onConfirm={() => void handleAction()}
+      />
     </>
   );
 }
