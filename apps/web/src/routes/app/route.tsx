@@ -103,7 +103,12 @@ export default function AppLayout() {
       <main className={cn('pt-kd-topbar', isWide && sidebarOpen && 'pl-kd-sidebar')}>
         {/* 페이지 바깥 여백 32, 1199px 이하 위아래 24·좌우 32, 767px 이하 좌우 16(design.md 1.3) */}
         <div className='p-8 max-[1199px]:py-6 max-[767px]:px-4'>
-          {forbiddenPage ? <Forbidden title={forbiddenPage.title} /> : <Outlet />}
+          {forbiddenPage ? (
+            // 막힌 주소를 옮겨 다니면 주소마다 접속 기록을 남기도록 주소로 새로 그린다.
+            <Forbidden key={location.pathname} title={forbiddenPage.title} />
+          ) : (
+            <Outlet />
+          )}
         </div>
       </main>
       <LeaveConfirmDialog />

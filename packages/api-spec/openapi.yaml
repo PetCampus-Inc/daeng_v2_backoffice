@@ -136,6 +136,23 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /auth/access-denials:
+    post:
+      tags: ['인증']
+      operationId: recordAccessDenial
+      summary: 권한 없는 접근 시도 기록
+      description: |-
+        역할에 허용되지 않은 화면 주소로 들어와 '접근 권한 없음' 화면이 보일 때 부릅니다. 로그인한 본인의 이메일로 접속 기록에
+        '권한 없는 접근 시도'(결과: 권한 없음)를 남깁니다. API를 직접 부르다 역할 검사에 막힌 경우는 서버가 따로 기록하므로
+        부르지 않습니다.
+      responses:
+        '204':
+          description: 기록됨
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /me:
     get:
       tags: ['내 계정']

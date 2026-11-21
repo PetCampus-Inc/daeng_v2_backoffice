@@ -245,6 +245,23 @@ describe.skipIf(!hasDatabase)('login flow (real database, fake Google)', () => {
     expect(await probe(cookie).then((r) => r.status)).toBe(403); // 프로필 미완료라 막히지만 세션은 살아 있다
   });
 
+  test('a blocked page records an access denial under the signed-in email', async () => {
+    const anonymous = await post('/auth/access-denials');
+    expect(anonymous.status).toBe(401);
+
+    await addMember('blocked', { role: 'VIEWER', displayName: displayName(), jobRole: 'BE' });
+    const cookie = sessionCookie(await login('blocked'))!;
+    const recorded = await post('/auth/access-denials', undefined, { cookie });
+    expect(recorded.status).toBe(204);
+    expect(await logsFor('blocked')).toContainEqual(
+      expect.objectContaining({ event: 'ACCESS_DENIED', result: 'FORBIDDEN', email: email('blocked') })
+    );
+
+    const forged = await post('/auth/access-denials', undefined, { cookie, origin: 'https://evil.example' });
+    expect(forged.status).toBe(403);
+    expect((await logsFor('blocked')).filter((log) => log.event === 'ACCESS_DENIED')).toHaveLength(1);
+  });
+
   test('profile gate: incomplete profiles get 403 PROFILE_INCOMPLETE, completed ones pass', async () => {
     await addMember('gate');
     const cookie = sessionCookie(await login('gate'))!;
