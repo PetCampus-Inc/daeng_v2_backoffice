@@ -186,7 +186,7 @@ test('약관 종류 조회 실패 후 초점을 유지해 다시 시도한다', 
     const tab = page.getByRole('tab', { name: '개인정보 처리방침', exact: true });
     await qa(page, { failGet: true, delays: {} });
     await tab.click();
-    await text(page, '데이터를 불러오지 못했습니다.');
+    await text(page, '목록 조회에 실패했습니다.');
     await qa(page, { failGet: false });
     await page.getByRole('button', { name: '다시 시도', exact: true }).click();
     await text(page, '철회');

@@ -1,3 +1,6 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { useRetainedList } from '@/api/use-retained-list';
+import { RetainedListError } from '@/ui/molecules/retained-list-error';
 import { useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuthStore } from '@/store/auth';
@@ -20,7 +23,19 @@ export default function TermsRoute() {
   const user = useAuthStore((state) => state.user);
   const [params, setParams] = useSearchParams();
   const kind = readTermKind(params.get('kind')) ?? 'service';
-  const query = useListTermsVersions(toServerTermKind(kind), { query: termListQueryOptions(user?.email ?? '', kind) });
+  const client = useQueryClient();
+  const email = user?.email ?? '';
+  const options = termListQueryOptions(email, kind);
+  const query = useListTermsVersions(toServerTermKind(kind), {
+    query: {
+      ...options,
+      meta: { errorToast: { id: 'terms-list-error', message: '목록 조회에 실패했습니다.' } },
+    },
+  });
+  const { data, hasError, isShowingPrevious } = useRetainedList(query, email, (key) => {
+    const cached = client.getQueryData<Parameters<NonNullable<typeof options.select>>[0]>(key);
+    return cached === undefined ? undefined : options.select?.(cached);
+  });
   const navigate = useNavigate();
   const selectedTabRef = useRef<HTMLButtonElement>(null);
   const now = useTermClock(query.dataUpdatedAt);
@@ -41,7 +56,12 @@ export default function TermsRoute() {
       sessionStorage.removeItem('terms-return');
     }
   }, [kind, query.isSuccess]);
+  const handleRetry = () => {
+    selectedTabRef.current?.focus({ preventScroll: true });
+    void query.refetch();
+  };
   const openVersion = (version: number) => {
+    if (isShowingPrevious) return;
     sessionStorage.setItem('terms-return', JSON.stringify({ kind, version, scroll: window.scrollY }));
     void navigate(termPath(kind, version));
   };
@@ -69,21 +89,18 @@ export default function TermsRoute() {
             <div className='h-8 px-4 pt-2 text-kd-caption text-kd-foreground-muted' role='status'>
               {query.isFetching ? '버전을 불러오는 중…' : ''}
             </div>
-            {query.isPending ? (
+            {hasError && data && <RetainedListError onRetry={handleRetry} />}
+            {query.isPending && !data ? (
               <ListState kind='loading' />
-            ) : query.isError ? (
-              <ListState
-                kind='error'
-                onAction={() => {
-                  selectedTabRef.current?.focus({ preventScroll: true });
-                  void query.refetch();
-                }}
-              />
-            ) : query.data.length === 0 ? (
+            ) : !data ? (
+              <ListState kind='error' onAction={handleRetry} />
+            ) : data.length === 0 ? (
               <ListState kind='empty' />
             ) : (
               <Table scrollLabel='약관 버전 목록 가로 스크롤'>
-                <caption className='sr-only'>{TERM_KIND_LABELS[kind]} 버전 목록</caption>
+                <caption className='sr-only'>
+                  {isShowingPrevious ? '이전 약관 버전 목록' : `${TERM_KIND_LABELS[kind]} 버전 목록`}
+                </caption>
                 <TableHeader>
                   <TableRow>
                     {['버전 번호', '상태', '시행일', '공개일'].map((label) => (
@@ -92,11 +109,12 @@ export default function TermsRoute() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {query.data.map((term) => (
+                  {data.map((term) => (
                     <TableRow key={term.version} className='cursor-pointer' onClick={() => openVersion(term.version)}>
                       <TableCell>
                         <button
                           id={`term-version-${term.version}`}
+                          aria-disabled={isShowingPrevious}
                           className='rounded-kd-2 font-semibold focus-visible:outline-2 focus-visible:outline-kd-primary'
                           onClick={(event) => {
                             event.stopPropagation();
@@ -107,7 +125,7 @@ export default function TermsRoute() {
                         </button>
                       </TableCell>
                       <TableCell>
-                        <TermStatusBadge status={getTermStatus(term, query.data, now)} />
+                        <TermStatusBadge status={getTermStatus(term, data, now)} />
                       </TableCell>
                       <TableCell className='whitespace-nowrap tabular-nums'>
                         {displayTermDate(term.effectiveDate)}

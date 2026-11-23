@@ -45,6 +45,7 @@ export const ideaListQueryOptions = (
   email: string,
   request: ListIdeasParams
 ): Partial<UseQueryOptions<IdeaPage, ListIdeasQueryError>> => ({
+  meta: { errorToast: { id: 'ideas-list-error', message: '목록 조회에 실패했습니다.' } },
   queryKey: [...getListIdeasQueryKey(request), email],
   placeholderData: (previousData, previousQuery) =>
     previousQuery?.queryKey.at(-1) === email ? previousData : undefined,

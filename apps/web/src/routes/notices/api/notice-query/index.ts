@@ -64,6 +64,7 @@ export const noticeListQueryOptions = (
   email: string,
   request: ListNoticesParams
 ): Partial<UseQueryOptions<NoticePage, ListNoticesQueryError>> => ({
+  meta: { errorToast: { id: 'notices-list-error', message: '목록 조회에 실패했습니다.' } },
   queryKey: [...getListNoticesQueryKey(request), email],
   placeholderData: (previousData, previousQuery) =>
     previousQuery?.queryKey.at(-1) === email ? previousData : undefined,

@@ -134,30 +134,106 @@ test('변경 이력 조회 실패 후 다시 시도한다', async () =>
     await page.goto(`${BASE}/history`);
     await loginButton(page).waitFor();
     await login(page);
-    await page.locator('tbody tr').first().waitFor();
+    const rows = page.locator('tbody tr[data-history-id]');
+    await rows.first().waitFor();
+    const previousRows = await rows.allTextContents();
     await page.evaluate(async () => {
       const { network } = await import('/@id/__x00__virtual:msw');
       const { http } = await import('/node_modules/.vite/deps/msw.js');
       window.__recover = false;
       network.use(
-        http.get('/api/v0/admin/change-logs', () => {
+        http.get('/api/v0/admin/change-logs', async () => {
           if (!window.__recover) {
             return new Response(JSON.stringify({ status: 500, code: 'QA_ERROR', message: '조회 실패' }), {
               status: 500,
               headers: { 'Content-Type': 'application/json' },
             });
           }
+          await new Promise((resolve) => setTimeout(resolve, 1500));
         })
       );
     });
     await select(page, '대상 종류', '이용약관');
     await page.getByRole('button', { name: '다시 시도', exact: true }).waitFor();
+    await page.getByText('변경 이력을 조회하지 못했습니다.', { exact: true }).waitFor();
     await page.evaluate(() => {
       window.__recover = true;
     });
     await page.getByRole('button', { name: '다시 시도', exact: true }).click();
+    await page.getByText('조회 중…', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: '다시 시도', exact: true }).count(), 0);
+    assert.deepEqual(await rows.allTextContents(), previousRows);
     await page.getByText('총 2건', { exact: true }).waitFor();
   }));
+
+test('변경 이력 오프라인 필터 실패 시 이전 목록을 유지한다', async () =>
+  scenario('history-offline-filter', async (page, context) => {
+    await page.goto(`${BASE}/history`);
+    await loginButton(page).waitFor();
+    await login(page);
+    const rows = page.locator('tbody tr[data-history-id]');
+    await rows.first().waitFor();
+    const previousRows = await rows.allTextContents();
+
+    await context.setOffline(true);
+    await page.getByText('인터넷 연결이 끊겼습니다. 연결을 확인해 주세요.', { exact: true }).waitFor();
+    await select(page, '대상 종류', '1:1 문의');
+    await page.getByText('변경 이력을 조회하지 못했습니다.', { exact: true }).waitFor({ timeout: 3000 });
+    await page.getByText('조회 실패 · 이전 조회 결과를 표시합니다.', { exact: true }).waitFor();
+    assert.equal(await page.getByText('조회 중…', { exact: true }).count(), 0);
+    assert.deepEqual(await rows.allTextContents(), previousRows);
+    assert.equal(await page.getByRole('combobox', { name: '대상 종류', exact: true }).textContent(), '1:1 문의');
+
+    await context.setOffline(false);
+    await page.getByText('인터넷 연결이 복구되었습니다.', { exact: true }).waitFor();
+    await page.getByText('총 3건', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: '다시 시도', exact: true }).count(), 0);
+    assert.equal(await rows.count(), 3);
+  }));
+
+const retainedListCases = [
+  { path: 'members', searchLabel: '회원 검색' },
+  { path: 'kindergartens', searchLabel: '유치원 검색' },
+  { path: 'owner-verifications', searchLabel: '원장 인증 검색' },
+  { path: 'inquiries', searchLabel: '검색' },
+  { path: 'ideas', searchLabel: '검색' },
+  { path: 'notices', searchLabel: '검색' },
+  { path: 'terms', searchLabel: null },
+];
+
+for (const { path, searchLabel } of retainedListCases) {
+  test(`목록 실패 보존 - ${path}`, async () =>
+    scenario(`retained-list-${path}`, async (page, context) => {
+      await page.goto(`${BASE}/${path}`);
+      await loginButton(page).waitFor();
+      await login(page);
+      const rows = page.locator('tbody tr');
+      await rows.first().waitFor();
+      const previousRows = await rows.allTextContents();
+
+      await context.setOffline(true);
+      await page.getByText('인터넷 연결이 끊겼습니다. 연결을 확인해 주세요.', { exact: true }).waitFor();
+      if (searchLabel) {
+        await page.getByLabel(searchLabel, { exact: true }).fill('QA-없는-검색어');
+      } else {
+        await page.getByRole('tab', { name: '개인정보 처리방침', exact: true }).click();
+      }
+
+      await page.getByText('목록 조회에 실패했습니다.', { exact: true }).waitFor();
+      const previousNotice = page.getByText('조회 실패 · 이전 조회 결과를 표시합니다.', { exact: true });
+      await previousNotice.waitFor();
+      assert.deepEqual(await rows.allTextContents(), previousRows);
+      assert.equal(await page.getByText('조회 중…', { exact: true }).count(), 0);
+
+      await context.setOffline(false);
+      await previousNotice.waitFor({ state: 'hidden' });
+      if (searchLabel) {
+        await page.getByText('검색 결과가 없습니다.', { exact: true }).waitFor();
+      } else {
+        await page.getByRole('table', { name: '개인정보 처리방침 버전 목록' }).waitFor();
+      }
+    }));
+}
 
 test('운영자 세션은 관리자 헤더가 있어도 변경 API를 거부한다', async () =>
   scenario('role-api', async (page) => {

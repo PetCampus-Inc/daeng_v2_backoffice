@@ -1,3 +1,5 @@
+import { useRetainedList } from '@/api/use-retained-list';
+import { RetainedListError } from '@/ui/molecules/retained-list-error';
 import { CircleHelpIcon } from 'lucide-react';
 import { useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
@@ -61,12 +63,13 @@ export default function MembersRoute() {
   const inputRef = useRef<HTMLInputElement>(null);
   const request = toMemberListRequest(queryParams, page);
   const query = useListServiceMembers(request, { query: memberListQueryOptions(email, request) });
-  const items = query.data?.items ?? [];
-  const totalPages = query.data?.totalPages ?? 0;
+  const { data, hasError, isTransitioning, isShowingPrevious } = useRetainedList(query, email);
+  const items = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 0;
   const hasCondition = queryParams.keyword.trim() !== '' || queryParams.type !== 'all';
   useScrollReturnPosition(
     `members:${email}:${listParams.type}:${listParams.keyword}:${page}`,
-    query.isSuccess && !query.isPlaceholderData
+    query.isSuccess && !isTransitioning
   );
   const handleChangeCondition = (condition: Partial<MemberListParams>) =>
     void setSearchParams({ ...condition, page: null });
@@ -79,7 +82,7 @@ export default function MembersRoute() {
     void query.refetch();
   };
   const handleChangePage = (nextPage: number) => {
-    if (query.isPlaceholderData || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    if (isShowingPrevious || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
     void setSearchParams({ page: nextPage === 1 ? null : nextPage });
   };
   return (
@@ -123,17 +126,18 @@ export default function MembersRoute() {
             onCompositionEnd={() => setIsComposing(false)}
             onChange={(event) => handleChangeCondition({ keyword: event.target.value })}
           />
-          {query.isSuccess && (
+          {data !== undefined && (
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              {query.isPlaceholderData ? '조회 중…' : `총 ${query.data.totalItems.toLocaleString('ko-KR')}건`}
+              {isTransitioning ? '조회 중…' : `총 ${data.totalItems.toLocaleString('ko-KR')}건`}
             </p>
           )}
         </div>
-        {query.isPending ? (
+        {hasError && data && <RetainedListError onRetry={handleRetry} />}
+        {query.isPending && !data ? (
           <ListState kind='loading' />
-        ) : query.isError ? (
+        ) : query.isError && !data ? (
           <ListState kind='error' onAction={handleRetry} />
-        ) : query.isPlaceholderData && items.length === 0 ? (
+        ) : isTransitioning && items.length === 0 ? (
           <p role='status' className='min-h-48 px-4 py-14 text-center text-kd-foreground-muted'>
             조건에 맞는 회원을 조회하고 있습니다.
           </p>
@@ -240,7 +244,7 @@ export default function MembersRoute() {
                   <PaginationItem>
                     <PaginationPrevious
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page <= 1 || query.isPlaceholderData}
+                      aria-disabled={page <= 1 || isShowingPrevious}
                       onClick={() => handleChangePage(page - 1)}
                     />
                   </PaginationItem>
@@ -249,7 +253,7 @@ export default function MembersRoute() {
                       <PaginationButton
                         className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
                         isActive={pageNumber === page}
-                        aria-disabled={query.isPlaceholderData}
+                        aria-disabled={isShowingPrevious}
                         onClick={() => handleChangePage(pageNumber)}
                       >
                         {pageNumber}
@@ -259,7 +263,7 @@ export default function MembersRoute() {
                   <PaginationItem>
                     <PaginationNext
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page >= totalPages || query.isPlaceholderData}
+                      aria-disabled={page >= totalPages || isShowingPrevious}
                       onClick={() => handleChangePage(page + 1)}
                     />
                   </PaginationItem>

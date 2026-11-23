@@ -252,9 +252,9 @@ test('S-021 실패·재시도: 조건과 초점 유지', async () => {
   await scenario('021', async (page) => {
     await configure(page, { fail: true });
     await search(page).fill('서울');
-    await page.getByText('데이터를 불러오지 못했습니다.', { exact: true }).waitFor({ timeout: 20000 });
+    await page.getByText('목록 조회에 실패했습니다.', { exact: true }).waitFor({ timeout: 20000 });
     assert.equal(await search(page).inputValue(), '서울');
-    assert.equal(await page.locator('[data-sonner-toast]').count(), 0);
+    await page.getByText('조회 실패 · 이전 조회 결과를 표시합니다.', { exact: true }).waitFor();
     await configure(page, { fail: false, delay: 1200 });
     await tab(page, '다시 시도').focus();
     await page.keyboard.press('Enter');
