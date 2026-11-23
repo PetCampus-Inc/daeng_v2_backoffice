@@ -1,9 +1,9 @@
-import { Tabs } from 'radix-ui';
 import { useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
 import { Card } from '@/ui/atoms/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/atoms/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/ui/atoms/table';
 import { ListState } from '@/ui/molecules/list-state';
 import { formatDate } from '@/util/date-format';
@@ -56,20 +56,15 @@ export default function TermsRoute() {
           </Button>
         )}
       </div>
-      <Tabs.Root value={kind} onValueChange={(value) => setParams({ kind: value })} className='mt-6 min-w-0'>
-        <Tabs.List aria-label='약관 종류' className='flex flex-wrap gap-2'>
+      <Tabs value={kind} onValueChange={(value) => setParams({ kind: value })} className='mt-6'>
+        <TabsList aria-label='약관 종류' className='flex-wrap gap-x-6'>
           {TERM_KINDS.map((value) => (
-            <Tabs.Trigger
-              key={value}
-              value={value}
-              ref={value === kind ? selectedTabRef : undefined}
-              className='rounded-kd-2 border border-kd-border px-3 py-2 text-kd-sub outline-none focus-visible:ring-2 focus-visible:ring-kd-primary data-[state=active]:bg-kd-primary data-[state=active]:text-white'
-            >
+            <TabsTrigger key={value} value={value} ref={value === kind ? selectedTabRef : undefined}>
               {TERM_KIND_LABELS[value]}
-            </Tabs.Trigger>
+            </TabsTrigger>
           ))}
-        </Tabs.List>
-        <Tabs.Content value={kind} forceMount asChild>
+        </TabsList>
+        <TabsContent value={kind} forceMount asChild>
           <Card className='mt-4 min-h-64' aria-busy={query.isFetching}>
             <div className='h-8 px-4 pt-2 text-kd-caption text-kd-foreground-muted' role='status'>
               {query.isFetching ? '버전을 불러오는 중…' : ''}
@@ -126,8 +121,8 @@ export default function TermsRoute() {
               </Table>
             )}
           </Card>
-        </Tabs.Content>
-      </Tabs.Root>
+        </TabsContent>
+      </Tabs>
     </>
   );
 }
