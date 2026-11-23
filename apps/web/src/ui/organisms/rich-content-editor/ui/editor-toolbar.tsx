@@ -1,0 +1,347 @@
+import { Fragment, useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
+import { ListPlugin } from '@platejs/list-classic/react';
+import { upsertLink, unwrapLink } from '@platejs/link';
+import { insertTable, insertTableRow, insertTableColumn, deleteTable } from '@platejs/table';
+import type { TRange } from 'platejs';
+import { useEditorRef, useEditorSelector } from 'platejs/react';
+import {
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Heading1,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  Link,
+  Unlink,
+  Table,
+  ImagePlus,
+  Minus,
+  Undo2,
+  Redo2,
+} from 'lucide-react';
+import { isHttpUrl } from '@/util/rich-content';
+import {
+  RICH_CONTENT_FONT_SIZES as FONT_SIZES,
+  isRichContentFontSize as isFontSize,
+} from '@/ui/organisms/rich-content-viewer/util';
+import { Button } from '@/ui/atoms/button';
+import { Input } from '@/ui/atoms/input';
+import { Label } from '@/ui/atoms/label';
+import { getImageAccept } from '@/util/image-upload-rule';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from '@/ui/atoms/alert-dialog';
+import type { RichContentImageUpload } from '../type/rich-content-image-upload';
+
+export function EditorToolbar({
+  readOnly,
+  imageUpload,
+  isImageProcessing,
+  onImageFiles,
+}: {
+  readOnly: boolean;
+  imageUpload?: RichContentImageUpload;
+  isImageProcessing: boolean;
+  onImageFiles: (files: File[], target: TRange | null) => Promise<void>;
+}) {
+  const editor = useEditorRef();
+  const fileInputId = useId();
+  const confirmed = imageUpload?.confirmed;
+  // 저장으로 확정된 이미지는 `tempKey`를 `imageId`로 바꾼다. 실행 취소 기록에는 남기지 않는다.
+  useEffect(() => {
+    if (!confirmed) return;
+    editor.tf.withoutSaving(() => {
+      for (const [tempKey, imageId] of Object.entries(confirmed)) {
+        const match = (node: { type?: unknown; tempKey?: unknown }) => node.type === 'img' && node.tempKey === tempKey;
+        editor.tf.setNodes({ imageId }, { at: [], match });
+        editor.tf.unsetNodes(['tempKey', 'originalFilename'], {
+          at: [],
+          match,
+        });
+      }
+    });
+  }, [editor, confirmed]);
+  const marks = useEditorSelector((editor) => editor.api.marks() ?? {}, []);
+  const block = useEditorSelector(
+    (editor) =>
+      ['h1', 'h2', 'h3', 'ul', 'ol', 'table', 'a'].filter((type) => editor.api.some({ match: { type } })).join(','),
+    []
+  );
+  const fontSize = useEditorSelector(
+    (editor) =>
+      editor.selection
+        ? isFontSize(editor.api.marks()?.fontSize)
+          ? (editor.api.marks()?.fontSize as number)
+          : undefined
+        : null,
+    []
+  );
+  const selection = useEditorSelector((editor) => editor.selection, []);
+  const lastSelection = useRef(selection);
+  useEffect(() => {
+    if (selection) lastSelection.current = selection;
+  }, [selection]);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [url, setUrl] = useState('');
+  const isValidLink = isHttpUrl(url);
+  const linkError = url.length > 0 && !isValidLink;
+  const act = (run: () => void) => {
+    if (readOnly) return;
+    // 브라우저의 selectionchange가 처리되기 전 빠르게 툴바를 눌러도 현재 선택을 적용한다.
+    const selection = window.getSelection();
+    if (selection?.anchorNode && editor.api.hasDOMNode(selection.anchorNode, { editable: true })) {
+      const range = editor.api.toSlateRange(selection, {
+        exactMatch: false,
+        suppressThrow: true,
+      });
+      if (range) editor.tf.select(range);
+    }
+    // 입력칸처럼 편집기 밖을 눌러 선택이 풀린 경우, 마지막 선택으로 되돌려 적용한다.
+    if (!editor.selection && lastSelection.current) editor.tf.select(lastSelection.current);
+    run();
+    editor.tf.focus();
+  };
+  /** 파일 선택창에서 고른 이미지 파일을 마지막 선택 위치에 넣는다. */
+  const handleImageFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    await onImageFiles(files, lastSelection.current);
+  };
+  /** 파일 선택창을 연다. */
+  const openFilePicker = () => document.getElementById(fileInputId)?.click();
+  const buttons = [
+    {
+      label: '굵게',
+      Icon: Bold,
+      active: !!marks.bold,
+      run: () => editor.tf.toggleMark('bold'),
+    },
+    {
+      label: '기울임',
+      Icon: Italic,
+      active: !!marks.italic,
+      run: () => editor.tf.toggleMark('italic'),
+    },
+    {
+      label: '밑줄',
+      Icon: Underline,
+      active: !!marks.underline,
+      run: () => editor.tf.toggleMark('underline'),
+    },
+    {
+      label: '취소선',
+      Icon: Strikethrough,
+      active: !!marks.strikethrough,
+      run: () => editor.tf.toggleMark('strikethrough'),
+    },
+    {
+      label: '큰 제목',
+      Icon: Heading1,
+      active: block.includes('h1'),
+      run: () => editor.tf.toggleBlock('h1'),
+    },
+    {
+      label: '소제목',
+      Icon: Heading2,
+      active: block.includes('h2'),
+      run: () => editor.tf.toggleBlock('h2'),
+    },
+    {
+      label: '작은 제목',
+      Icon: Heading3,
+      active: block.includes('h3'),
+      run: () => editor.tf.toggleBlock('h3'),
+    },
+    {
+      label: '글머리 목록',
+      Icon: List,
+      active: block.includes('ul'),
+      run: () => editor.getTransforms(ListPlugin).toggle.bulletedList(),
+    },
+    {
+      label: '번호 목록',
+      Icon: ListOrdered,
+      active: block.includes('ol'),
+      run: () => editor.getTransforms(ListPlugin).toggle.numberedList(),
+    },
+    {
+      label: '링크',
+      Icon: Link,
+      run: () => {
+        const entry = editor.api.node({ match: { type: 'a' } });
+        setUrl(String(entry?.[0].url ?? ''));
+        setLinkOpen(true);
+      },
+    },
+    { label: '링크 해제', Icon: Unlink, run: () => unwrapLink(editor) },
+    {
+      label: '표 삽입',
+      Icon: Table,
+      run: () => {
+        insertTable(editor, { rowCount: 2, colCount: 2 });
+      },
+    },
+    ...(imageUpload
+      ? [
+          {
+            label: '이미지',
+            Icon: ImagePlus,
+            isDisabled: imageUpload.isUploading || isImageProcessing,
+            run: openFilePicker,
+          },
+        ]
+      : []),
+    {
+      label: '구분선',
+      Icon: Minus,
+      run: () => {
+        editor.tf.insertNodes([
+          { type: 'hr', children: [{ text: '' }] },
+          { type: 'p', children: [{ text: '' }] },
+        ]);
+      },
+    },
+    { label: '실행 취소', Icon: Undo2, run: () => editor.tf.undo() },
+    { label: '다시 실행', Icon: Redo2, run: () => editor.tf.redo() },
+  ];
+  return (
+    <>
+      <div role='group' aria-label='본문 서식' className='flex flex-wrap gap-1 border-b border-kd-border p-2'>
+        {buttons.map(({ label, Icon, active, run, isDisabled }) => (
+          <Fragment key={label}>
+            <Button
+              type='button'
+              variant={active ? 'default' : 'ghost'}
+              size='icon'
+              className='size-9'
+              aria-label={label}
+              title={label}
+              aria-pressed={active}
+              disabled={readOnly || isDisabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => act(run)}
+            >
+              <Icon className='size-4' />
+            </Button>
+            {label === '작은 제목' && (
+              <select
+                aria-label='글자 크기'
+                title='글자 크기'
+                className='h-9 rounded-kd-3 border border-kd-border bg-kd-background px-2 text-kd-sub'
+                disabled={readOnly}
+                value={String(fontSize ?? '')}
+                onChange={(event) =>
+                  act(() =>
+                    event.target.value
+                      ? editor.tf.addMark('fontSize', Number(event.target.value))
+                      : editor.tf.removeMark('fontSize')
+                  )
+                }
+              >
+                <option value=''>기본 크기</option>
+                {FONT_SIZES.map((size) => (
+                  <option key={size} value={size}>
+                    {size}px
+                  </option>
+                ))}
+              </select>
+            )}
+          </Fragment>
+        ))}
+        {imageUpload && (
+          <input
+            id={fileInputId}
+            type='file'
+            hidden
+            multiple
+            accept={getImageAccept(imageUpload.allowedTypes)}
+            aria-label='이미지 파일 선택'
+            onChange={(event) => void handleImageFiles(event)}
+          />
+        )}
+        {block.includes('table') && (
+          <div className='flex flex-wrap gap-1'>
+            <Button
+              size='sm'
+              variant='ghost'
+              disabled={readOnly}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => act(() => insertTableRow(editor))}
+            >
+              행 추가
+            </Button>
+            <Button
+              size='sm'
+              variant='ghost'
+              disabled={readOnly}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => act(() => insertTableColumn(editor))}
+            >
+              열 추가
+            </Button>
+            <Button
+              size='sm'
+              variant='ghost'
+              disabled={readOnly}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => act(() => deleteTable(editor))}
+            >
+              표 삭제
+            </Button>
+          </div>
+        )}
+      </div>
+      <AlertDialog open={linkOpen} onOpenChange={setLinkOpen}>
+        <AlertDialogContent
+          role='dialog'
+          aria-describedby={undefined}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            editor.tf.focus();
+          }}
+        >
+          <AlertDialogTitle>링크 설정</AlertDialogTitle>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!isValidLink || readOnly) return;
+              setLinkOpen(false);
+              act(() => {
+                upsertLink(editor, { url, target: '_blank' });
+              });
+            }}
+            className='space-y-4'
+          >
+            <Label htmlFor='rich-content-link'>링크 주소</Label>
+            <Input
+              id='rich-content-link'
+              value={url}
+              onChange={(event) => setUrl(event.target.value)}
+              placeholder='https://'
+              aria-invalid={linkError}
+              aria-describedby={linkError ? 'rich-content-link-error' : undefined}
+            />
+            {linkError && (
+              <p id='rich-content-link-error' role='alert' className='text-kd-error-foreground'>
+                http 또는 https 주소를 입력해 주세요.
+              </p>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel>취소</AlertDialogCancel>
+              <Button type='submit' disabled={readOnly || !isValidLink}>
+                적용
+              </Button>
+            </AlertDialogFooter>
+          </form>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
