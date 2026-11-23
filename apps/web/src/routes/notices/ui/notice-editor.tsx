@@ -1,4 +1,5 @@
 import { useIsMutating } from '@tanstack/react-query';
+import { CircleCheckIcon } from 'lucide-react';
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
@@ -6,7 +7,7 @@ import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
+import { Card, CardContent } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
 import { handleApiError } from '@/api/handle-api-error';
 import { RichContentEditor } from '@/ui/organisms/rich-content-editor';
@@ -469,19 +470,22 @@ export function NoticePublished({ notice, onView }: { notice: Notice; onView: ()
     <>
       <title>{formatDocumentTitle('공지 게시 완료')}</title>
       <Card>
-        <CardHeader className='pt-16 text-center'>
-          <CardTitle>공지를 게시했습니다.</CardTitle>
-        </CardHeader>
-        <CardContent className='pb-16 text-center'>
-          <p className='text-kd-body text-kd-foreground-muted'>{formatDate(notice.publishedAt)}</p>
-          <div className='mt-6 flex justify-center gap-2'>
-            <Button
-              variant='outline'
-              onClick={() => void navigate({ pathname: PAGES.notices.path, search: listSearch })}
-            >
+        <CardContent className='space-y-4 py-10'>
+          <div className='flex flex-col items-center gap-3 pb-2 text-center'>
+            <CircleCheckIcon aria-hidden className='size-10 text-kd-success-foreground' />
+            <h1 className='text-kd-title-1'>공지가 게시되었어요</h1>
+          </div>
+          <div className='rounded-kd-3 bg-kd-surface px-4 py-4'>
+            <p className='text-kd-sub text-kd-foreground-muted'>게시된 공지</p>
+            <p className='mt-1 text-kd-title-2 [overflow-wrap:anywhere]'>{notice.title}</p>
+          </div>
+          <div className='grid grid-cols-2 gap-3'>
+            <Button variant='outline' onClick={onView}>
+              공지 보기
+            </Button>
+            <Button onClick={() => void navigate({ pathname: PAGES.notices.path, search: listSearch })}>
               목록으로
             </Button>
-            <Button onClick={onView}>공지 보기</Button>
           </div>
         </CardContent>
       </Card>
