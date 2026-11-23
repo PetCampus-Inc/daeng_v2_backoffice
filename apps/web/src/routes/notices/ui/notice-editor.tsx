@@ -28,7 +28,7 @@ import {
   confirmNoticeImages,
   createNoticeBody,
   getNoticeText,
-  NOTICE_IMAGE_ACCEPT,
+  NOTICE_IMAGE_RULE,
   validateNotice,
 } from '../util/notice-policy';
 import { useNoticeListSearchParams } from '../util/list-search-params';
@@ -407,7 +407,7 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
                 onChange={setBody}
                 readOnly={isPending && !isAutoSaving}
                 imageUpload={{
-                  accept: NOTICE_IMAGE_ACCEPT,
+                  ...NOTICE_IMAGE_RULE,
                   isUploading: isImageUploading,
                   upload: imageUpload.upload,
                   confirmed: confirmedImages,

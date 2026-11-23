@@ -1,4 +1,5 @@
 import type { RichContent } from '@/type/rich-content';
+import type { ImageUploadRule } from '@/util/image-upload-rule';
 import { collectImageBlocks, countRichTextLength, getRichText as getNoticeText } from '@/util/rich-content';
 import type { NoticeImageFileContentType } from '../../type';
 import type { NoticeInput } from '../../type/notice-ui';
@@ -27,53 +28,20 @@ export function validateNotice(input: NoticeInput) {
   };
 }
 
-/** 파일당 이미지 크기 한도(20MB, 바이트). 서버와 같다. */
-export const NOTICE_IMAGE_MAX_BYTES = 20_971_520;
-/** 공지 본문 하나에 넣을 수 있는 이미지 수. 서버(`MAX_IMAGES`)와 같다. */
-export const NOTICE_IMAGE_MAX_COUNT = 10;
-/** 업로드 주소를 한 번에 요청할 수 있는 파일 수. */
-export const NOTICE_IMAGE_MAX_BATCH = 10;
-/** 올릴 수 있는 이미지 형식과 서버가 요구하는 파일 확장자. HEIC·HEIF는 공지에서 제외한다. */
-export const NOTICE_IMAGE_EXTENSIONS: Record<NoticeImageFileContentType, string[]> = {
-  'image/jpeg': ['.jpg', '.jpeg'],
-  'image/png': ['.png'],
-};
-/** 파일 선택창에 거는 허용 형식. */
-export const NOTICE_IMAGE_ACCEPT = Object.keys(NOTICE_IMAGE_EXTENSIONS).join(',');
-
-/** 올릴 수 없는 형식(JPG·PNG 외, 확장자가 형식과 다른 파일 포함). */
-export const NOTICE_IMAGE_TYPE_MESSAGE = 'JPG, PNG 파일만 올릴 수 있어요.';
-/** 20MB 초과. */
-export const NOTICE_IMAGE_SIZE_MESSAGE = '이미지는 한 장에 20MB까지 올릴 수 있어요.';
-/** 크기가 0인 파일. */
-export const NOTICE_IMAGE_EMPTY_MESSAGE = '비어 있는 파일은 올릴 수 없어요.';
-/** 한 번에 10개 초과. */
-export const NOTICE_IMAGE_BATCH_MESSAGE = '이미지는 한 번에 10장까지 올릴 수 있어요.';
-/** 본문 이미지 10장 초과. */
-export const NOTICE_IMAGE_COUNT_MESSAGE = '이미지는 한 공지에 10장까지 넣을 수 있어요.';
-
-/** 이미지 파일 판정에 필요한 값만 담은 모양(브라우저 `File`도 맞는다). */
-export type NoticeImageCandidate = { name: string; type: string; size: number };
-
-/** 형식(MIME)이 JPG·PNG이고 확장자가 그 형식과 맞는지 본다. 서버가 이름과 형식이 다른 파일을 거절한다. */
-export function isNoticeImageType(file: Pick<NoticeImageCandidate, 'name' | 'type'>): boolean {
-  const extensions = NOTICE_IMAGE_EXTENSIONS[file.type as NoticeImageFileContentType];
-  const name = file.name.toLowerCase();
-  return !!extensions && extensions.some((extension) => name.endsWith(extension));
-}
-
 /**
- * 고른 파일을 서버에 묻기 전에 검사한다. 하나라도 걸리면 전부 올리지 않고 안내 문구 하나를 돌려준다.
- * 순서: 한 번에 10개 → 본문 10장 → 형식 → 빈 파일 → 20MB. 통과하면 `null`.
+ * 공지 본문 이미지 규칙 값. 판정은 공용 편집기가 한다.
+ * 용량은 서버와 같은 20MB(바이트), 개수는 서버(`MAX_IMAGES`)와 같은 본문당 10장이다.
+ * 허용 형식은 서버가 요구하는 파일 확장자를 함께 준다. HEIC·HEIF는 공지에서 제외한다.
  */
-export function checkNoticeImageFiles(files: NoticeImageCandidate[], currentImageCount: number): string | null {
-  if (files.length > NOTICE_IMAGE_MAX_BATCH) return NOTICE_IMAGE_BATCH_MESSAGE;
-  if (currentImageCount + files.length > NOTICE_IMAGE_MAX_COUNT) return NOTICE_IMAGE_COUNT_MESSAGE;
-  if (files.some((file) => !isNoticeImageType(file))) return NOTICE_IMAGE_TYPE_MESSAGE;
-  if (files.some((file) => file.size <= 0)) return NOTICE_IMAGE_EMPTY_MESSAGE;
-  if (files.some((file) => file.size > NOTICE_IMAGE_MAX_BYTES)) return NOTICE_IMAGE_SIZE_MESSAGE;
-  return null;
-}
+export const NOTICE_IMAGE_RULE: ImageUploadRule = {
+  allowedTypes: {
+    'image/jpeg': ['.jpg', '.jpeg'],
+    'image/png': ['.png'],
+  } satisfies Record<NoticeImageFileContentType, string[]>,
+  typeLabel: 'JPG·PNG',
+  maxBytes: 20_971_520,
+  maxCount: 10,
+};
 
 /**
  * 저장하려고 보낸 본문(`sent`)의 새 이미지(`tempKey`)를 저장 응답 본문(`saved`)의 `imageId`로 바꾼다.
