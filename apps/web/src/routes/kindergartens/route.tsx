@@ -1,3 +1,5 @@
+import { useRetainedList } from '@/api/use-retained-list';
+import { RetainedListError } from '@/ui/molecules/retained-list-error';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/ui/atoms/button';
@@ -46,15 +48,16 @@ export default function KindergartensRoute() {
     }
     pageTriggerRef.current = null;
   }, [kindergartensQuery.isFetching]);
-  const items = kindergartensQuery.data?.items ?? [];
-  const totalPages = kindergartensQuery.data?.totalPages ?? 0;
+  const { data, hasError, isTransitioning, isShowingPrevious } = useRetainedList(kindergartensQuery, email);
+  const items = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 0;
   const hasCondition = queryParams.keyword.trim() !== '' || queryParams.status !== 'all';
   const handleChangeCondition = (condition: Partial<KindergartenListParams>) => {
     pageTriggerRef.current = null;
     void setSearchParams({ ...condition, page: null });
   };
   const handleChangePage = (nextPage: number, trigger: HTMLButtonElement) => {
-    if (nextPage === page) return;
+    if (isShowingPrevious || nextPage === page) return;
     pageTriggerRef.current = trigger;
     void setSearchParams({ page: nextPage === 1 ? null : nextPage });
   };
@@ -107,19 +110,18 @@ export default function KindergartensRoute() {
             value={listParams.keyword}
             onChange={(event) => handleChangeCondition({ keyword: event.target.value })}
           />
-          {kindergartensQuery.isSuccess && (
+          {data !== undefined && (
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              {kindergartensQuery.isPlaceholderData
-                ? '조회 중…'
-                : `총 ${kindergartensQuery.data.totalItems.toLocaleString('ko-KR')}건`}
+              {isTransitioning ? '조회 중…' : `총 ${data.totalItems.toLocaleString('ko-KR')}건`}
             </p>
           )}
         </div>
-        {kindergartensQuery.isPending ? (
+        {hasError && data && <RetainedListError onRetry={handleRetry} />}
+        {kindergartensQuery.isPending && !data ? (
           <ListState kind='loading' />
-        ) : kindergartensQuery.isError ? (
+        ) : kindergartensQuery.isError && !data ? (
           <ListState kind='error' onAction={handleRetry} />
-        ) : kindergartensQuery.isPlaceholderData && items.length === 0 ? (
+        ) : isTransitioning && items.length === 0 ? (
           <p role='status' className='px-4 py-14 text-center text-kd-foreground-muted'>
             조건에 맞는 유치원을 조회하고 있습니다.
           </p>
@@ -212,7 +214,7 @@ export default function KindergartensRoute() {
                 <PaginationContent>
                   <PaginationItem>
                     <PaginationPrevious
-                      disabled={page <= 1 || kindergartensQuery.isPlaceholderData}
+                      disabled={page <= 1 || isShowingPrevious}
                       onClick={(event) => handleChangePage(page - 1, event.currentTarget)}
                     />
                   </PaginationItem>
@@ -220,7 +222,7 @@ export default function KindergartensRoute() {
                     <PaginationItem key={pageNumber}>
                       <PaginationButton
                         isActive={pageNumber === page}
-                        disabled={kindergartensQuery.isPlaceholderData}
+                        disabled={isShowingPrevious}
                         onClick={(event) => handleChangePage(pageNumber, event.currentTarget)}
                       >
                         {pageNumber}
@@ -229,7 +231,7 @@ export default function KindergartensRoute() {
                   ))}
                   <PaginationItem>
                     <PaginationNext
-                      disabled={page >= totalPages || kindergartensQuery.isPlaceholderData}
+                      disabled={page >= totalPages || isShowingPrevious}
                       onClick={(event) => handleChangePage(page + 1, event.currentTarget)}
                     />
                   </PaginationItem>

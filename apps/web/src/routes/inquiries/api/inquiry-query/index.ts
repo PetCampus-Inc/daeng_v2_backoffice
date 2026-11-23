@@ -86,6 +86,7 @@ export const inquiryListQueryOptions = (
   email: string,
   request: ListInquiriesParams
 ): Partial<UseQueryOptions<InquirySummaryPage, ListInquiriesQueryError>> => ({
+  meta: { errorToast: { id: 'inquiries-list-error', message: '목록 조회에 실패했습니다.' } },
   queryKey: [...getListInquiriesQueryKey(request), email],
   placeholderData: (previousData, previousQuery) =>
     previousQuery?.queryKey.at(-1) === email ? previousData : undefined,

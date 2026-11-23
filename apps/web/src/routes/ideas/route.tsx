@@ -1,3 +1,5 @@
+import { useRetainedList } from '@/api/use-retained-list';
+import { RetainedListError } from '@/ui/molecules/retained-list-error';
 import { useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useListReturnPosition } from '@/util/use-list-return-position';
@@ -33,13 +35,14 @@ export default function IdeasRoute() {
   const { listParams, page, listSearch, setSearchParams } = useIdeaListSearchParams();
   const request = toIdeaListRequest(listParams, page);
   const ideasQuery = useListIdeas(request, { query: ideaListQueryOptions(currentEmail, request) });
-  const ideas = (ideasQuery.data?.items ?? []).map(toIdea);
-  const totalPages = ideasQuery.data?.totalPages ?? 0;
+  const { data, hasError, isTransitioning, isShowingPrevious } = useRetainedList(ideasQuery, currentEmail);
+  const ideas = (data?.items ?? []).map(toIdea);
+  const totalPages = data?.totalPages ?? 0;
   const hasCondition = listParams.keyword.trim() !== '' || listParams.userType !== 'all';
   const isListShown = ideasQuery.isSuccess;
   const saveReturnPosition = useListReturnPosition(
     `ideas:${currentEmail}:${listSearch}`,
-    isListShown && !ideasQuery.isPlaceholderData
+    isListShown && !isTransitioning
   );
 
   /** 검색·필터를 바꾸면 1페이지로 간다(PRD 4.4). */
@@ -55,12 +58,12 @@ export default function IdeasRoute() {
     void ideasQuery.refetch();
   };
   const handleChangePage = (nextPage: number) => {
-    if (ideasQuery.isPlaceholderData || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    if (isShowingPrevious || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
     void setSearchParams({ page: nextPage === 1 ? null : nextPage });
   };
   /** 목록 조건을 상세 주소에 이어 붙여 목록 복귀에 쓴다. */
   const handleOpenIdea = (id: number) => {
-    if (ideasQuery.isPlaceholderData) return;
+    if (isShowingPrevious) return;
     saveReturnPosition(id);
     void navigate({ pathname: `${PAGES.ideas.path}/${id}`, search: listSearch });
   };
@@ -104,17 +107,18 @@ export default function IdeasRoute() {
               필터 초기화
             </Button>
           )}
-          {isListShown && (
+          {data !== undefined && (
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              {ideasQuery.isPlaceholderData ? '조회 중…' : `총 ${ideasQuery.data.totalItems}건`}
+              {isTransitioning ? '조회 중…' : `총 ${data.totalItems}건`}
             </p>
           )}
         </div>
-        {ideasQuery.isPending ? (
+        {hasError && data && <RetainedListError onRetry={handleRetry} />}
+        {ideasQuery.isPending && !data ? (
           <ListState kind='loading' />
-        ) : ideasQuery.isError ? (
+        ) : ideasQuery.isError && !data ? (
           <ListState kind='error' onAction={handleRetry} />
-        ) : ideasQuery.isPlaceholderData && ideas.length === 0 ? (
+        ) : isTransitioning && ideas.length === 0 ? (
           <p
             role='status'
             className='flex min-h-48 items-center justify-center px-4 py-14 text-center text-kd-foreground-muted'
@@ -152,7 +156,7 @@ export default function IdeasRoute() {
                     <TableCell className='max-w-80'>
                       <button
                         type='button'
-                        aria-disabled={ideasQuery.isPlaceholderData}
+                        aria-disabled={isShowingPrevious}
                         data-list-item-id={idea.id}
                         className='block max-w-full truncate rounded-kd-2 text-left font-semibold outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kd-primary focus-visible:outline-solid'
                         onClick={(event) => {
@@ -177,7 +181,7 @@ export default function IdeasRoute() {
                   <PaginationItem>
                     <PaginationPrevious
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page <= 1 || ideasQuery.isPlaceholderData}
+                      aria-disabled={page <= 1 || isShowingPrevious}
                       onClick={() => handleChangePage(page - 1)}
                     />
                   </PaginationItem>
@@ -186,7 +190,7 @@ export default function IdeasRoute() {
                       <PaginationButton
                         isActive={pageNumber === page}
                         className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                        aria-disabled={ideasQuery.isPlaceholderData}
+                        aria-disabled={isShowingPrevious}
                         onClick={() => handleChangePage(pageNumber)}
                       >
                         {pageNumber}
@@ -196,7 +200,7 @@ export default function IdeasRoute() {
                   <PaginationItem>
                     <PaginationNext
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page >= totalPages || ideasQuery.isPlaceholderData}
+                      aria-disabled={page >= totalPages || isShowingPrevious}
                       onClick={() => handleChangePage(page + 1)}
                     />
                   </PaginationItem>

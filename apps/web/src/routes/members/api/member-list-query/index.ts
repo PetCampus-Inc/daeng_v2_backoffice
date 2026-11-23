@@ -1,4 +1,5 @@
 import type { UseQueryOptions } from '@tanstack/react-query';
+import { retryWhileOnline } from '@/api/retry-while-online';
 import { getListServiceMembersQueryKey, type ListServiceMembersQueryError } from '../use-members';
 import type { ListServiceMembersParams, ServiceMemberPage } from '../../type';
 import { MEMBER_FILTER_TYPES, type MemberListParams } from '../../type/service-member-type-ui';
@@ -26,6 +27,8 @@ export const memberListQueryOptions = (
   email: string,
   request: ListServiceMembersParams
 ): Partial<UseQueryOptions<ServiceMemberPage, ListServiceMembersQueryError>> => ({
+  meta: { errorToast: { id: 'members-list-error', message: '목록 조회에 실패했습니다.' } },
+  retry: retryWhileOnline,
   queryKey: [...getListServiceMembersQueryKey(request), email],
   placeholderData: (previousData, previousQuery) =>
     previousQuery?.queryKey.at(-1) === email ? previousData : undefined,

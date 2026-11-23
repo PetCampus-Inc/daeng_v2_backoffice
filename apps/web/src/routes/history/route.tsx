@@ -1,4 +1,6 @@
 import { useEffect, useRef } from 'react';
+import { useRetainedList } from '@/api/use-retained-list';
+import { RetainedListError } from '@/ui/molecules/retained-list-error';
 import { Forbidden } from '@/routes/app/ui/forbidden';
 import { getListTeamMembersQueryKey, useListTeamMembers } from '@/routes/settings/members/api/use-team-members';
 import { useAuthStore } from '@/store/auth';
@@ -70,11 +72,16 @@ export default function HistoryRoute() {
   const historiesQuery = useListChangeLogs(request, {
     query: historyListQueryOptions(currentEmail, request, !isRangeReversed && !isWaitingActors),
   });
-  const records = isRangeReversed ? [] : (historiesQuery.data?.items ?? []);
-  const totalPages = isRangeReversed ? 0 : (historiesQuery.data?.totalPages ?? 0);
-  const isTransitioning = !isRangeReversed && historiesQuery.isPlaceholderData;
-  const isListShown = isRangeReversed || historiesQuery.isSuccess;
-  const isPageOutOfRange = isListShown && !isTransitioning && page > Math.max(totalPages, 1);
+  const isForbidden = isForbiddenError(historiesQuery.error);
+  const list = useRetainedList(historiesQuery, currentEmail);
+  const visibleData = isRangeReversed ? undefined : list.data;
+  const records = visibleData?.items ?? [];
+  const totalPages = visibleData?.totalPages ?? 0;
+  const isTransitioning = !isRangeReversed && list.isTransitioning;
+  const hasListError = !isRangeReversed && list.hasError;
+  const isListShown = isRangeReversed || visibleData !== undefined;
+  const isPaginationDisabled = isTransitioning || hasListError;
+  const isPageOutOfRange = isListShown && !isPaginationDisabled && page > Math.max(totalPages, 1);
 
   // 주소에 없는 페이지(예: ?page=1e3)가 들어오면 1페이지로 돌린다. 개발 판단(PRD에 없음).
   useEffect(() => {
@@ -101,12 +108,12 @@ export default function HistoryRoute() {
     void historiesQuery.refetch();
   };
   const handleChangePage = (nextPage: number) => {
-    if (isTransitioning || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    if (isPaginationDisabled || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
     void setSearchParams({ page: nextPage === 1 ? null : nextPage });
   };
 
   // 역할이 바뀐 뒤 서버가 거부하면 권한 없음 화면(PRD 4.5). 거부 기록은 서버가 이미 남겼다.
-  if (isForbiddenError(historiesQuery.error)) return <Forbidden title={PAGES.history.title} skipAccessLog />;
+  if (isForbidden) return <Forbidden title={PAGES.history.title} skipAccessLog />;
 
   return (
     <>
@@ -208,18 +215,19 @@ export default function HistoryRoute() {
               필터 초기화
             </Button>
           )}
+          {hasListError && visibleData && <RetainedListError onRetry={handleRetry} className='p-0' />}
           {isListShown && (
             <p
               role='status'
               className='ml-auto flex h-kd-control items-center text-kd-sub text-kd-foreground-muted tabular-nums'
             >
-              {isTransitioning ? '조회 중…' : `총 ${isRangeReversed ? 0 : historiesQuery.data?.totalItems}건`}
+              {isTransitioning ? '조회 중…' : `총 ${isRangeReversed ? 0 : visibleData?.totalItems}건`}
             </p>
           )}
         </div>
-        {!isRangeReversed && historiesQuery.isPending ? (
+        {!isRangeReversed && !visibleData && (historiesQuery.isPending || historiesQuery.isFetching) ? (
           <ListState kind='loading' />
-        ) : !isRangeReversed && historiesQuery.isError ? (
+        ) : hasListError && !visibleData ? (
           <ListState kind='error' onAction={handleRetry} />
         ) : (isTransitioning || isPageOutOfRange) && records.length === 0 ? (
           <p
@@ -281,7 +289,7 @@ export default function HistoryRoute() {
                   <PaginationItem>
                     <PaginationPrevious
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page <= 1 || isTransitioning}
+                      aria-disabled={page <= 1 || isPaginationDisabled}
                       onClick={() => handleChangePage(page - 1)}
                     />
                   </PaginationItem>
@@ -290,7 +298,7 @@ export default function HistoryRoute() {
                       <PaginationButton
                         isActive={pageNumber === page}
                         className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                        aria-disabled={isTransitioning}
+                        aria-disabled={isPaginationDisabled}
                         onClick={() => handleChangePage(pageNumber)}
                       >
                         {pageNumber}
@@ -300,7 +308,7 @@ export default function HistoryRoute() {
                   <PaginationItem>
                     <PaginationNext
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page >= totalPages || isTransitioning}
+                      aria-disabled={page >= totalPages || isPaginationDisabled}
                       onClick={() => handleChangePage(page + 1)}
                     />
                   </PaginationItem>

@@ -1,3 +1,5 @@
+import { useRetainedList } from '@/api/use-retained-list';
+import { RetainedListError } from '@/ui/molecules/retained-list-error';
 import { useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuthStore } from '@/store/auth';
@@ -34,10 +36,10 @@ export default function NoticesRoute() {
   const { listParams, page, listSearch, setSearchParams } = useNoticeListSearchParams();
   const request = toNoticeListRequest(listParams, page);
   const noticesQuery = useListNotices(request, { query: noticeListQueryOptions(currentEmail, request) });
-  const notices = (noticesQuery.data?.items ?? []).map(toNoticeSummary);
-  const totalPages = noticesQuery.data?.totalPages ?? 0;
+  const { data, hasError, isTransitioning, isShowingPrevious } = useRetainedList(noticesQuery, currentEmail);
+  const notices = (data?.items ?? []).map(toNoticeSummary);
+  const totalPages = data?.totalPages ?? 0;
   const hasCondition = listParams.keyword.trim() !== '' || listParams.status !== 'all';
-  const isListShown = noticesQuery.isSuccess;
 
   /** 검색·필터를 바꾸면 1페이지로 간다(PRD 4.4). */
   const handleChangeCondition = (condition: Partial<NoticeListParams>) =>
@@ -55,7 +57,7 @@ export default function NoticesRoute() {
   const handleOpenNotice = (id: number) => navigate({ pathname: `${PAGES.notices.path}/${id}`, search: listSearch });
   /** 대기 중 버튼의 초점을 유지하되 직전 페이지 정보로 추가 이동하지 않는다. */
   const handleChangePage = (nextPage: number) => {
-    if (noticesQuery.isPlaceholderData || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    if (isShowingPrevious || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
     void setSearchParams({ page: nextPage === 1 ? null : nextPage });
   };
 
@@ -105,17 +107,18 @@ export default function NoticesRoute() {
               필터 초기화
             </Button>
           )}
-          {isListShown && (
+          {data !== undefined && (
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              {noticesQuery.isPlaceholderData ? '조회 중…' : `총 ${noticesQuery.data.totalItems}건`}
+              {isTransitioning ? '조회 중…' : `총 ${data.totalItems}건`}
             </p>
           )}
         </div>
-        {noticesQuery.isPending ? (
+        {hasError && data && <RetainedListError onRetry={handleRetry} />}
+        {noticesQuery.isPending && !data ? (
           <ListState kind='loading' />
-        ) : noticesQuery.isError ? (
+        ) : noticesQuery.isError && !data ? (
           <ListState kind='error' onAction={handleRetry} />
-        ) : noticesQuery.isPlaceholderData && notices.length === 0 ? (
+        ) : isTransitioning && notices.length === 0 ? (
           <p
             role='status'
             className='flex min-h-48 items-center justify-center px-4 py-14 text-center text-kd-foreground-muted'
@@ -183,7 +186,7 @@ export default function NoticesRoute() {
                 <PaginationContent>
                   <PaginationItem>
                     <PaginationPrevious
-                      aria-disabled={page <= 1 || noticesQuery.isPlaceholderData}
+                      aria-disabled={page <= 1 || isShowingPrevious}
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
                       onClick={() => handleChangePage(page - 1)}
                     />
@@ -192,7 +195,7 @@ export default function NoticesRoute() {
                     <PaginationItem key={pageNumber}>
                       <PaginationButton
                         isActive={pageNumber === page}
-                        aria-disabled={noticesQuery.isPlaceholderData}
+                        aria-disabled={isShowingPrevious}
                         className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
                         onClick={() => handleChangePage(pageNumber)}
                       >
@@ -202,7 +205,7 @@ export default function NoticesRoute() {
                   ))}
                   <PaginationItem>
                     <PaginationNext
-                      aria-disabled={page >= totalPages || noticesQuery.isPlaceholderData}
+                      aria-disabled={page >= totalPages || isShowingPrevious}
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
                       onClick={() => handleChangePage(page + 1)}
                     />

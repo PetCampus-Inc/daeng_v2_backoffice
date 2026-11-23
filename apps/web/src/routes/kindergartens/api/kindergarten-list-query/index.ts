@@ -1,4 +1,5 @@
 import type { UseQueryOptions } from '@tanstack/react-query';
+import { retryWhileOnline } from '@/api/retry-while-online';
 import { getListServiceSchoolsQueryKey, type ListServiceSchoolsQueryError } from '../use-kindergartens';
 import type { ListServiceSchoolsParams, ServiceSchoolPage } from '../../type';
 import type { KindergartenListParams } from '../../type/school-status-ui';
@@ -26,6 +27,8 @@ export const kindergartenListQueryOptions = (
   email: string,
   request: ListServiceSchoolsParams
 ): Partial<UseQueryOptions<ServiceSchoolPage, ListServiceSchoolsQueryError>> => ({
+  meta: { errorToast: { id: 'kindergartens-list-error', message: '목록 조회에 실패했습니다.' } },
+  retry: retryWhileOnline,
   queryKey: [...getListServiceSchoolsQueryKey(request), email],
   placeholderData: (previousData, previousQuery) =>
     previousQuery?.queryKey.at(-1) === email ? previousData : undefined,

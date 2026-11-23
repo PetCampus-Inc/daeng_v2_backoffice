@@ -218,9 +218,9 @@ test('S-공지-067 조회 실패·재시도·빈 결과 복구', () =>
     });
     const search = page.getByRole('searchbox', { name: '검색', exact: true });
     await search.fill('점검');
-    await page.getByText('데이터를 불러오지 못했습니다.', { exact: true }).waitFor();
+    await page.getByText('목록 조회에 실패했습니다.', { exact: true }).waitFor();
     assert.equal(await search.inputValue(), '점검');
-    assert.equal(await page.getByText(/^총 \d+건$/).count(), 0);
+    await page.getByText('조회 실패 · 이전 조회 결과를 표시합니다.', { exact: true }).waitFor();
     await page.evaluate(() => {
       window.__noticeMode.fail = false;
     });

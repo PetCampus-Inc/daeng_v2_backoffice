@@ -1,5 +1,6 @@
 import type { UseQueryOptions } from '@tanstack/react-query';
 import axios from 'axios';
+import { retryWhileOnline } from '@/api/retry-while-online';
 import type { TeamMember } from '@/routes/settings/members/type/team-member';
 import { formatProfileName } from '@/util/profile';
 import { getListChangeLogsQueryKey, type ListChangeLogsQueryError } from '../use-history';
@@ -12,9 +13,9 @@ const HISTORY_PAGE_SIZE = 20;
 /** 역할 때문에 거부된 요청(403)인지. 다시 보내도 같으므로 재시도하지 않고 바로 권한 없음 화면을 보여 준다. */
 export const isForbiddenError = (error: unknown) => axios.isAxiosError(error) && error.response?.status === 403;
 
-/** 403은 재시도하지 않고, 그 밖의 실패는 기본값처럼 3번까지 다시 시도한다. */
+/** 403은 재시도하지 않고, 그 밖의 실패는 공통 재시도 규칙(오프라인이면 안 함, 3번까지)을 따른다. */
 export const retryUnlessForbidden = (failureCount: number, error: unknown) =>
-  !isForbiddenError(error) && failureCount < 3;
+  !isForbiddenError(error) && retryWhileOnline(failureCount);
 
 /** 행위자 칸 선택지 한 건. 주소에는 이메일을 남기고 서버에는 팀원 ID를 보낸다. */
 export type HistoryActorOption = { id: number; email: string; label: string };
@@ -57,6 +58,13 @@ export const historyListQueryOptions = (
   request: ListChangeLogsParams,
   enabled: boolean
 ): Partial<UseQueryOptions<ChangeLogPage, ListChangeLogsQueryError>> => ({
+  meta: {
+    errorToast: {
+      id: 'history-list-error',
+      message: '변경 이력을 조회하지 못했습니다.',
+      ignore: isForbiddenError,
+    },
+  },
   queryKey: [...getListChangeLogsQueryKey(request), email],
   placeholderData: (previousData, previousQuery) =>
     previousQuery?.queryKey.at(-1) === email ? previousData : undefined,
