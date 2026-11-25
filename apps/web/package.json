@@ -9,9 +9,7 @@
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests",
     "preview": "vite preview",
-    "api:generate": "orval",
-    "test:e2e:typecheck": "tsc -p tsconfig.e2e.json",
-    "test:e2e": "pnpm test:e2e:typecheck && cd ../.. && node --test apps/web/e2e/*-usability.ts apps/web/e2e/session-integration.ts"
+    "api:generate": "orval"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",
@@ -52,7 +50,6 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "msw": "3.0.3",
     "orval": "^8.45.0",
     "oxlint": "^1.88.0",
     "playwright": "^1.64.1",

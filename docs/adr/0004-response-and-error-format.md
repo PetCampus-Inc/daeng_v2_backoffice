@@ -37,5 +37,5 @@ date: 2026-10-22
 ## 결과와 후속
 
 - NestJS 예외 필터 하나로 모든 예외를 이 형식으로 변환한다.
-- `apps/web`의 `src/type/api.ts`, 가짜 API 응답 생성기, `.data.data`로 응답을 읽는 요청 함수를 고쳐야 한다
+- `apps/web`의 `src/type/api.ts`, `.data.data`로 응답을 읽는 요청 함수를 고쳐야 한다
   ([api-conventions.md](../api-conventions.md)의 "현재 웹 구현과의 차이" 참고). 프론트 담당자와 합의가 필요하다.
