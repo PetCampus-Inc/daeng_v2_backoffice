@@ -1,9 +1,6 @@
 import type { RichContent } from '@/type/rich-content';
 import { createRichContent, getRichText } from '@/util/rich-content';
 import { describe, expect, it } from 'vitest';
-import { createDefaultTerms } from '@/api/mocks/handlers/terms';
-import { toTermResponse } from '@/api/mocks/util/term-list';
-import { toTerm } from '../../api/term-query';
 import type { Term } from '../../type/term-ui';
 import {
   displayTermDate,
@@ -19,9 +16,55 @@ import {
   validateEffectiveDate,
 } from './index';
 const NOW = new Date('2026-10-07T10:00:00+09:00');
-/** fixtures.md `약관-기본`을 화면이 받는 값으로 바꾼다. 서비스 이용약관은 #1~#4, 개인정보 처리방침은 #5~#6이다. */
-const MOCK_TERMS = createDefaultTerms();
-const DEFAULT_TERMS: Term[] = MOCK_TERMS.map((item) => toTerm(toTermResponse(item, MOCK_TERMS, NOW)));
+/** 공개된 약관 한 건. 본문 맨 아래 공고일자·시행일자는 공개 때 채워진 상태다. */
+const publishedTerm = (
+  version: number,
+  kind: Term['kind'],
+  effectiveDate: string,
+  publishedAt: string,
+  text: string,
+  status: Term['status'] = 'published'
+): Term => ({
+  kind,
+  version,
+  status,
+  effectiveDate,
+  publishedAt: new Date(publishedAt).toISOString(),
+  updatedAt: new Date(publishedAt).toISOString(),
+  body: fillTermDates(
+    createRichContent(`${text}\n\n공고일자: {{공고일}}\n시행일자: {{시행일}}`),
+    effectiveDate,
+    new Date(publishedAt)
+  ),
+  revision: 1,
+});
+const PUBLISHED_SERVICE: Term[] = [
+  publishedTerm(1, 'service', '2026-03-01', '2026-02-20T09:00:00+09:00', '서비스 이용약관 1판'),
+  publishedTerm(2, 'service', '2026-09-01', '2026-08-20T09:00:00+09:00', '서비스 이용약관 2판'),
+  publishedTerm(
+    3,
+    'service',
+    '2026-10-20',
+    '2026-10-01T09:00:00+09:00',
+    '고지의 의무\n{{공고일}} 공고\n이 약관은 {{시행일}}부터 시행합니다.'
+  ),
+];
+/** fixtures.md `약관-기본`을 화면이 받는 값으로 적었다. 서비스 이용약관은 #1~#4, 개인정보 처리방침은 #5~#6이다. */
+const DEFAULT_TERMS: Term[] = [
+  ...PUBLISHED_SERVICE,
+  {
+    kind: 'service',
+    version: 4,
+    status: 'draft',
+    effectiveDate: '',
+    publishedAt: null,
+    updatedAt: new Date('2026-10-06T15:00:00+09:00').toISOString(),
+    body: getInitialTermBody(PUBLISHED_SERVICE),
+    revision: 1,
+  },
+  publishedTerm(5, 'privacy', '2026-01-01', '2025-12-20T09:00:00+09:00', '개인정보 처리방침 1판'),
+  publishedTerm(6, 'privacy', '2026-11-01', '2026-10-02T09:00:00+09:00', '개인정보 처리방침 철회본', 'withdrawn'),
+];
 const SERVICE = DEFAULT_TERMS.filter((item) => item.kind === 'service');
 const PRIVACY = DEFAULT_TERMS.filter((item) => item.kind === 'privacy');
 

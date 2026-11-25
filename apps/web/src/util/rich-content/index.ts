@@ -39,7 +39,7 @@ export function fromContentBody(body: ContentBody): RichContent {
   return isRichContent(body) ? body : createRichContent('');
 }
 
-// 이전 모의 데이터의 문자열 본문도 서식을 없애지 않고 편집할 수 있게 이행한다.
+// 문자열 본문도 서식을 없애지 않고 편집할 수 있게 이행한다.
 export function normalizeRichContent(value: RichContent | string): RichContent {
   return typeof value === 'string' ? createRichContent(value) : value;
 }
