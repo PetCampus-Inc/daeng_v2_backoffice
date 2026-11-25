@@ -69,6 +69,6 @@ pnpm --filter @daeng/web add <패키지명>
 
 ## 브랜치 전략
 
-- `main`: 배포 브랜치. `dev` 또는 `hotfix/*`에서 merge commit으로만 들어온다.
-- `dev`: 개발 통합 브랜치. 작업 브랜치를 squash merge한다.
+- `main`: 운영 배포 브랜치. `dev` 또는 `hotfix/*`에서 merge commit으로만 들어오며, 머지되면 운영 웹이 배포된다.
+- `dev`: 개발 통합 브랜치. 작업 브랜치를 squash merge하며, 머지되면 개발(베타) 웹이 자동 배포된다.
 - 작업 브랜치: `dev`에서 `feat/*`, `fix/*`, `chore/*`, `docs/*` 등으로 만들어 PR을 연다.
