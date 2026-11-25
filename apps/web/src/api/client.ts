@@ -9,8 +9,9 @@ import { captureApiError } from '@/util/sentry';
 /**
  * 관리자 API(`/api/v0/admin`) 공용 axios 인스턴스.
  * 로그인 유지는 서버 세션 쿠키가 맡는다.
- * `VITE_API_BASE_URL`이 있으면 그 주소로 보내고(화면과 서버 도메인이 다른 배포), 없으면 도메인 없이 보내
- * 화면이 열린 주소와 같은 곳으로 간다(개발 서버의 가짜 API). 다른 도메인이면 쿠키를 보내도록 `withCredentials`를 켠다.
+ * `VITE_API_BASE_URL`이 있으면 그 주소로 보내고(라이브·베타·로컬 모두 화면과 서버 도메인이 다르다), 없으면 도메인 없이 보내
+ * 화면이 열린 주소와 같은 곳으로 간다. 다른 도메인이면 쿠키를 보내도록 `withCredentials`를 켠다.
+ * 로컬 값은 `.env`(라이브)·`.env.development`(베타) 파일에, 배포 값은 GitHub 변수에 둔다(`.env.example` 참고).
  */
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '');
 

@@ -31,7 +31,7 @@
 
 ```bash
 pnpm install     # 모든 패키지의 의존성 설치 (루트에서 한 번)
-pnpm dev         # shared를 빌드한 뒤 모든 앱 개발 서버 동시 실행 — web: http://localhost:5173, server: http://localhost:3000
+pnpm dev         # shared를 빌드한 뒤 모든 앱 개발 서버 동시 실행 — web: http://localhost:8080, server: http://localhost:3000
 pnpm dev:server  # 서버만 실행 (web 없이)
 pnpm build       # 모든 패키지 빌드
 pnpm lint        # 모든 패키지 린트 (oxlint)
