@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 운영 서버에서 SSM Run Command로 실행되는 BO 서버 배포 스크립트다. (GitHub Actions가 호출)
+# 서버(운영·개발)에서 SSM Run Command로 실행되는 BO 서버 배포 스크립트다. (GitHub Actions가 호출)
 #
 # 사용: deploy-remote.sh <S3 버킷> <S3 prefix> <리전> <서버 이미지> <마이그레이션 이미지> <도커 네트워크> <호스트 포트>
 #

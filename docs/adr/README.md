@@ -31,3 +31,4 @@ updated: 2026-10-26
 | [0016](0016-dev-login.md)                      | 개발용 로그인                                | 확정 |
 | [0017](0017-bo-notification-delivery.md)       | BO 알림의 수신 시점과 이벤트 전달            | 확정 |
 | [0018](0018-bo-server-deploy.md)               | BO 서버 배포                                 | 확정 |
+| [0019](0019-bo-dev-server.md)                  | BO 개발 서버                                 | 확정 |
