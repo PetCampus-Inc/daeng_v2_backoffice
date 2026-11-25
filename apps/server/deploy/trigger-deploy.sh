@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # 배포 러너에서 실행한다. .env와 서버 스크립트를 S3 스테이징에 올리고, SSM으로 서버가 deploy-remote.sh를 실행하게 한 뒤 끝날 때까지 기다린다.
 #
-# 필요한 환경 변수: AWS_REGION, DEPLOY_BUCKET, INSTANCE_ID, ECR_REPOSITORY, DOCKER_NETWORK, HOST_PORT, GITHUB_SHA, GITHUB_RUN_ATTEMPT
+# 필요한 환경 변수: AWS_REGION, DEPLOY_NAME, DEPLOY_BUCKET, INSTANCE_ID, ECR_REPOSITORY, DOCKER_NETWORK, HOST_PORT,
+#   GITHUB_SHA, GITHUB_RUN_ATTEMPT
+# DEPLOY_NAME은 배포 역할 이름이다. 역할이 S3에 올릴 수 있는 경로(releases/<DEPLOY_NAME>/)를 정한다.
 # 작업 디렉터리에 .env가 있어야 한다. 시크릿이 들어 있어 올린 뒤 바로 지운다.
 set -euo pipefail
 
-: "${AWS_REGION:?}" "${DEPLOY_BUCKET:?}" "${INSTANCE_ID:?}" "${ECR_REPOSITORY:?}"
+: "${AWS_REGION:?}" "${DEPLOY_NAME:?}" "${DEPLOY_BUCKET:?}" "${INSTANCE_ID:?}" "${ECR_REPOSITORY:?}"
 : "${DOCKER_NETWORK:?}" "${HOST_PORT:?}"
 : "${GITHUB_SHA:?}" "${GITHUB_RUN_ATTEMPT:?}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PREFIX="releases/knockdog-backoffice-production-deploy/${GITHUB_SHA}-${GITHUB_RUN_ATTEMPT}"
+PREFIX="releases/${DEPLOY_NAME}/${GITHUB_SHA}-${GITHUB_RUN_ATTEMPT}"
 IMAGE="${ECR_REPOSITORY}:${GITHUB_SHA}"
 MIGRATE_IMAGE="${ECR_REPOSITORY}:${GITHUB_SHA}-migrate"
 
