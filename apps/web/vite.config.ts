@@ -32,6 +32,9 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
+  // 서버의 ALLOWED_ORIGINS와 구글 OAuth '승인된 JavaScript 원본'에 이 주소(http://localhost:8080)를 적어야 해서 포트를 고정한다.
+  // 8080이 이미 쓰이고 있으면 다른 포트로 바꾸지 않고 오류로 알린다.
+  server: { port: 8080, strictPort: true },
   build: {
     sourcemap: isSourceMapUploadEnabled ? 'hidden' : false,
     rolldownOptions: {
