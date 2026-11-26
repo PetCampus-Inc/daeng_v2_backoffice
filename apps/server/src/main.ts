@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
+import { AUTH_CONFIG, type AuthConfig } from './auth/auth.constants.js';
+import { buildCorsOptions } from './auth/cors.js';
 import { readApiDocsEnabled, readPort } from './config.js';
 import { readInitialSuperAdminEmail } from './database/database.config.js';
 import { DatabaseService } from './database/database.service.js';
@@ -16,6 +18,7 @@ async function bootstrap(): Promise<void> {
   const apiDocument = readApiDocsEnabled(process.env.API_DOCS_ENABLED) ? await loadOpenApiDocument() : undefined;
   const app = await NestFactory.create(AppModule);
   app.enableShutdownHooks();
+  app.enableCors(buildCorsOptions(app.get<AuthConfig>(AUTH_CONFIG).allowedOrigins));
   if (initialSuperAdminEmail) {
     try {
       const created = await ensureInitialSuperAdmin(app.get(DatabaseService).db, initialSuperAdminEmail);

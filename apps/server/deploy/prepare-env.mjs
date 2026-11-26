@@ -96,6 +96,14 @@ export function findProblems({ entries, invalidLines }) {
       'ALLOWED_ORIGINS는 https://도메인 형태를 쉼표로 구분해야 합니다. 경로, 끝의 /, 따옴표는 넣을 수 없습니다'
     );
   }
+  // 배포 서버는 HTTPS라 쿠키 Secure를 끌 이유가 없다. 끄면 COOKIE_SAME_SITE=none일 때 서버가 시작하지 않는다.
+  if (values.get('COOKIE_SECURE') === 'false') {
+    problems.push('배포 서버에서는 COOKIE_SECURE=false를 사용할 수 없습니다. 값을 지우면 true입니다');
+  }
+  const sameSite = values.get('COOKIE_SAME_SITE');
+  if (sameSite && sameSite !== 'lax' && sameSite !== 'none') {
+    problems.push('COOKIE_SAME_SITE는 lax 또는 none(소문자)이어야 합니다. 값을 지우면 lax입니다');
+  }
   // 배포 서버(운영·개발)에서는 개발용 로그인을 켜지 않는다. HTTPS라 COOKIE_SECURE=false가 필요한 이 기능과 맞지 않는다.
   if (values.get('DEV_LOGIN_ENABLED') === 'true') {
     problems.push('배포 서버에서는 DEV_LOGIN_ENABLED=true를 사용할 수 없습니다');

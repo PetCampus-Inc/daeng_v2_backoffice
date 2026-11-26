@@ -23,6 +23,7 @@ export const AUTH_CONFIG_FOR_TEST: AuthConfig = {
   googleClientId: 'test-client-id.apps.googleusercontent.com',
   allowedOrigins: ['http://localhost:5173'],
   cookieSecure: false,
+  cookieSameSite: 'lax',
   devLoginEnabled: true,
 };
 

@@ -92,6 +92,15 @@ describe('session cookie options', () => {
     }
     expect(calls[0].options.maxAge).toBe(24 * 60 * 60 * 1000);
   });
+
+  test('uses the configured SameSite for both setting and clearing the cookie', () => {
+    const { calls, response } = capture();
+    const crossSite = { ...config, cookieSecure: true, cookieSameSite: 'none' as const };
+    setSessionCookie(response, crossSite, 'abc');
+    clearSessionCookie(response, crossSite);
+    expect(calls).toHaveLength(2);
+    for (const call of calls) expect(call.options).toMatchObject({ sameSite: 'none', secure: true });
+  });
 });
 
 describe('dev login is limited to the same computer', () => {
