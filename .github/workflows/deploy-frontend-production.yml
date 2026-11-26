@@ -15,123 +15,20 @@ permissions:
 
 jobs:
   deploy-production:
-    name: Deploy to S3 and CloudFront
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      AWS_REGION: ap-northeast-2
-      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
-      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-      PRODUCTION_S3_BUCKET: ${{ vars.PRODUCTION_S3_BUCKET }}
-      PRODUCTION_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PRODUCTION_CLOUDFRONT_DISTRIBUTION_ID }}
-      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
-      VITE_GOOGLE_CLIENT_ID: ${{ vars.PRODUCTION_VITE_GOOGLE_CLIENT_ID }}
-      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
-      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
-      VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
-
-    steps:
-      - name: Validate deployment configuration
-        shell: bash
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          required_variables=(
-            AWS_ACCOUNT_ID
-            AWS_DEPLOY_ROLE_ARN
-            PRODUCTION_S3_BUCKET
-            PRODUCTION_CLOUDFRONT_DISTRIBUTION_ID
-            PRODUCTION_URL
-            VITE_GOOGLE_CLIENT_ID
-            SENTRY_AUTH_TOKEN
-            SENTRY_ORG
-            SENTRY_PROJECT
-            VITE_SENTRY_DSN
-          )
-
-          for variable_name in "${required_variables[@]}"; do
-            if [[ -z "${!variable_name}" ]]; then
-              echo "::error::GitHub Actions variable or secret ${variable_name} is required."
-              exit 1
-            fi
-          done
-
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          # 커밋 연결에 전체 커밋 기록이 필요하다.
-          fetch-depth: 0
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        env:
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: pnpm --filter @daeng/web build
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6.3.0
-        with:
-          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
-          mask-aws-account-id: true
-
-      - name: Upload hashed assets to S3
-        run: |
-          aws s3 sync apps/web/dist/assets "s3://${PRODUCTION_S3_BUCKET}/assets" \
-            --cache-control "public,max-age=31536000,immutable"
-
-      - name: Upload entry files to S3
-        run: |
-          aws s3 sync apps/web/dist "s3://${PRODUCTION_S3_BUCKET}" \
-            --delete \
-            --exclude "assets/*" \
-            --cache-control "no-cache,no-store,must-revalidate"
-
-      - name: Refresh CloudFront cache
-        id: invalidate-cloudfront
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          invalidation_id="$(
-            aws cloudfront create-invalidation \
-              --distribution-id "${PRODUCTION_CLOUDFRONT_DISTRIBUTION_ID}" \
-              --paths "/*" \
-              --query 'Invalidation.Id' \
-              --output text
-          )"
-
-          aws cloudfront wait invalidation-completed \
-            --distribution-id "${PRODUCTION_CLOUDFRONT_DISTRIBUTION_ID}" \
-            --id "${invalidation_id}"
-
-      - name: Check deployed site
-        run: |
-          curl \
-            --fail \
-            --silent \
-            --show-error \
-            --location \
-            --retry 5 \
-            --retry-delay 5 \
-            "${PRODUCTION_URL}" > /dev/null
-
-      - name: Write deployment summary
-        run: |
-          echo "### Production deployment completed" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- Target: S3 + CloudFront" >> "${GITHUB_STEP_SUMMARY}"
-          echo "- URL: ${PRODUCTION_URL}" >> "${GITHUB_STEP_SUMMARY}"
+    # 배포 본문은 deploy-frontend-reusable.yml과 개발 배포가 함께 쓴다. job에 environment를 쓰지 않는다.
+    uses: ./.github/workflows/deploy-frontend-reusable.yml
+    with:
+      environment-name: Production
+      aws-account-id: ${{ vars.AWS_ACCOUNT_ID }}
+      aws-deploy-role-arn: ${{ vars.PRODUCTION_AWS_DEPLOY_ROLE_ARN }}
+      s3-bucket: ${{ vars.PRODUCTION_S3_BUCKET }}
+      cloudfront-distribution-id: ${{ vars.PRODUCTION_CLOUDFRONT_DISTRIBUTION_ID }}
+      site-url: ${{ vars.PRODUCTION_URL }}
+      google-client-id: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+      api-base-url: ${{ vars.PRODUCTION_VITE_API_BASE_URL }}
+      require-sentry: true
+      sentry-org: ${{ vars.SENTRY_ORG }}
+      sentry-project: ${{ vars.SENTRY_PROJECT }}
+      sentry-dsn: ${{ vars.VITE_SENTRY_DSN }}
+    secrets:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}

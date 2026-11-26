@@ -2,7 +2,6 @@
 import { sentryVitePlugin } from '@sentry/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { msw } from 'msw/vite';
 import path from 'node:path';
 import { defineConfig } from 'vite';
 
@@ -11,11 +10,9 @@ const isSourceMapUploadEnabled = Boolean(process.env.SENTRY_AUTH_TOKEN);
 
 // https://vite.dev/config/
 export default defineConfig({
-  // msw(): 개발 서버에서만 MSW worker 파일을 건네준다. build에는 virtual:msw를 쓰는 코드가 남을 때만 넣는다.
   plugins: [
     react(),
     tailwindcss(),
-    msw(),
     // Sentry 플러그인은 다른 플러그인보다 뒤에 둔다. org·project는 SENTRY_ORG·SENTRY_PROJECT 환경 변수에서 읽는다.
     sentryVitePlugin({
       disable: !isSourceMapUploadEnabled,
@@ -35,6 +32,9 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, './src'),
     },
   },
+  // 서버의 ALLOWED_ORIGINS와 구글 OAuth '승인된 JavaScript 원본'에 이 주소(http://localhost:8080)를 적어야 해서 포트를 고정한다.
+  // 8080이 이미 쓰이고 있으면 다른 포트로 바꾸지 않고 오류로 알린다.
+  server: { port: 8080, strictPort: true },
   build: {
     sourcemap: isSourceMapUploadEnabled ? 'hidden' : false,
     rolldownOptions: {

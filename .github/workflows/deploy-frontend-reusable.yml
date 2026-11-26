@@ -1,0 +1,187 @@
+name: Deploy Frontend (Reusable)
+
+# 운영·개발 웹 배포가 함께 쓰는 본문이다. 직접 실행하지 않고 deploy-frontend-production.yml,
+# deploy-frontend-development.yml에서 호출한다.
+# 호출하는 워크플로 최상위에 permissions(contents: read, id-token: write)를 두어야 하고,
+# 호출하는 job에는 environment를 쓰면 안 된다(OIDC sub가 바뀌어 AWS가 거부한다).
+on:
+  workflow_call:
+    inputs:
+      environment-name:
+        description: 요약·오류 메시지에 쓰는 환경 이름 (예 Production, Development)
+        type: string
+        required: true
+      aws-account-id:
+        type: string
+        required: true
+      aws-deploy-role-arn:
+        type: string
+        required: true
+      s3-bucket:
+        type: string
+        required: true
+      cloudfront-distribution-id:
+        type: string
+        required: true
+      site-url:
+        type: string
+        required: true
+      google-client-id:
+        type: string
+        required: true
+      api-base-url:
+        description:
+          웹이 호출할 API 주소(예 https://bo.knockdog.net/api/v0/admin). 비우면 같은 주소의 /api/v0/admin을 쓴다
+        type: string
+        default: ''
+      require-sentry:
+        description: true이면 Sentry 값(토큰·org·project·DSN)을 필수로 검증한다
+        type: boolean
+        default: false
+      sentry-org:
+        type: string
+        default: ''
+      sentry-project:
+        type: string
+        default: ''
+      sentry-dsn:
+        type: string
+        default: ''
+    secrets:
+      SENTRY_AUTH_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to S3 and CloudFront
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_REGION: ap-northeast-2
+      ENVIRONMENT_NAME: ${{ inputs.environment-name }}
+      REQUIRE_SENTRY: ${{ inputs.require-sentry }}
+      AWS_ACCOUNT_ID: ${{ inputs.aws-account-id }}
+      AWS_DEPLOY_ROLE_ARN: ${{ inputs.aws-deploy-role-arn }}
+      S3_BUCKET: ${{ inputs.s3-bucket }}
+      CLOUDFRONT_DISTRIBUTION_ID: ${{ inputs.cloudfront-distribution-id }}
+      SITE_URL: ${{ inputs.site-url }}
+      VITE_GOOGLE_CLIENT_ID: ${{ inputs.google-client-id }}
+      VITE_API_BASE_URL: ${{ inputs.api-base-url }}
+      SENTRY_ORG: ${{ inputs.sentry-org }}
+      SENTRY_PROJECT: ${{ inputs.sentry-project }}
+      VITE_SENTRY_DSN: ${{ inputs.sentry-dsn }}
+
+    steps:
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          required_variables=(
+            AWS_ACCOUNT_ID
+            AWS_DEPLOY_ROLE_ARN
+            S3_BUCKET
+            CLOUDFRONT_DISTRIBUTION_ID
+            SITE_URL
+            VITE_GOOGLE_CLIENT_ID
+          )
+
+          if [[ "${REQUIRE_SENTRY}" == "true" ]]; then
+            required_variables+=(
+              SENTRY_AUTH_TOKEN
+              SENTRY_ORG
+              SENTRY_PROJECT
+              VITE_SENTRY_DSN
+            )
+          fi
+
+          for variable_name in "${required_variables[@]}"; do
+            if [[ -z "${!variable_name}" ]]; then
+              echo "::error::${ENVIRONMENT_NAME} deployment setting ${variable_name} is empty. Check the GitHub Actions variable or secret that feeds it."
+              exit 1
+            fi
+          done
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # 커밋 연결에 전체 커밋 기록이 필요하다.
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: pnpm --filter @daeng/web build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+          mask-aws-account-id: true
+
+      - name: Upload hashed assets to S3
+        run: |
+          aws s3 sync apps/web/dist/assets "s3://${S3_BUCKET}/assets" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Upload entry files to S3
+        run: |
+          aws s3 sync apps/web/dist "s3://${S3_BUCKET}" \
+            --delete \
+            --exclude "assets/*" \
+            --cache-control "no-cache,no-store,must-revalidate"
+
+      - name: Refresh CloudFront cache
+        id: invalidate-cloudfront
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          invalidation_id="$(
+            aws cloudfront create-invalidation \
+              --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+              --paths "/*" \
+              --query 'Invalidation.Id' \
+              --output text
+          )"
+
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+            --id "${invalidation_id}"
+
+      - name: Check deployed site
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --location \
+            --retry 5 \
+            --retry-delay 5 \
+            "${SITE_URL}" > /dev/null
+
+      - name: Write deployment summary
+        run: |
+          echo "### ${ENVIRONMENT_NAME} deployment completed" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Target: S3 + CloudFront" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- URL: ${SITE_URL}" >> "${GITHUB_STEP_SUMMARY}"

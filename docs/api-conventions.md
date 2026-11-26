@@ -12,18 +12,18 @@ OpenAPI 명세를 쓰기 전에 프론트와 서버가 합의하는 공통 규�
 
 ## 현재 웹 구현과의 차이
 
-`apps/web`의 가짜 API(MSW)와 타입(`src/type/api.ts`)은 기존 앱 API의 OpenAPI 문서를 기준으로 만들어져 있다. 요청 주소는
-이미 이 규약의 `/api/v0/admin`으로 맞췄다. 이 규약을 채택하면 아래를 고쳐야 한다.
+`apps/web`의 타입(`src/type/api.ts`)은 기존 앱 API의 OpenAPI 문서를 기준으로 만들어져 있다. 요청 주소는 이미 이 규약의
+`/api/v0/admin`으로 맞췄다. 이 규약을 채택하면 아래를 고쳐야 한다.
 
 | 항목      | 현재 웹이 가정한 것                                    | 이 규약                                    |
 | --------- | ------------------------------------------------------ | ------------------------------------------ |
 | 성공 응답 | `{ data, status, code, message, responseTime }`로 감쌈 | 감싸지 않음                                |
 | 에러      | `{ status, code, message, errorMessage }`              | `{ code, message, details? }`              |
 | 페이지    | `page` 0부터, `totalElements`, `hasNext`               | `page` 1부터, `totalItems`, `hasNext` 없음 |
-| 시각      | 오프셋 미확정(가짜 API에 `Z`와 `+09:00`이 섞여 있음)   | ISO 8601 UTC                               |
+| 시각      | 오프셋 미확정                                          | ISO 8601 UTC                               |
 
-영향받는 파일은 `src/type/api.ts`, `src/api/mocks/util/response.ts`, 가짜 API 핸들러, `.data.data`로 응답을 읽는 요청
-함수와 라우트 파일(약 16개)이다. 아직 구현되지 않은 화면에는 영향이 없다.
+영향받는 파일은 `src/type/api.ts`, `.data.data`로 응답을 읽는 요청 함수와 라우트 파일(약 16개)이다. 아직 구현되지 않은
+화면에는 영향이 없다.
 
 ## 1. 성공 응답
 

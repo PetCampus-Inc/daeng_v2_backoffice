@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { lazy, Suspense } from 'react';
 import { Navigate, useLocation } from 'react-router';
 
 import { useGoogleLogin } from '@/api/auth';
@@ -9,12 +8,6 @@ import { handleApiError } from '@/api/handle-api-error';
 import { cn } from '@/util/cn';
 import { formatDocumentTitle, PAGES } from '@/util/page-config';
 import { GoogleSignInButton } from '@/routes/login/ui/google-sign-in-button';
-
-/**
- * 개발 서버(가짜 API)에서만 구글 버튼 대신 쓰는 개발용 계정 고르기.
- * main.tsx의 MSW처럼 `import.meta.env.DEV`로 막은 동적 import라 배포 build에는 코드가 들어가지 않는다.
- */
-const DevAccountPicker = import.meta.env.DEV ? lazy(() => import('@/routes/login/ui/dev-account-picker')) : null;
 
 /** 안내 박스 문구와 색(PRD 7.1). 빨간 박스는 바로 알리고, 파란 박스는 상태로 알린다. */
 const LOGIN_NOTICES: Record<LoginNotice, { message: string; role: 'alert' | 'status'; className: string }> = {
@@ -47,7 +40,7 @@ export default function LoginRoute() {
     return <Navigate to={from ?? PAGES.home.path} replace />;
   }
 
-  /** 구글(개발 서버에서는 개발용 계정 고르기)이 준 ID 토큰으로 로그인한다. 로그인 중 다시 누른 것은 무시한다. */
+  /** 구글이 준 ID 토큰으로 로그인한다. 로그인 중 다시 누른 것은 무시한다. */
   const handleCredential = (credential: string) => {
     if (googleLoginMutation.isPending) return;
     googleLoginMutation.mutate(
@@ -84,13 +77,7 @@ export default function LoginRoute() {
             {notice.message}
           </div>
         )}
-        {DevAccountPicker ? (
-          <Suspense>
-            <DevAccountPicker disabled={googleLoginMutation.isPending} onCredential={handleCredential} />
-          </Suspense>
-        ) : (
-          <GoogleSignInButton onCredential={handleCredential} />
-        )}
+        <GoogleSignInButton onCredential={handleCredential} />
         <p className='text-kd-caption text-kd-foreground-muted'>등록된 팀원 계정만 로그인할 수 있습니다.</p>
       </div>
     </main>
