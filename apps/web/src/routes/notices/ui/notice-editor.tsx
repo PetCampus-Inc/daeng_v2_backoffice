@@ -1,13 +1,15 @@
 import { useIsMutating } from '@tanstack/react-query';
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { CircleCheckIcon } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/ui/atoms/card';
+import { Card, CardContent } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/atoms/tabs';
 import { handleApiError } from '@/api/handle-api-error';
 import { RichContentEditor } from '@/ui/organisms/rich-content-editor';
 import { RichContentViewer } from '@/ui/organisms/rich-content-viewer';
@@ -28,7 +30,7 @@ import {
   confirmNoticeImages,
   createNoticeBody,
   getNoticeText,
-  NOTICE_IMAGE_ACCEPT,
+  NOTICE_IMAGE_RULE,
   validateNotice,
 } from '../util/notice-policy';
 import { useNoticeListSearchParams } from '../util/list-search-params';
@@ -211,14 +213,6 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
   const handleCancelEdit = () =>
     void navigate({ pathname: `${PAGES.notices.path}/${savedNotice!.id}`, search: listSearch });
 
-  const handleTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const nextTab =
-      event.key === 'Home' ? 'write' : event.key === 'End' ? 'preview' : activeTab === 'write' ? 'preview' : 'write';
-    setActiveTab(nextTab);
-    document.getElementById(`notice-${nextTab}-tab`)?.focus();
-  };
   const titleError =
     validation.titleCount > 50
       ? `제목은 50자까지 입력할 수 있습니다. ${validation.titleCount - 50}자를 줄여 주세요.`
@@ -332,117 +326,91 @@ export function NoticeEditor({ notice, onPublished }: { notice?: Notice; onPubli
         {isImageUploading && <span role='status'>이미지를 올리는 중…</span>}
         <span className='ml-auto'>* {isDraft ? '게시할 때 필수' : '필수 입력'}</span>
       </div>
-      <div
-        role='tablist'
-        aria-label='공지 작성 보기'
-        onKeyDown={handleTabKeyDown}
-        className='mt-4 flex gap-2 min-[1200px]:hidden'
-      >
-        <Button
-          id='notice-write-tab'
-          role='tab'
-          aria-selected={activeTab === 'write'}
-          tabIndex={activeTab === 'write' ? 0 : -1}
-          aria-controls='notice-write-panel'
-          variant={activeTab === 'write' ? 'default' : 'outline'}
-          onClick={() => setActiveTab('write')}
-        >
-          작성
-        </Button>
-        <Button
-          id='notice-preview-tab'
-          role='tab'
-          aria-selected={activeTab === 'preview'}
-          tabIndex={activeTab === 'preview' ? 0 : -1}
-          aria-controls='notice-preview-panel'
-          variant={activeTab === 'preview' ? 'default' : 'outline'}
-          onClick={() => setActiveTab('preview')}
-        >
-          미리보기
-        </Button>
-      </div>
-      <div className='mt-4 grid grid-cols-[minmax(0,1fr)_360px] items-start gap-6 max-[1200px]:grid-cols-1'>
-        <Card
-          id='notice-write-panel'
-          role='tabpanel'
-          aria-labelledby='notice-write-tab'
-          className={activeTab !== 'write' ? 'max-[1200px]:hidden' : ''}
-        >
-          <CardContent className='space-y-6 pt-6'>
-            <div className='space-y-2'>
-              <div className='flex items-center justify-between gap-2'>
-                <Label htmlFor='notice-title'>제목 *</Label>
-                <span className='text-kd-caption text-kd-foreground-muted'>{validation.titleCount} / 50</span>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className='mt-4'>
+        <TabsList aria-label='공지 작성 보기' className='mb-4 min-[1200px]:hidden'>
+          <TabsTrigger value='write'>에디터</TabsTrigger>
+          <TabsTrigger value='preview'>미리보기</TabsTrigger>
+        </TabsList>
+        <div className='grid grid-cols-[minmax(0,1fr)_360px] items-start gap-6 max-[1199px]:grid-cols-1'>
+          <TabsContent asChild forceMount value='write'>
+            <Card className={activeTab !== 'write' ? 'max-[1199px]:hidden' : ''}>
+              <CardContent className='space-y-6 pt-6'>
+                <div className='space-y-2'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <Label htmlFor='notice-title'>제목 *</Label>
+                    <span className='text-kd-caption text-kd-foreground-muted'>{validation.titleCount} / 50</span>
+                  </div>
+                  <Input
+                    id='notice-title'
+                    placeholder='공지 제목을 입력해 주세요'
+                    value={title}
+                    aria-invalid={!!titleError}
+                    aria-describedby={titleError ? 'notice-title-error' : undefined}
+                    onChange={(event) => setTitle(event.target.value)}
+                    disabled={isPending && !isAutoSaving}
+                  />
+                  {titleError && (
+                    <p id='notice-title-error' className='text-kd-caption text-kd-error-foreground'>
+                      {titleError}
+                    </p>
+                  )}
+                </div>
+                <div className='space-y-2'>
+                  <div className='flex items-center justify-between gap-2'>
+                    <Label htmlFor='notice-body' onClick={() => document.getElementById('notice-body')?.focus()}>
+                      본문 *
+                    </Label>
+                    <span className='text-kd-caption text-kd-foreground-muted'>
+                      {validation.bodyCount.toLocaleString()} / 5,000
+                    </span>
+                  </div>
+                  <RichContentEditor
+                    id='notice-body'
+                    placeholder='앱에 표시할 공지 내용을 입력해 주세요'
+                    value={body}
+                    aria-invalid={!!bodyError}
+                    aria-describedby={bodyError ? 'notice-body-error' : undefined}
+                    onChange={setBody}
+                    readOnly={isPending && !isAutoSaving}
+                    imageUpload={{
+                      ...NOTICE_IMAGE_RULE,
+                      isUploading: isImageUploading,
+                      upload: imageUpload.upload,
+                      confirmed: confirmedImages,
+                    }}
+                  />
+                  {bodyError && (
+                    <p id='notice-body-error' className='text-kd-caption text-kd-error-foreground'>
+                      {bodyError}
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent asChild forceMount value='preview'>
+            <aside
+              aria-label='앱 공지 미리보기'
+              className={`mx-auto flex w-full max-w-[360px] flex-col self-stretch min-[1200px]:h-0 min-[1200px]:min-h-full ${activeTab !== 'preview' ? 'max-[1199px]:hidden' : ''}`}
+            >
+              <p className='mb-3 text-kd-sub font-semibold text-kd-foreground-muted'>앱 미리보기</p>
+              <div className='flex min-h-0 flex-col overflow-hidden rounded-[32px] border-4 border-kd-neutral-200 bg-kd-background shadow-kd-float min-[1200px]:flex-1'>
+                <div className='mx-auto mt-3 h-1.5 w-16 shrink-0 rounded-full bg-kd-neutral-200' />
+                <div className='shrink-0 border-b border-kd-border px-5 py-4 text-center text-kd-body font-bold'>
+                  공지사항
+                </div>
+                <div className='h-[32rem] overflow-y-auto p-5 [overflow-wrap:anywhere] min-[1200px]:h-auto min-[1200px]:min-h-0 min-[1200px]:flex-1'>
+                  <h2 className='text-kd-title-2'>{title || '공지 제목'}</h2>
+                  <p className='mt-2 text-kd-caption text-kd-foreground-muted'>
+                    {savedNotice?.publishedAt ? formatDate(savedNotice.publishedAt) : formatDate(previewDate)}
+                  </p>
+                  <RichContentViewer value={body} className='mt-6' />
+                </div>
               </div>
-              <Input
-                id='notice-title'
-                placeholder='공지 제목을 입력해 주세요'
-                value={title}
-                aria-invalid={!!titleError}
-                aria-describedby={titleError ? 'notice-title-error' : undefined}
-                onChange={(event) => setTitle(event.target.value)}
-                disabled={isPending && !isAutoSaving}
-              />
-              {titleError && (
-                <p id='notice-title-error' className='text-kd-caption text-kd-error-foreground'>
-                  {titleError}
-                </p>
-              )}
-            </div>
-            <div className='space-y-2'>
-              <div className='flex items-center justify-between gap-2'>
-                <Label htmlFor='notice-body' onClick={() => document.getElementById('notice-body')?.focus()}>
-                  본문 *
-                </Label>
-                <span className='text-kd-caption text-kd-foreground-muted'>
-                  {validation.bodyCount.toLocaleString()} / 5,000
-                </span>
-              </div>
-              <RichContentEditor
-                id='notice-body'
-                placeholder='앱에 표시할 공지 내용을 입력해 주세요'
-                value={body}
-                aria-invalid={!!bodyError}
-                aria-describedby={bodyError ? 'notice-body-error' : undefined}
-                onChange={setBody}
-                readOnly={isPending && !isAutoSaving}
-                imageUpload={{
-                  accept: NOTICE_IMAGE_ACCEPT,
-                  isUploading: isImageUploading,
-                  upload: imageUpload.upload,
-                  confirmed: confirmedImages,
-                }}
-              />
-              {bodyError && (
-                <p id='notice-body-error' className='text-kd-caption text-kd-error-foreground'>
-                  {bodyError}
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        <aside
-          id='notice-preview-panel'
-          role='tabpanel'
-          aria-label='앱 공지 미리보기'
-          className={`mx-auto flex w-full max-w-[360px] flex-col self-stretch min-[1200px]:h-0 min-[1200px]:min-h-full ${activeTab !== 'preview' ? 'max-[1200px]:hidden' : ''}`}
-        >
-          <p className='mb-3 text-kd-sub font-semibold text-kd-foreground-muted'>앱 미리보기</p>
-          <div className='flex min-h-0 flex-col overflow-hidden rounded-[32px] border-4 border-kd-neutral-200 bg-kd-background shadow-kd-float min-[1200px]:flex-1'>
-            <div className='mx-auto mt-3 h-1.5 w-16 shrink-0 rounded-full bg-kd-neutral-200' />
-            <div className='shrink-0 border-b border-kd-border px-5 py-4 text-center text-kd-body font-bold'>
-              공지사항
-            </div>
-            <div className='h-[32rem] overflow-y-auto p-5 [overflow-wrap:anywhere] min-[1200px]:h-auto min-[1200px]:min-h-0 min-[1200px]:flex-1'>
-              <h2 className='text-kd-title-2'>{title || '공지 제목'}</h2>
-              <p className='mt-2 text-kd-caption text-kd-foreground-muted'>
-                {savedNotice?.publishedAt ? formatDate(savedNotice.publishedAt) : formatDate(previewDate)}
-              </p>
-              <RichContentViewer value={body} className='mt-6' />
-            </div>
-          </div>
-        </aside>
-      </div>
+            </aside>
+          </TabsContent>
+        </div>
+      </Tabs>
       <ConfirmDialog
         open={isPublishOpen}
         onOpenChange={(open) => !isPending && setIsPublishOpen(open)}
@@ -469,19 +437,22 @@ export function NoticePublished({ notice, onView }: { notice: Notice; onView: ()
     <>
       <title>{formatDocumentTitle('공지 게시 완료')}</title>
       <Card>
-        <CardHeader className='pt-16 text-center'>
-          <CardTitle>공지를 게시했습니다.</CardTitle>
-        </CardHeader>
-        <CardContent className='pb-16 text-center'>
-          <p className='text-kd-body text-kd-foreground-muted'>{formatDate(notice.publishedAt)}</p>
-          <div className='mt-6 flex justify-center gap-2'>
-            <Button
-              variant='outline'
-              onClick={() => void navigate({ pathname: PAGES.notices.path, search: listSearch })}
-            >
+        <CardContent className='space-y-4 py-10'>
+          <div className='flex flex-col items-center gap-3 pb-2 text-center'>
+            <CircleCheckIcon aria-hidden className='size-10 text-kd-success-foreground' />
+            <h1 className='text-kd-title-1'>공지가 게시되었어요</h1>
+          </div>
+          <div className='rounded-kd-3 bg-kd-surface px-4 py-4'>
+            <p className='text-kd-sub text-kd-foreground-muted'>게시된 공지</p>
+            <p className='mt-1 text-kd-title-2 [overflow-wrap:anywhere]'>{notice.title}</p>
+          </div>
+          <div className='grid grid-cols-2 gap-3'>
+            <Button variant='outline' onClick={onView}>
+              공지 보기
+            </Button>
+            <Button onClick={() => void navigate({ pathname: PAGES.notices.path, search: listSearch })}>
               목록으로
             </Button>
-            <Button onClick={onView}>공지 보기</Button>
           </div>
         </CardContent>
       </Card>

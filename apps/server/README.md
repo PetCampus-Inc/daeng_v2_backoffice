@@ -38,9 +38,16 @@ pnpm db:migrate  # 대상 DB에 새 마이그레이션 적용
 
 ## 배포
 
-운영 배포는 `main`에 서버 관련 파일이 머지되면 GitHub Actions의 `Deploy Server`가 자동으로 하고, 같은 워크플로를 `main`
-브랜치로 수동 실행할 수도 있다. 방식과 이유는 [ADR 0018](../../docs/adr/0018-bo-server-deploy.md)에 있다. 환경 변수는
-Infisical `prod` 값을 쓰고, 필수 이름은 `deploy/prepare-env.mjs`가 배포 전에 검증한다.
+서버 관련 파일이 머지되면 GitHub Actions의 `Deploy Server`가 브랜치에 따라 자동으로 배포한다. 같은 워크플로를 그
+브랜치에서 수동 실행할 수도 있다. 필수 환경 변수 이름은 `deploy/prepare-env.mjs`가 배포 전에 검증한다.
+
+| 브랜치 | 서버                       | AWS 계정     | Infisical |
+| ------ | -------------------------- | ------------ | --------- |
+| `dev`  | 개발 `dev-bo.knockdog.net` | 294556736127 | `staging` |
+| `main` | 운영 `bo.knockdog.net`     | 147525197222 | `prod`    |
+
+방식과 이유는 [ADR 0018](../../docs/adr/0018-bo-server-deploy.md)과 [ADR 0019](../../docs/adr/0019-bo-dev-server.md)에
+있다. 개발 계정의 배포 자원(ECR, 배포 역할)은 [`infra/bo-server-deploy.yml`](../../infra/bo-server-deploy.yml)로 만든다.
 
 ## 검사
 

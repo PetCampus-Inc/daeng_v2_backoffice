@@ -27,6 +27,9 @@ const PLAIN_NAMES = REQUIRED_NAMES.filter((name) => !/PASSWORD|KEY$/.test(name))
 // 컨테이너 안에서는 자기 자신을 가리키는 주소라 DB에 닿지 않는다. 도커 네트워크의 이름(mysql)을 써야 한다.
 const SELF_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0']);
 
+// 오류 메시지에 쓰는 Infisical 환경 이름(운영 prod, 개발 서버 staging). 워크플로가 넘겨준다.
+const INFISICAL_ENV = process.env.INFISICAL_ENV || 'prod';
+
 const LINE_PATTERN = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/;
 
 // docker run --env-file은 값을 감싼 따옴표를 벗기지 않으므로 KEY=VALUE 형태로 정리한다.
@@ -71,7 +74,7 @@ export function findProblems({ entries, invalidLines }) {
   const problems = invalidLines.map((line) => `${line}번째 줄이 KEY=VALUE 형식이 아닙니다`);
   const values = new Map(entries);
   for (const name of REQUIRED_NAMES) {
-    if (!values.get(name)) problems.push(`Infisical prod에 ${name}이 없거나 비어 있습니다`);
+    if (!values.get(name)) problems.push(`Infisical ${INFISICAL_ENV}에 ${name}이 없거나 비어 있습니다`);
   }
   for (const name of PLAIN_NAMES) {
     const value = values.get(name);
@@ -82,7 +85,9 @@ export function findProblems({ entries, invalidLines }) {
   for (const name of ['DB_HOST', 'SERVICE_DB_HOST']) {
     const value = values.get(name);
     if (value && SELF_HOSTS.has(value.toLowerCase())) {
-      problems.push(`${name}이 컨테이너 자기 자신을 가리킵니다. 운영에서는 도커 네트워크의 이름 mysql을 사용하세요`);
+      problems.push(
+        `${name}이 컨테이너 자기 자신을 가리킵니다. 배포 서버에서는 도커 네트워크의 이름 mysql을 사용하세요`
+      );
     }
   }
   const origins = values.get('ALLOWED_ORIGINS');
@@ -91,9 +96,17 @@ export function findProblems({ entries, invalidLines }) {
       'ALLOWED_ORIGINS는 https://도메인 형태를 쉼표로 구분해야 합니다. 경로, 끝의 /, 따옴표는 넣을 수 없습니다'
     );
   }
-  // 운영에서는 개발용 로그인을 켜지 않는다.
+  // 배포 서버는 HTTPS라 쿠키 Secure를 끌 이유가 없다. 끄면 COOKIE_SAME_SITE=none일 때 서버가 시작하지 않는다.
+  if (values.get('COOKIE_SECURE') === 'false') {
+    problems.push('배포 서버에서는 COOKIE_SECURE=false를 사용할 수 없습니다. 값을 지우면 true입니다');
+  }
+  const sameSite = values.get('COOKIE_SAME_SITE');
+  if (sameSite && sameSite !== 'lax' && sameSite !== 'none') {
+    problems.push('COOKIE_SAME_SITE는 lax 또는 none(소문자)이어야 합니다. 값을 지우면 lax입니다');
+  }
+  // 배포 서버(운영·개발)에서는 개발용 로그인을 켜지 않는다. HTTPS라 COOKIE_SECURE=false가 필요한 이 기능과 맞지 않는다.
   if (values.get('DEV_LOGIN_ENABLED') === 'true') {
-    problems.push('운영 환경에서 DEV_LOGIN_ENABLED=true는 사용할 수 없습니다');
+    problems.push('배포 서버에서는 DEV_LOGIN_ENABLED=true를 사용할 수 없습니다');
   }
   return problems;
 }

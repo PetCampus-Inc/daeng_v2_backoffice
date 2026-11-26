@@ -1,3 +1,5 @@
+import { useRetainedList } from '@/api/use-retained-list';
+import { RetainedListError } from '@/ui/molecules/retained-list-error';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { VERIFICATION_STATUS_LABELS } from '@/type/verification-status-ui';
@@ -53,11 +55,9 @@ export default function OwnerVerificationsRoute() {
     }
     pageTriggerRef.current = null;
   }, [verificationsQuery.isFetching]);
-  const items = verificationsQuery.data?.items ?? [];
-  const totalPages = verificationsQuery.data?.totalPages ?? 0;
-  const isTransitioning = verificationsQuery.isPlaceholderData;
-  // 실패한 조건을 다시 시도하는 중에는 다른 조건의 이전 표 대신 불러오는 중으로 보인다(S-인증-024).
-  const isRetrying = isTransitioning && verificationsQuery.errorUpdatedAt > 0;
+  const { data, hasError, isTransitioning, isShowingPrevious } = useRetainedList(verificationsQuery, email);
+  const items = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 0;
   // 조회 중인 이전 결과나 지금 목록에 없는 번호는 고른 건으로 보지 않는다(S-인증-017).
   const selectedItem =
     selected === null || isTransitioning || !verificationsQuery.isSuccess
@@ -71,7 +71,7 @@ export default function OwnerVerificationsRoute() {
   };
   /** 페이지를 옮기면 고른 건을 푼다. 다른 페이지의 건이 패널에 남지 않게 한다. */
   const handleChangePage = (nextPage: number, trigger: HTMLButtonElement) => {
-    if (nextPage === page) return;
+    if (isShowingPrevious || nextPage === page) return;
     pageTriggerRef.current = trigger;
     void setSearchParams({ page: nextPage === 1 ? null : nextPage, selected: null });
   };
@@ -88,7 +88,7 @@ export default function OwnerVerificationsRoute() {
   };
   /** 행을 고르면 주소의 고른 건만 바꾼다. 기록은 교체한다(4.3). 조건 전환 중 남아 있는 이전 행은 고르지 않는다. */
   const handleSelectVerification = (id: number) => {
-    if (isTransitioning) return;
+    if (isShowingPrevious) return;
     void setSearchParams({ selected: id });
   };
 
@@ -139,15 +139,16 @@ export default function OwnerVerificationsRoute() {
                 필터 초기화
               </Button>
             )}
-            {verificationsQuery.isSuccess && !isRetrying && (
+            {data !== undefined && (
               <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-                {isTransitioning ? '조회 중…' : `총 ${verificationsQuery.data.totalItems.toLocaleString('ko-KR')}건`}
+                {isTransitioning ? '조회 중…' : `총 ${data.totalItems.toLocaleString('ko-KR')}건`}
               </p>
             )}
           </div>
-          {verificationsQuery.isPending || isRetrying ? (
+          {hasError && data && <RetainedListError onRetry={handleRetry} />}
+          {verificationsQuery.isPending && !data ? (
             <ListState kind='loading' />
-          ) : verificationsQuery.isError ? (
+          ) : verificationsQuery.isError && !data ? (
             <ListState kind='error' onAction={handleRetry} />
           ) : isTransitioning && items.length === 0 ? (
             <p role='status' className='px-4 py-14 text-center text-kd-foreground-muted'>
@@ -188,7 +189,7 @@ export default function OwnerVerificationsRoute() {
                           <button
                             type='button'
                             aria-pressed={isSelected}
-                            aria-disabled={isTransitioning}
+                            aria-disabled={isShowingPrevious}
                             className='flex items-center gap-3 rounded-kd-2 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kd-primary focus-visible:outline-solid'
                             onClick={(event) => {
                               event.stopPropagation();
@@ -222,7 +223,7 @@ export default function OwnerVerificationsRoute() {
                   <PaginationContent>
                     <PaginationItem>
                       <PaginationPrevious
-                        disabled={page <= 1 || isTransitioning}
+                        disabled={page <= 1 || isShowingPrevious}
                         onClick={(event) => handleChangePage(page - 1, event.currentTarget)}
                       />
                     </PaginationItem>
@@ -230,7 +231,7 @@ export default function OwnerVerificationsRoute() {
                       <PaginationItem key={pageNumber}>
                         <PaginationButton
                           isActive={pageNumber === page}
-                          disabled={isTransitioning}
+                          disabled={isShowingPrevious}
                           onClick={(event) => handleChangePage(pageNumber, event.currentTarget)}
                         >
                           {pageNumber}
@@ -239,7 +240,7 @@ export default function OwnerVerificationsRoute() {
                     ))}
                     <PaginationItem>
                       <PaginationNext
-                        disabled={page >= totalPages || isTransitioning}
+                        disabled={page >= totalPages || isShowingPrevious}
                         onClick={(event) => handleChangePage(page + 1, event.currentTarget)}
                       />
                     </PaginationItem>

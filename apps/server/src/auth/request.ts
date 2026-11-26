@@ -1,4 +1,5 @@
 import type { MemberRow } from '../database/schema.js';
+import type { CookieSameSite } from './auth.constants.js';
 
 // express 타입을 따로 설치하지 않아서 쓰는 부분만 적는다.
 export interface AuthRequest {
@@ -11,7 +12,7 @@ export interface AuthRequest {
 export interface CookieOptions {
   httpOnly: boolean;
   secure: boolean;
-  sameSite: 'lax';
+  sameSite: CookieSameSite;
   path: string;
   maxAge?: number;
 }

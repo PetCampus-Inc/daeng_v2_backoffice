@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  BO 서버 배포에 필요한 AWS 자원(ECR 저장소, GitHub Actions 배포 역할, 서버 역할의 BO 이미지 받기 권한). 서버(EC2),
+  스테이징 버킷, GitHub OIDC 제공자는 v1 저장소의 knockdog-base 스택이 만든 것을 그대로 쓴다.
+
+# 개발 계정(294556736127)에 배포한다. 운영 계정의 같은 자원은 이 템플릿 이전에 손으로 만들었다(ADR 0018).
+#
+#   aws cloudformation deploy --profile knockdog-dev --region ap-northeast-2 \
+#     --stack-name knockdog-backoffice-dev --template-file infra/bo-server-deploy.yml \
+#     --capabilities CAPABILITY_NAMED_IAM \
+#     --parameter-overrides EnvName=dev GithubBranch=dev InstanceId=i-0368d89a37823af9e
+#
+# 출력의 DeployRoleArn, RepositoryUri를 .github/workflows/deploy-server.yml의 개발 설정과 맞춘다.
+
+Parameters:
+  EnvName:
+    Type: String
+    AllowedPattern: '^[a-z]+$'
+    Description: 역할 이름과 스테이징 경로에 들어가는 환경 이름(예 dev)
+  GithubRepo:
+    Type: String
+    Default: PetCampus-Inc/daeng_v2_backoffice
+  # 이 저장소는 GitHub OIDC의 변하지 않는 주체 형식(use_immutable_subject)을 쓴다. 토큰의 sub가
+  # repo:<조직>@<조직 ID>/<저장소>@<저장소 ID>:ref:... 형태로 온다. 확인:
+  #   gh api repos/PetCampus-Inc/daeng_v2_backoffice/actions/oidc/customization/sub
+  GithubImmutableRepo:
+    Type: String
+    Default: PetCampus-Inc@139346164/daeng_v2_backoffice@1426403466
+  GithubBranch:
+    Type: String
+    Description: 배포 역할을 쓸 수 있는 브랜치. 이 브랜치에서 실행된 워크플로만 역할을 받는다
+  InstanceId:
+    Type: AWS::EC2::Instance::Id
+    Description: BO 컨테이너를 띄울 서버
+  InstanceRoleName:
+    Type: String
+    Default: knockdog-api-instance
+    Description: 서버의 인스턴스 역할(knockdog-base 스택이 만든 것)
+  StagingBucketName:
+    Type: String
+    Default: ''
+    Description: 배포 파일을 잠깐 두는 버킷. 비우면 knockdog-<계정 ID>-deploy-staging
+
+Conditions:
+  DefaultStagingBucket: !Equals [!Ref StagingBucketName, '']
+
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: knockdog-backoffice-server
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        # 배포 한 번에 이미지가 2개(서버, 마이그레이션) 생기므로 최근 10번 배포 분을 남긴다.
+        LifecyclePolicyText: >-
+          {"rules":[{"rulePriority":1,"description":"keep last 20
+          images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub knockdog-backoffice-${EnvName}-deploy
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                # 저장소 설정이 바뀌어도 동작하도록 두 형식을 모두 받는다. 둘 다 같은 저장소·브랜치만 가리킨다.
+                token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GithubImmutableRepo}:ref:refs/heads/${GithubBranch}
+                  - !Sub repo:${GithubRepo}:ref:refs/heads/${GithubBranch}
+      Policies:
+        - PolicyName: deploy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !GetAtt Repository.Arn
+              # 서버 스크립트와 .env를 올리는 경로. 서버 역할은 releases/* 읽기·삭제를 이미 갖고 있다.
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub
+                  - arn:${AWS::Partition}:s3:::${Bucket}/releases/knockdog-backoffice-${EnvName}-deploy/*
+                  - Bucket:
+                      !If [
+                        DefaultStagingBucket,
+                        !Sub 'knockdog-${AWS::AccountId}-deploy-staging',
+                        !Ref StagingBucketName,
+                      ]
+              - Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${InstanceId}
+                  - !Sub arn:${AWS::Partition}:ssm:${AWS::Region}::document/AWS-RunShellScript
+              - Effect: Allow
+                Action: ssm:GetCommandInvocation
+                Resource: '*'
+
+  # 서버 역할의 기존 정책(knockdog-base 스택 관리)은 건드리지 않고 BO 이미지 받기 권한만 따로 붙인다.
+  # ECR 로그인(GetAuthorizationToken)은 기존 정책에 있다.
+  InstanceEcrPullPolicy:
+    Type: AWS::IAM::RolePolicy
+    Properties:
+      RoleName: !Ref InstanceRoleName
+      PolicyName: knockdog-backoffice-ecr-pull
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - ecr:BatchCheckLayerAvailability
+              - ecr:BatchGetImage
+              - ecr:GetDownloadUrlForLayer
+            Resource: !GetAtt Repository.Arn
+
+Outputs:
+  DeployRoleArn:
+    Value: !GetAtt DeployRole.Arn
+  RepositoryUri:
+    Value: !GetAtt Repository.RepositoryUri

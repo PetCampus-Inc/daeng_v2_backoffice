@@ -1,9 +1,10 @@
 name: Deploy Server
 
-# main에 서버 이미지에 영향을 주는 파일이 머지되면 자동 배포하고, 필요하면 수동으로도 실행한다.
+# 서버 이미지에 영향을 주는 파일이 머지되면 dev는 개발 서버에, main은 운영 서버에 자동 배포한다.
+# 수동 실행도 dev·main 브랜치에서만 된다. 각 배포 역할이 자기 브랜치에서 실행된 워크플로만 받아 준다.
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
     paths:
       - apps/server/**
       - packages/**
@@ -14,9 +15,9 @@ on:
       - .github/workflows/deploy-server.yml
   workflow_dispatch:
 
-# 배포가 겹치면 서버에서 컨테이너 교체가 충돌하므로 순서대로 하나씩 실행
+# 배포가 겹치면 서버에서 컨테이너 교체가 충돌하므로 환경마다 순서대로 하나씩 실행
 concurrency:
-  group: deploy-server
+  group: deploy-server-${{ github.ref_name }}
   cancel-in-progress: false
 
 # AWS 인증은 장기 액세스 키 대신 GitHub OIDC로 IAM 역할을 받아 사용
@@ -26,16 +27,49 @@ permissions:
 
 env:
   AWS_REGION: ap-northeast-2
-  DEPLOY_ROLE_ARN: arn:aws:iam::147525197222:role/knockdog-backoffice-production-deploy
-  DEPLOY_BUCKET: knockdog-147525197222-deploy-staging
-  INSTANCE_ID: i-089ed680dd40bcebe
-  ECR_REPOSITORY: 147525197222.dkr.ecr.ap-northeast-2.amazonaws.com/knockdog-backoffice-server
   DOCKER_NETWORK: ec2-user_default
   HOST_PORT: '3000'
 
 jobs:
+  # 브랜치로 배포할 환경을 고른다. 개발 계정 자원은 infra/bo-server-deploy.yml로 만든다.
+  config:
+    runs-on: ubuntu-24.04
+    outputs:
+      deploy-name: ${{ steps.pick.outputs.deploy-name }}
+      deploy-role-arn: ${{ steps.pick.outputs.deploy-role-arn }}
+      deploy-bucket: ${{ steps.pick.outputs.deploy-bucket }}
+      instance-id: ${{ steps.pick.outputs.instance-id }}
+      ecr-repository: ${{ steps.pick.outputs.ecr-repository }}
+      infisical-env: ${{ steps.pick.outputs.infisical-env }}
+
+    steps:
+      - name: Pick environment
+        id: pick
+        run: |
+          case "$GITHUB_REF_NAME" in
+            main) account=147525197222 instance=i-089ed680dd40bcebe name=production infisical=prod ;;
+            dev) account=294556736127 instance=i-0368d89a37823af9e name=dev infisical=staging ;;
+            *)
+              echo "::error::dev 또는 main 브랜치에서만 배포할 수 있습니다"
+              exit 1
+              ;;
+          esac
+          {
+            echo "deploy-name=knockdog-backoffice-${name}-deploy"
+            echo "deploy-role-arn=arn:aws:iam::${account}:role/knockdog-backoffice-${name}-deploy"
+            echo "deploy-bucket=knockdog-${account}-deploy-staging"
+            echo "instance-id=${instance}"
+            echo "ecr-repository=${account}.dkr.ecr.${AWS_REGION}.amazonaws.com/knockdog-backoffice-server"
+            echo "infisical-env=${infisical}"
+          } >> "$GITHUB_OUTPUT"
+          echo "배포 대상: ${name} (계정 ${account}, Infisical ${infisical})" >> "$GITHUB_STEP_SUMMARY"
+
   build:
     runs-on: ubuntu-24.04
+    needs: config
+    env:
+      DEPLOY_ROLE_ARN: ${{ needs.config.outputs.deploy-role-arn }}
+      ECR_REPOSITORY: ${{ needs.config.outputs.ecr-repository }}
 
     steps:
       - name: Checkout
@@ -64,7 +98,14 @@ jobs:
 
   deploy:
     runs-on: ubuntu-24.04
-    needs: build
+    needs: [config, build]
+    env:
+      DEPLOY_NAME: ${{ needs.config.outputs.deploy-name }}
+      DEPLOY_ROLE_ARN: ${{ needs.config.outputs.deploy-role-arn }}
+      DEPLOY_BUCKET: ${{ needs.config.outputs.deploy-bucket }}
+      INSTANCE_ID: ${{ needs.config.outputs.instance-id }}
+      ECR_REPOSITORY: ${{ needs.config.outputs.ecr-repository }}
+      INFISICAL_ENV: ${{ needs.config.outputs.infisical-env }}
 
     steps:
       - name: Checkout
@@ -76,7 +117,7 @@ jobs:
           role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Infisical prod 값으로 .env를 만든다. 값은 로그에 출력하지 않는다.
+      # Infisical 환경(운영 prod, 개발 staging) 값으로 .env를 만든다. 값은 로그에 출력하지 않는다.
       - name: Fetch secrets from Infisical
         uses: Infisical/secrets-action@v1.0.16
         with:
@@ -84,7 +125,7 @@ jobs:
           client-id: ${{ secrets.INFISICAL_CLIENT_ID }}
           client-secret: ${{ secrets.INFISICAL_CLIENT_SECRET }}
           project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
-          env-slug: prod
+          env-slug: ${{ env.INFISICAL_ENV }}
           export-type: file
 
       - name: Normalize and validate .env

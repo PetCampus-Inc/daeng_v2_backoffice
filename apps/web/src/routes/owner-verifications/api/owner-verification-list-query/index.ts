@@ -1,4 +1,5 @@
 import type { UseQueryOptions } from '@tanstack/react-query';
+import { retryWhileOnline } from '@/api/retry-while-online';
 import {
   getListServiceVerificationsQueryKey,
   type ListServiceVerificationsQueryError,
@@ -32,6 +33,8 @@ export const verificationListQueryOptions = (
   email: string,
   request: ListServiceVerificationsParams
 ): Partial<UseQueryOptions<ServiceVerificationPage, ListServiceVerificationsQueryError>> => ({
+  meta: { errorToast: { id: 'owner-verifications-list-error', message: '목록 조회에 실패했습니다.' } },
+  retry: retryWhileOnline,
   queryKey: [...getListServiceVerificationsQueryKey(request), email],
   placeholderData: (previousData, previousQuery) =>
     previousQuery?.queryKey.at(-1) === email ? previousData : undefined,

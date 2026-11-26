@@ -20,7 +20,7 @@ export function readSessionId(request: AuthRequest): string | undefined {
 }
 
 function cookieOptions(config: AuthConfig): CookieOptions {
-  return { httpOnly: true, secure: config.cookieSecure, sameSite: 'lax', path: '/' };
+  return { httpOnly: true, secure: config.cookieSecure, sameSite: config.cookieSameSite, path: '/' };
 }
 
 export function setSessionCookie(response: CookieResponse, config: AuthConfig, sessionId: string): void {

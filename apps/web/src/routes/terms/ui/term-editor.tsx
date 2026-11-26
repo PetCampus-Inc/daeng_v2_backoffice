@@ -1,7 +1,6 @@
 import { memo, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router';
-import { Tabs } from 'radix-ui';
 import { useIsMutating } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { handleApiError } from '@/api/handle-api-error';
@@ -10,6 +9,7 @@ import { useLeaveGuard } from '@/store/leave-guard';
 import { Button } from '@/ui/atoms/button';
 import { Card, CardContent } from '@/ui/atoms/card';
 import { Input } from '@/ui/atoms/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/atoms/tabs';
 import { RichContentEditor } from '@/ui/organisms/rich-content-editor';
 import { RichContentViewer } from '@/ui/organisms/rich-content-viewer';
 import type { RichContent } from '@/type/rich-content';
@@ -319,20 +319,13 @@ export function TermEditor({
         <span role='status'>{isPending && !isAutoSaving ? '처리 중… 입력은 처리 후 수정할 수 있습니다.' : ''}</span>
         <span className='ml-auto'>* 공개할 때 필수</span>
       </div>
-      <Tabs.Root value={activeTab} onValueChange={setActiveTab} className='mt-4 min-w-0'>
-        <Tabs.List aria-label='약관 작성 보기' className='mb-4 flex gap-2 min-[1200px]:hidden'>
-          {['write', 'preview'].map((value) => (
-            <Tabs.Trigger
-              key={value}
-              value={value}
-              className='rounded-kd-2 border border-kd-border px-4 py-2 outline-none focus-visible:ring-2 focus-visible:ring-kd-primary data-[state=active]:bg-kd-primary data-[state=active]:text-white'
-            >
-              {value === 'write' ? '작성' : '미리보기'}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className='mt-4'>
+        <TabsList aria-label='약관 작성 보기' className='mb-4 min-[1200px]:hidden'>
+          <TabsTrigger value='write'>에디터</TabsTrigger>
+          <TabsTrigger value='preview'>미리보기</TabsTrigger>
+        </TabsList>
         <div className='grid min-w-0 grid-cols-[minmax(0,1fr)_360px] items-start gap-6 max-[1199px]:grid-cols-1'>
-          <Tabs.Content
+          <TabsContent
             forceMount
             value='write'
             className={`min-w-0 ${activeTab !== 'write' ? 'max-[1199px]:hidden' : ''}`}
@@ -400,8 +393,8 @@ export function TermEditor({
                 </div>
               </CardContent>
             </Card>
-          </Tabs.Content>
-          <Tabs.Content
+          </TabsContent>
+          <TabsContent
             forceMount
             value='preview'
             className={`min-w-0 ${activeTab !== 'preview' ? 'max-[1199px]:hidden' : ''}`}
@@ -420,9 +413,9 @@ export function TermEditor({
                 </div>
               </div>
             </aside>
-          </Tabs.Content>
+          </TabsContent>
         </div>
-      </Tabs.Root>
+      </Tabs>
       <ConfirmDialog
         open={publishOpen}
         onOpenChange={(value) => !isPending && setPublishOpen(value)}

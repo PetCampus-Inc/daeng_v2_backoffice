@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { handleApiError } from '@/api/handle-api-error';
 import type { NoticeImageFileContentType, NoticeImageUploadUrl } from '../../type';
 import { getNoticeImageErrorMessage, NOTICE_IMAGE_FAILED_MESSAGE, readNoticeError } from '../../util/notice-error';
-import { checkNoticeImageFiles } from '../../util/notice-policy';
 import { useCreateNoticeImageUploadUrls } from '../use-notices';
 
 /** 올리기에 성공한 이미지. 본문에 이미지 블록으로 넣고, 공지를 저장하면 서버가 확정한다. */
@@ -31,9 +30,9 @@ export async function putNoticeImageFile(uploadUrl: string, file: File): Promise
 }
 
 /**
- * 공지 본문 이미지 업로드. 형식·용량·장수는 서버에 묻기 전에 막고, 통과하면 업로드 주소를 받아 파일을 올린다.
- * 올리기에 성공한 이미지만 돌려주므로 실패한 이미지는 본문에 들어가지 않는다. 실패 안내는 토스트로 띄운다.
- * `noticeId`는 이미 저장된 공지에 추가할 때만 서버에 보낸다.
+ * 공지 본문 이미지 업로드. 편집기가 규칙(`NOTICE_IMAGE_RULE`)과 손상 검사로 올려도 되는 파일만 가려 넘기면,
+ * 그 파일의 업로드 주소를 받아 올린다. 올리기에 성공한 이미지만 돌려주므로 실패한 이미지는 본문에 들어가지 않는다.
+ * 올리기 실패 안내는 토스트로 띄운다. `noticeId`는 이미 저장된 공지에 추가할 때만 서버에 보낸다.
  */
 export function useNoticeImageUpload(noticeId?: number) {
   const issueMutation = useCreateNoticeImageUploadUrls();
@@ -48,14 +47,9 @@ export function useNoticeImageUpload(noticeId?: number) {
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
-  /** 고른 파일을 올린다. `currentImageCount`는 지금 본문에 든 이미지 수다. */
-  const upload = async (files: File[], currentImageCount: number): Promise<UploadedNoticeImage[]> => {
+  /** 편집기가 올려도 된다고 가린 파일을 올린다. */
+  const upload = async (files: File[]): Promise<UploadedNoticeImage[]> => {
     if (files.length === 0 || isBusy.current) return [];
-    const message = checkNoticeImageFiles(files, currentImageCount);
-    if (message) {
-      toast.error(message);
-      return [];
-    }
     isBusy.current = true;
     setUploadingCount(files.length);
     try {

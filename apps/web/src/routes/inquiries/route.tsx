@@ -1,3 +1,5 @@
+import { useRetainedList } from '@/api/use-retained-list';
+import { RetainedListError } from '@/ui/molecules/retained-list-error';
 import { useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { useListReturnPosition } from '@/util/use-list-return-position';
@@ -49,8 +51,9 @@ export default function InquiriesRoute() {
   const request = toInquiryListRequest(listParams, page);
   const inquiriesQuery = useListInquiries(request, { query: inquiryListQueryOptions(currentEmail, request) });
   const assigneesQuery = useListInquiryAssignees({ query: inquiryAssigneesQueryOptions(currentEmail) });
-  const inquiries = (inquiriesQuery.data?.items ?? []).map(toInquirySummary);
-  const totalPages = inquiriesQuery.data?.totalPages ?? 0;
+  const { data, hasError, isTransitioning, isShowingPrevious } = useRetainedList(inquiriesQuery, currentEmail);
+  const inquiries = (data?.items ?? []).map(toInquirySummary);
+  const totalPages = data?.totalPages ?? 0;
   const hasCondition =
     listParams.keyword.trim() !== '' ||
     listParams.status !== 'all' ||
@@ -59,7 +62,7 @@ export default function InquiriesRoute() {
   const isListShown = inquiriesQuery.isSuccess;
   const saveReturnPosition = useListReturnPosition(
     `inquiries:${currentEmail}:${listSearch}`,
-    isListShown && !inquiriesQuery.isPlaceholderData
+    isListShown && !isTransitioning
   );
 
   /** 검색·필터를 바꾸면 1페이지로 간다(PRD 4.4). */
@@ -75,12 +78,12 @@ export default function InquiriesRoute() {
     void inquiriesQuery.refetch();
   };
   const handleChangePage = (nextPage: number) => {
-    if (inquiriesQuery.isPlaceholderData || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    if (isShowingPrevious || nextPage < 1 || nextPage > totalPages || nextPage === page) return;
     void setSearchParams({ page: nextPage === 1 ? null : nextPage });
   };
   /** 지금 목록 조건을 상세 주소에 이어 붙여 이전·다음 문의와 목록 복귀에 쓴다. */
   const handleOpenInquiry = (id: number) => {
-    if (inquiriesQuery.isPlaceholderData) return;
+    if (isShowingPrevious) return;
     saveReturnPosition(id);
     void navigate({ pathname: `${PAGES.inquiries.path}/${id}`, search: listSearch });
   };
@@ -180,17 +183,18 @@ export default function InquiriesRoute() {
               필터 초기화
             </Button>
           )}
-          {isListShown && (
+          {data !== undefined && (
             <p role='status' className='ml-auto text-kd-sub text-kd-foreground-muted tabular-nums'>
-              {inquiriesQuery.isPlaceholderData ? '조회 중…' : `총 ${inquiriesQuery.data.totalItems}건`}
+              {isTransitioning ? '조회 중…' : `총 ${data.totalItems}건`}
             </p>
           )}
         </div>
-        {inquiriesQuery.isPending ? (
+        {hasError && data && <RetainedListError onRetry={handleRetry} />}
+        {inquiriesQuery.isPending && !data ? (
           <ListState kind='loading' />
-        ) : inquiriesQuery.isError ? (
+        ) : inquiriesQuery.isError && !data ? (
           <ListState kind='error' onAction={handleRetry} />
-        ) : inquiriesQuery.isPlaceholderData && inquiries.length === 0 ? (
+        ) : isTransitioning && inquiries.length === 0 ? (
           <p
             role='status'
             className='flex min-h-48 items-center justify-center px-4 py-14 text-center text-kd-foreground-muted'
@@ -233,7 +237,7 @@ export default function InquiriesRoute() {
                     <TableCell className='max-w-80'>
                       <button
                         type='button'
-                        aria-disabled={inquiriesQuery.isPlaceholderData}
+                        aria-disabled={isShowingPrevious}
                         data-list-item-id={inquiry.id}
                         className='block max-w-full truncate rounded-kd-2 text-left font-semibold outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kd-primary focus-visible:outline-solid'
                         onClick={(event) => {
@@ -259,7 +263,7 @@ export default function InquiriesRoute() {
                   <PaginationItem>
                     <PaginationPrevious
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page <= 1 || inquiriesQuery.isPlaceholderData}
+                      aria-disabled={page <= 1 || isShowingPrevious}
                       onClick={() => handleChangePage(page - 1)}
                     />
                   </PaginationItem>
@@ -268,7 +272,7 @@ export default function InquiriesRoute() {
                       <PaginationButton
                         isActive={pageNumber === page}
                         className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                        aria-disabled={inquiriesQuery.isPlaceholderData}
+                        aria-disabled={isShowingPrevious}
                         onClick={() => handleChangePage(pageNumber)}
                       >
                         {pageNumber}
@@ -278,7 +282,7 @@ export default function InquiriesRoute() {
                   <PaginationItem>
                     <PaginationNext
                       className='aria-disabled:cursor-not-allowed aria-disabled:text-kd-neutral-400'
-                      aria-disabled={page >= totalPages || inquiriesQuery.isPlaceholderData}
+                      aria-disabled={page >= totalPages || isShowingPrevious}
                       onClick={() => handleChangePage(page + 1)}
                     />
                   </PaginationItem>

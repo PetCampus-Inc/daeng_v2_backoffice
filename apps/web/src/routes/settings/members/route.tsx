@@ -2,6 +2,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { useRef, useState, type SubmitEvent } from 'react';
 import { handleApiError } from '@/api/handle-api-error';
+import { retryWhileOnline } from '@/api/retry-while-online';
+import { useRetainedList } from '@/api/use-retained-list';
 import { useAuthStore } from '@/store/auth';
 import { useLeaveGuard } from '@/store/leave-guard';
 import { JOB_ROLE_LABELS } from '@/type/job-role-ui';
@@ -18,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ConfirmDialog } from '@/ui/molecules/confirm-dialog';
 import { showErrorToast, showSuccessToast } from '@/ui/atoms/sonner';
 import { ListState } from '@/ui/molecules/list-state';
+import { RetainedListError } from '@/ui/molecules/retained-list-error';
 import { formatDate } from '@/util/date-format';
 import { formatDocumentTitle } from '@/util/page-config';
 import {
@@ -85,7 +88,13 @@ const MemberRoleField = ({
 export default function TeamMembersRoute() {
   const currentEmail = useAuthStore((state) => state.user?.email) ?? '';
   const queryClient = useQueryClient();
-  const membersQuery = useListTeamMembers();
+  const membersQuery = useListTeamMembers({
+    query: {
+      meta: { errorToast: { id: 'team-members-list-error', message: '목록 조회에 실패했습니다.' } },
+      retry: retryWhileOnline,
+    },
+  });
+  const membersList = useRetainedList(membersQuery, currentEmail);
   // 등록·변경이 성공하면 목록을 새로 읽는다.
   const refreshOptions = {
     mutation: { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListTeamMembersQueryKey() }) },
@@ -103,7 +112,7 @@ export default function TeamMembersRoute() {
   const [isClosePending, setIsClosePending] = useState(false);
   const registerButtonRef = useRef<HTMLButtonElement>(null);
   const memberButtonRefs = useRef(new Map<string, HTMLButtonElement>());
-  const members = membersQuery.data ?? [];
+  const members = membersList.data ?? [];
   const parsedEmail = memberEmailSchema.safeParse(memberEmail);
   const emailError = isEmailEdited && !parsedEmail.success ? '올바른 이메일 주소를 입력해 주세요.' : '';
   const isDirty = isRegisterOpen && memberEmail.length > 0;
@@ -198,9 +207,12 @@ export default function TeamMembersRoute() {
         aria-label='팀원 목록'
         className='mt-6 overflow-hidden rounded-kd-4 border border-kd-border bg-kd-background'
       >
-        {membersQuery.isPending ? (
+        {membersList.hasError && membersList.data && (
+          <RetainedListError className='pt-3' onRetry={() => void membersQuery.refetch()} />
+        )}
+        {membersQuery.isPending && !membersList.data ? (
           <ListState kind='loading' />
-        ) : membersQuery.isError ? (
+        ) : membersQuery.isError && !membersList.data ? (
           <ListState kind='error' onAction={() => void membersQuery.refetch()} />
         ) : members.length === 0 ? (
           <ListState kind='empty' />

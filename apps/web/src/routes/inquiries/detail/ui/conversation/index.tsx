@@ -5,9 +5,19 @@ import { formatDate } from '@/util/date-format';
 import { getDisplayUserName } from '@/util/display-user-name';
 import type { InquiryImage } from '../../../type';
 import type { InquiryMessage } from '../../../type/inquiry-ui';
+import { ImageViewerDialog } from './ui/image-viewer-dialog';
 
-/** 썸네일 하나(96×72). 못 불러오면 그 자리에 회색 칸 + 깨진 이미지 아이콘을 둔다. */
-function InquiryImageThumbnail({ image }: { image: InquiryImage }) {
+/** 썸네일 하나(96×72). 누르면 크게 보기(갤러리) 창이 열린다. 못 불러오면 그 자리에 회색 칸 + 깨진 이미지 아이콘을 둔다. */
+function InquiryImageThumbnail({
+  images,
+  index,
+}: {
+  /** 같은 메시지의 첨부 사진 전체. 크게 보기 창에서 이어서 넘겨 본다. */
+  images: InquiryImage[];
+  /** 이 썸네일이 가리키는 사진의 순서. */
+  index: number;
+}) {
+  const image = images[index];
   const [hasError, setHasError] = useState(false);
   return (
     <li className='flex flex-col gap-1'>
@@ -20,12 +30,20 @@ function InquiryImageThumbnail({ image }: { image: InquiryImage }) {
           <ImageOffIcon aria-hidden className='size-5' />
         </div>
       ) : (
-        <img
-          src={image.url}
-          alt={image.fileName}
-          className='h-18 w-24 rounded-kd-2 border border-kd-border object-cover'
-          onError={() => setHasError(true)}
-        />
+        <ImageViewerDialog images={images} index={index}>
+          <button
+            type='button'
+            aria-label={`${image.fileName} 크게 보기`}
+            className='cursor-zoom-in rounded-kd-2 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-kd-primary focus-visible:outline-solid'
+          >
+            <img
+              src={image.url}
+              alt={image.fileName}
+              className='h-18 w-24 rounded-kd-2 border border-kd-border object-cover'
+              onError={() => setHasError(true)}
+            />
+          </button>
+        </ImageViewerDialog>
       )}
     </li>
   );
@@ -61,8 +79,8 @@ export function Conversation({ messages }: { messages: InquiryMessage[] }) {
             </div>
             {message.images.length > 0 && (
               <ul aria-label='첨부 이미지' className='mt-1 flex flex-wrap gap-2'>
-                {message.images.map((image) => (
-                  <InquiryImageThumbnail key={image.id} image={image} />
+                {message.images.map((image, index) => (
+                  <InquiryImageThumbnail key={image.id} images={message.images} index={index} />
                 ))}
               </ul>
             )}

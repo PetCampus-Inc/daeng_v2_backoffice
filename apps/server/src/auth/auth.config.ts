@@ -1,3 +1,5 @@
+import type { CookieSameSite } from './auth.constants.js';
+
 export function readGoogleClientId(value: string | undefined): string {
   if (value === undefined || value.trim() === '') throw new Error('GOOGLE_CLIENT_ID is required');
   return value.trim();
@@ -32,6 +34,17 @@ export function readCookieSecure(value: string | undefined): boolean {
   if (value === undefined || value === '') return true;
   if (value !== 'true' && value !== 'false') throw new Error('COOKIE_SECURE must be "true" or "false"');
   return value === 'true';
+}
+
+/**
+ * 값이 없으면 `lax`다. 웹과 서버가 다른 사이트일 때(예: localhost에서 개발 서버 API 호출)만 `none`을 쓴다.
+ * 브라우저는 `SameSite=None` 쿠키를 `Secure`일 때만 받으므로 `none`은 `COOKIE_SECURE`가 켜져 있어야 한다.
+ */
+export function readCookieSameSite(value: string | undefined, cookieSecure: boolean): CookieSameSite {
+  if (value === undefined || value === '') return 'lax';
+  if (value !== 'lax' && value !== 'none') throw new Error('COOKIE_SAME_SITE must be "lax" or "none"');
+  if (value === 'none' && !cookieSecure) throw new Error('COOKIE_SAME_SITE=none requires COOKIE_SECURE=true');
+  return value;
 }
 
 /**
