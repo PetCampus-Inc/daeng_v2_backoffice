@@ -1,6 +1,12 @@
 import { Logger, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { readAllowedOrigins, readCookieSecure, readDevLoginEnabled, readGoogleClientId } from './auth.config.js';
+import {
+  readAllowedOrigins,
+  readCookieSameSite,
+  readCookieSecure,
+  readDevLoginEnabled,
+  readGoogleClientId,
+} from './auth.config.js';
 import { AccessLogService } from './access-log.service.js';
 import { AUTH_CONFIG, ID_TOKEN_VERIFIER, type AuthConfig } from './auth.constants.js';
 import { AuthController } from './auth.controller.js';
@@ -24,6 +30,7 @@ import { RoleGuard } from './role.guard.js';
           googleClientId: readGoogleClientId(process.env.GOOGLE_CLIENT_ID),
           allowedOrigins: readAllowedOrigins(process.env.ALLOWED_ORIGINS),
           cookieSecure,
+          cookieSameSite: readCookieSameSite(process.env.COOKIE_SAME_SITE, cookieSecure),
           devLoginEnabled,
         };
       },

@@ -127,35 +127,86 @@ test('server can import the shared package', () => {
   assert.ok(JOB_ROLES.includes('BE'));
 });
 
-test('server starts and stops on SIGTERM', async () => {
+async function freePort() {
   const probe = createServer();
   probe.listen(0, '127.0.0.1');
   await once(probe, 'listening');
   const port = probe.address().port;
   await new Promise((resolve, reject) => probe.close((error) => (error ? reject(error) : resolve())));
+  return port;
+}
 
+/** 실제 시작 코드(dist/main.js)를 띄우고 /health가 응답할 때까지 기다린다. */
+async function startMain(env = {}) {
+  const port = await freePort();
   const child = spawn(process.execPath, ['dist/main.js'], {
-    env: { ...process.env, PORT: String(port) },
+    env: { ...process.env, PORT: String(port), ...env },
     stdio: 'ignore',
   });
-
-  try {
-    let response;
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      try {
-        response = await fetch(`http://127.0.0.1:${port}/health`);
-        break;
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
+  let response;
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    try {
+      response = await fetch(`http://127.0.0.1:${port}/health`);
+      break;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
+  }
+  const stop = () => {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+  };
+  return { child, url: `http://127.0.0.1:${port}`, healthStatus: response?.status, stop };
+}
 
-    assert.equal(response?.status, 200);
+test('server starts and stops on SIGTERM', async () => {
+  const { child, healthStatus, stop } = await startMain();
+  try {
+    assert.equal(healthStatus, 200);
     child.kill('SIGTERM');
     const [code, signal] = await once(child, 'exit');
     assert.equal(signal, 'SIGTERM');
     assert.equal(code, null);
   } finally {
-    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    stop();
   }
+});
+
+test('CORS lets only ALLOWED_ORIGINS call the API with cookies', async () => {
+  const { url, healthStatus, stop } = await startMain();
+  try {
+    assert.equal(healthStatus, 200);
+    const preflight = (origin) =>
+      fetch(`${url}/api/v0/admin/auth/login`, {
+        method: 'OPTIONS',
+        headers: { origin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type' },
+      });
+
+    const allowed = await preflight('http://localhost:5173');
+    assert.equal(allowed.status, 204);
+    assert.equal(allowed.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+    assert.equal(allowed.headers.get('access-control-allow-credentials'), 'true');
+    assert.equal(allowed.headers.get('access-control-allow-methods'), 'GET,POST,PUT,PATCH,DELETE');
+    assert.equal(allowed.headers.get('access-control-allow-headers'), 'Content-Type');
+
+    const denied = await preflight('https://evil.example');
+    assert.equal(denied.headers.get('access-control-allow-origin'), null);
+
+    // 실제 요청의 응답(에러 포함)에도 허용 주소가 붙어야 브라우저가 응답을 읽는다.
+    const me = await fetch(`${url}/api/v0/admin/me`, { headers: { origin: 'http://localhost:5173' } });
+    assert.equal(me.status, 401);
+    assert.equal(me.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+    assert.equal(me.headers.get('access-control-allow-credentials'), 'true');
+  } finally {
+    stop();
+  }
+});
+
+test('COOKIE_SAME_SITE=none without Secure cookies prevents the server from starting', () => {
+  const result = spawnSync(process.execPath, ['dist/main.js'], {
+    env: { ...process.env, COOKIE_SAME_SITE: 'none', COOKIE_SECURE: 'false' },
+    encoding: 'utf8',
+    timeout: 5000,
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /COOKIE_SAME_SITE=none requires COOKIE_SECURE=true/);
 });

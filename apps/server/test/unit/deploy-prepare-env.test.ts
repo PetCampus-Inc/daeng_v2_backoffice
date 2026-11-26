@@ -79,3 +79,17 @@ test('findProblems checks the ALLOWED_ORIGINS format the server requires', () =>
   expect(origins('https://a.example.com/path')).toHaveLength(1);
   expect(origins('a.example.com')).toHaveLength(1);
 });
+
+test('findProblems rejects COOKIE_SECURE=false on deploy servers', () => {
+  expect(findProblems(parseEnv(`${requiredLines}\nCOOKIE_SECURE=false`))).toHaveLength(1);
+  expect(findProblems(parseEnv(`${requiredLines}\nCOOKIE_SECURE=true`))).toEqual([]);
+});
+
+test('findProblems accepts COOKIE_SAME_SITE lax or none only', () => {
+  for (const value of ['lax', 'none', '']) {
+    expect(findProblems(parseEnv(`${requiredLines}\nCOOKIE_SAME_SITE=${value}`))).toEqual([]);
+  }
+  for (const value of ['None', 'strict', 'None; Secure']) {
+    expect(findProblems(parseEnv(`${requiredLines}\nCOOKIE_SAME_SITE=${value}`))).toHaveLength(1);
+  }
+});

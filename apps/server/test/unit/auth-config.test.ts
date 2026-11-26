@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import {
   readAllowedOrigins,
+  readCookieSameSite,
   readCookieSecure,
   readDevLoginEnabled,
   readGoogleClientId,
@@ -50,5 +51,16 @@ test('dev login is off by default and only allowed without Secure cookies (local
   expect(() => readDevLoginEnabled('true', true)).toThrow(/COOKIE_SECURE=false/);
   for (const value of ['1', 'TRUE', 'yes']) {
     expect(() => readDevLoginEnabled(value, false)).toThrow(/DEV_LOGIN_ENABLED/);
+  }
+});
+
+test('COOKIE_SAME_SITE defaults to lax and allows none only with Secure cookies', () => {
+  expect(readCookieSameSite(undefined, true)).toBe('lax');
+  expect(readCookieSameSite('', false)).toBe('lax');
+  expect(readCookieSameSite('lax', false)).toBe('lax');
+  expect(readCookieSameSite('none', true)).toBe('none');
+  expect(() => readCookieSameSite('none', false)).toThrow(/COOKIE_SECURE=true/);
+  for (const value of ['Lax', 'NONE', 'strict', 'None; Secure']) {
+    expect(() => readCookieSameSite(value, true)).toThrow(/COOKIE_SAME_SITE/);
   }
 });

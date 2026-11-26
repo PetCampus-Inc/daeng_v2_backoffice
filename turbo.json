@@ -37,6 +37,7 @@
         "GOOGLE_CLIENT_ID",
         "ALLOWED_ORIGINS",
         "COOKIE_SECURE",
+        "COOKIE_SAME_SITE",
         "DEV_LOGIN_ENABLED"
       ],
       "cache": false,
